@@ -1,13 +1,10 @@
 'use strict';
 
-/* ============================================================
-   CONFIG
-   ============================================================ */
-const CLIENT_ID = '654655385029-oscipiaf48u4pnrh6t1ahnfgua1mjp43.apps.googleusercontent.com';
-const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const DATA_FILENAME = 'trade-kalender.json';
-const KNOCKOUT_THRESHOLD = 1000;
-const TAX_RATE = 0.26375; // Abgeltungsteuer 25% + Soli 5,5% (ohne Kirchensteuer)
+// ============================================================
+// app.js — Haupt-Einstiegspunkt (verbindet alle Module)
+// ============================================================
+import { CLIENT_ID, SCOPE, DATA_FILENAME, KNOCKOUT_THRESHOLD, TAX_RATE } from './config.js';
+import { $, fmtDE, fmtPlain, fmtK, setStatus } from './helpers.js';
 
 /* ============================================================
    STATE
@@ -19,30 +16,6 @@ let DATA = { trades: [], openLots: [], capital: 0 };
 let pendingImport = [];
 let pendingOpenLots = [];
 let currentDetailDate = null;
-
-/* ============================================================
-   HELPERS
-   ============================================================ */
-const $ = id => document.getElementById(id);
-
-const fmtDE = (v, d = 2) => {
-  const abs = Math.abs(v).toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
-  return (v < 0 ? '-' : '+') + abs + ' \u20ac';
-};
-const fmtPlain = (v, d = 2) => v.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
-const fmtK = v => {
-  const s = v < 0 ? '-' : '+';
-  const a = Math.abs(v);
-  return s + (a >= 1000 ? (a / 1000).toFixed(1) + 'k' : a.toFixed(0));
-};
-
-function setStatus(msg, isError) {
-  const el = $('status-bar');
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = isError ? 'var(--red)' : 'var(--muted)';
-  el.style.display = msg ? 'block' : 'none';
-}
 
 /* ============================================================
    GOOGLE AUTH (Google Identity Services, token flow)
@@ -792,13 +765,71 @@ function closeImportModal() { $('import-overlay').classList.remove('open'); }
 function handleDragOver(e) { e.preventDefault(); $('drop-zone').classList.add('dragover'); }
 function handleDragLeave() { $('drop-zone').classList.remove('dragover'); }
 function handleDrop(e) { e.preventDefault(); $('drop-zone').classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }
-function handleFileSelect(file) { if (!file) return; const r = new FileReader(); r.onload = e => parseXlsx(e.target.result); r.readAsArrayBuffer(file); }
+function handleFileSelect(file) {
+  if (!file) return;
+  // Basic file-type sanity check
+  if (!/\.xlsx$/i.test(file.name)) {
+    importError('Bitte eine .xlsx-Datei ausw\u00e4hlen (Scalable Capital Export).');
+    return;
+  }
+  const r = new FileReader();
+  r.onerror = () => importError('Datei konnte nicht gelesen werden.');
+  r.onload = e => {
+    try {
+      parseXlsx(e.target.result);
+    } catch (err) {
+      importError('Import fehlgeschlagen: ' + (err && err.message ? err.message : 'unbekannter Fehler'));
+    }
+  };
+  r.readAsArrayBuffer(file);
+}
+
+function importError(msg) {
+  const sumEl = $('import-summary');
+  if (sumEl) {
+    sumEl.textContent = msg;
+    sumEl.className = 'import-summary warn';
+    sumEl.style.display = 'block';
+  }
+  const dz = $('drop-zone');
+  if (dz) dz.style.display = 'block';
+  const prev = $('import-preview');
+  if (prev) prev.style.display = 'none';
+  const btn = $('import-confirm-btn');
+  if (btn) btn.style.display = 'none';
+}
 
 function parseXlsx(buffer) {
-  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+  let wb;
+  try {
+    wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+  } catch (e) {
+    importError('Datei ist keine g\u00fcltige XLSX (besch\u00e4digt oder falsches Format).');
+    return;
+  }
+  if (!wb.SheetNames || wb.SheetNames.length === 0) {
+    importError('Die Datei enth\u00e4lt keine Tabellenbl\u00e4tter.');
+    return;
+  }
   const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) { importError('Erstes Tabellenblatt ist leer.'); return; }
   const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+  if (rows.length === 0) { importError('Keine Datenzeilen in der Tabelle gefunden.'); return; }
+
+  // Validate required columns exist
+  const required = ['type', 'status', 'isin', 'shares', 'amount', 'date'];
+  const cols = Object.keys(rows[0] || {});
+  const missing = required.filter(c => !cols.includes(c));
+  if (missing.length > 0) {
+    importError('Spalten fehlen im Export: ' + missing.join(', ') + '. Erwartet wird ein Scalable Capital XLSX-Export.');
+    return;
+  }
+
   const filtered = rows.filter(r => (r.type === 'Buy' || r.type === 'Sell') && r.status === 'Executed');
+  if (filtered.length === 0) {
+    importError('Keine ausgef\u00fchrten Buy/Sell-Trades gefunden (Spalten type=Buy/Sell, status=Executed).');
+    return;
+  }
   filtered.sort((a, b) => {
     const da = typeof a.date === 'object' ? a.date.toISOString() : String(a.date);
     const db = typeof b.date === 'object' ? b.date.toISOString() : String(b.date);
@@ -1042,14 +1073,62 @@ window.addEventListener('DOMContentLoaded', () => {
   const renditeCard = $('s-rendite-card');
   if (renditeCard) renditeCard.onclick = setCapital;
 
-  // Register service worker
+  // Register service worker with automatic update + reload
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    let refreshing = false;
+    // When a new SW takes control, reload the page once automatically
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      // Check for updates on load
+      reg.update().catch(() => {});
+      // And check again every time the app regains focus
+      window.addEventListener('focus', () => reg.update().catch(() => {}));
+      // If an updated SW is found, let it activate immediately
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            // new version ready -> skipWaiting in SW triggers controllerchange -> auto reload
+            nw.postMessage && nw.postMessage('skipWaiting');
+          }
+        });
+      });
+    }).catch(() => {});
   }
 });
 
 // Called by the GIS script onload (see index.html)
+// Da ES-Module verzögert laden, kann Googles Script früher fertig sein.
+// Deshalb prüfen wir beim Modul-Start auch selbst, ob google schon da ist.
 function gisLoaded() {
   initAuth();
 }
 window.gisLoaded = gisLoaded;
+
+// Falls das Google-Script schon geladen war, bevor dieses Modul lief:
+if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+  initAuth();
+}
+
+// ============================================================
+// HTML-Inline-Handler global verfügbar machen
+// ============================================================
+// Die index.html ruft Funktionen direkt per onclick="..." auf.
+// In einem ES-Modul sind Funktionen NICHT automatisch global,
+// daher hängen wir die benötigten hier ans window-Objekt.
+// (Später können diese durch addEventListener im JS ersetzt werden.)
+Object.assign(window, {
+  showTab, mobileTab, toggleMobileActions, closeMobileActions,
+  openAddModalForDate, closeAddModal, saveTrade, updatePnlPreview,
+  closeEditModal, saveEdit, updateEditPreview,
+  closeDetail,
+  closeImportModal, confirmImport, handleFileSelect,
+  handleDragOver, handleDragLeave, handleDrop,
+  closeClosePosModal, confirmClosePos, setCloseTotalLoss, updateClosePreview, onCloseTaxInput
+});
+

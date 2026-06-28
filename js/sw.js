@@ -1,4 +1,4 @@
-const CACHE = 'trade-kalender-v8';
+const CACHE = 'trade-kalender-v11';
 const ASSETS = [
   './',
   './index.html',
@@ -13,22 +13,24 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-  // Always fetch app.js and index.html fresh (network-first) so updates apply
-  if (url.endsWith('app.js') || url.endsWith('index.html') || url.endsWith('/trade-kalender/')) {
+  // JS-Module, index.html, sw.js und root: immer network-first, damit Updates sofort greifen
+  if (url.includes('/js/') || url.endsWith('.js') || url.endsWith('index.html') || url.endsWith('sw.js') || url.endsWith('/trade-kalender/')) {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
-  // Never cache Google API / auth calls — always go to network
+  // Google API / auth: never cache
   if (url.includes('googleapis.com') || url.includes('accounts.google.com') || url.includes('gstatic.com')) {
     return;
   }
+  // Everything else: cache-first with network fallback
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => cached))
   );

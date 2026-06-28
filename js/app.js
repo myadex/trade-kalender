@@ -3,7 +3,7 @@
 // ============================================================
 // app.js — Haupt-Einstiegspunkt (verbindet alle Module)
 // ============================================================
-import { CLIENT_ID, SCOPE, DATA_FILENAME, KNOCKOUT_THRESHOLD, TAX_RATE } from './config.js';
+import { CLIENT_ID, SCOPE, DATA_FILENAME, KNOCKOUT_THRESHOLD, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus } from './helpers.js';
 
 /* ============================================================
@@ -1055,6 +1055,11 @@ function rebuildAll() {
    BOOT
    ============================================================ */
 window.addEventListener('DOMContentLoaded', () => {
+  // Versionsnummer im Header anzeigen
+  const vEl = $('app-version');
+  if (vEl) vEl.textContent = APP_VERSION;
+  const lvEl = $('login-version');
+  if (lvEl) lvEl.textContent = 'Version ' + APP_VERSION;
   // Wire up buttons
   $('btn-login').onclick = signIn;
   $('btn-logout').onclick = signOut;

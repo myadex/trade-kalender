@@ -20,3 +20,7 @@ export const KNOCKOUT_THRESHOLD = 1000;
 
 // Deutscher Steuersatz: 25% Abgeltungsteuer + 5,5% Soli = 26,375% (ohne Kirchensteuer)
 export const TAX_RATE = 0.26375;
+
+// App-Version — wird in der App angezeigt und sollte bei jeder Änderung erhöht werden.
+// Hilft zu erkennen, ob die neueste Version geladen ist (oder noch der Cache hängt).
+export const APP_VERSION = 'v11';

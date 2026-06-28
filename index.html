@@ -276,6 +276,7 @@ td.neg{color:var(--red);font-family:'DM Mono',monospace;font-weight:500;}
   <h1>Trade Kalender</h1>
   <p>Deine Trades werden sicher in deinem eigenen Google Drive gespeichert (Datei <strong>trade-kalender.json</strong>). Die App sieht nur diese eine Datei.</p>
   <button class="gbtn" id="btn-login">Mit Google anmelden</button>
+  <div id="login-version" style="font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6"></div>
 </div>
 
 <!-- APP -->
@@ -283,7 +284,7 @@ td.neg{color:var(--red);font-family:'DM Mono',monospace;font-weight:500;}
   <div class="header">
     <div>
       <h1>Trade Kalender</h1>
-      <p class="header-sub">Scalable Capital &middot; DAX Derivate</p>
+      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6"></span></p>
     </div>
     <div class="total-block">
       <div class="total-pnl pos" id="hdr-pnl">+0,00 &euro;</div>

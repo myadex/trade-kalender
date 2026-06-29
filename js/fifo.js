@@ -6,6 +6,7 @@
 // Das macht sie leicht testbar und wiederverwendbar.
 
 import { KNOCKOUT_THRESHOLD, TAX_RATE } from './config.js';
+import { toLocalDateStr } from './helpers.js';
 
 // ------------------------------------------------------------
 // Aggregiert Trades pro Tag → { 'YYYY-MM-DD': {pnl, rev, tax, n} }
@@ -88,8 +89,8 @@ export function tradePnl(buy, sell, tax) {
 export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
   // Sortierung: datetime + Buy-before-Sell-Tiebreak
   const sorted = rows.slice().sort((a, b) => {
-    const da = typeof a.date === 'object' ? a.date.toISOString() : String(a.date);
-    const db = typeof b.date === 'object' ? b.date.toISOString() : String(b.date);
+    const da = (typeof a.date === 'object' && a.date instanceof Date) ? toLocalDateStr(a.date) : String(a.date);
+    const db = (typeof b.date === 'object' && b.date instanceof Date) ? toLocalDateStr(b.date) : String(b.date);
     const ta = da + String(a.time) + (a.type === 'Buy' ? '0' : '1');
     const tb = db + String(b.time) + (b.type === 'Buy' ? '0' : '1');
     return ta.localeCompare(tb);
@@ -117,7 +118,7 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
     const amount = parseFloat(row.amount) || 0;
     const tax = parseFloat(row.tax) || 0;
     const dateRaw = row.date;
-    const dateStr = typeof dateRaw === 'object' ? dateRaw.toISOString().slice(0, 10) : String(dateRaw).slice(0, 10);
+    const dateStr = (typeof dateRaw === 'object' && dateRaw instanceof Date) ? toLocalDateStr(dateRaw) : String(dateRaw).slice(0, 10);
 
     if (row.type === 'Buy' && shares > 0) {
       if (!buyPools[isin]) buyPools[isin] = [];

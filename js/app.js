@@ -5,6 +5,7 @@
 // ============================================================
 import { CLIENT_ID, SCOPE, DATA_FILENAME, KNOCKOUT_THRESHOLD, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus } from './helpers.js';
+import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 
 /* ============================================================
    STATE
@@ -16,6 +17,9 @@ let DATA = { trades: [], openLots: [], capital: 0 };
 let pendingImport = [];
 let pendingOpenLots = [];
 let currentDetailDate = null;
+// Aktuell angezeigter Monat im Kalender (Jahr + Monat 0-11). Standard: aktueller Monat.
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
 
 /* ============================================================
    GOOGLE AUTH (Google Identity Services, token flow)
@@ -157,43 +161,11 @@ async function persist() {
    ============================================================ */
 function tradesByDate(date) { return DATA.trades.filter(t => t.date === date); }
 
-function dayMap() {
-  const m = {};
-  DATA.trades.forEach(t => {
-    if (!m[t.date]) m[t.date] = { pnl: 0, rev: 0, tax: 0, n: 0 };
-    m[t.date].pnl += t.pnl;
-    m[t.date].rev += t.sell;
-    m[t.date].tax += t.tax;
-    m[t.date].n += 1;
-  });
-  return m;
-}
-
-function deriveOpenPositions() {
-  const byIsin = {};
-  DATA.openLots.forEach(lot => {
-    if (!byIsin[lot.isin]) byIsin[lot.isin] = [];
-    byIsin[lot.isin].push(lot);
-  });
-  const positions = [];
-  Object.entries(byIsin).forEach(([isin, lots]) => {
-    const totalShares = lots.reduce((s, l) => s + l.shares, 0);
-    const totalCost = lots.reduce((s, l) => s + l.amount, 0);
-    const avgPrice = totalShares > 0 ? totalCost / totalShares : 0;
-    const desc = lots[0].desc;
-    const dir = desc.includes('Short') ? 'Short' : desc.includes('Call') ? 'Call' : desc.includes('Put') ? 'Put' : 'Long';
-    positions.push({
-      isin, desc, dir,
-      shares: Math.round(totalShares * 1000) / 1000,
-      cost: Math.round(totalCost * 100) / 100,
-      avgPrice: Math.round(avgPrice * 10000) / 10000,
-      since: lots[0].date,
-      lots: lots.length
-    });
-  });
-  positions.sort((a, b) => b.cost - a.cost);
-  return positions;
-}
+// dayMap und deriveOpenPositions kommen jetzt aus fifo.js (pure functions).
+// Dünne Wrapper reichen die globale DATA durch, damit der restliche Code
+// unverändert dayMapDATA()/openPositionsDATA() nutzen kann.
+function dayMapDATA() { return dayMap(DATA.trades); }
+function openPositionsDATA() { return deriveOpenPositions(DATA.openLots); }
 
 /* ============================================================
    TABS
@@ -208,7 +180,7 @@ function showTab(id) {
    STATS
    ============================================================ */
 function rebuildStats() {
-  const dm = dayMap();
+  const dm = dayMapDATA();
   const days = Object.values(dm);
   const allPnl = days.map(d => d.pnl);
   const totalPnl = allPnl.reduce((a, b) => a + b, 0);
@@ -253,22 +225,19 @@ function rebuildStats() {
    CALENDAR (GitHub-style heatmap, full year)
    ============================================================ */
 function buildCalendar() {
-  const dm = dayMap();
-  const isMobile = window.matchMedia('(max-width: 720px)').matches;
-  const CELL = isMobile ? 16 : 12;
-  const GAP = 2;
+  const dm = dayMapDATA();
   const container = $('cal-container');
   container.innerHTML = '';
 
-  const allDates = Object.keys(dm);
-  const curYear = new Date().getFullYear();
-  const minYear = allDates.length > 0 ? Math.min(...allDates.map(d => parseInt(d))) : curYear;
-  const years = [];
-  for (let y = minYear; y <= curYear; y++) years.push(y);
+  if (DATA.trades.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:2rem 0;text-align:center">Noch keine Trades. Importiere deine XLSX oder f\u00fcge einen Trade hinzu.</div>';
+    return;
+  }
 
-  const DOW = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-  const MON = ['Jan', 'Feb', 'M\u00e4r', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const MON = ['Januar', 'Februar', 'M\u00e4rz', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const DOW = ['Mo', 'Di', 'Mi', 'Do', 'Fr']; // nur Handelstage
 
+  // Farbskala je nach Tagesergebnis (relativ zum stärksten Tag des Monats)
   function dayColor(pnl, maxAbs) {
     if (!pnl || pnl === 0) return null;
     const t = Math.min(Math.abs(pnl) / maxAbs, 1);
@@ -284,150 +253,126 @@ function buildCalendar() {
       return 'rgb(' + r + ',' + g + ',' + b + ')';
     }
   }
-
-  if (years.length === 0 || DATA.trades.length === 0) {
-    container.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:2rem 0;text-align:center">Noch keine Trades. Importiere deine XLSX oder f\u00fcge einen Trade hinzu.</div>';
-    return;
+  // Heller Text auf kräftigem Hintergrund, sonst dunkel
+  function textColor(pnl, maxAbs) {
+    if (!pnl) return 'var(--ink)';
+    const t = Math.min(Math.abs(pnl) / maxAbs, 1);
+    return t > 0.5 ? '#fff' : 'var(--ink)';
   }
 
-  years.forEach(year => {
-    const jan1 = new Date(year, 0, 1);
-    const startOffset = (jan1.getDay() + 6) % 7;
-    const gridStart = new Date(jan1); gridStart.setDate(jan1.getDate() - startOffset);
-    const dec31 = new Date(year, 11, 31);
-    const endOffset = (7 - ((dec31.getDay() + 6) % 7 + 1)) % 7;
-    const gridEnd = new Date(dec31); gridEnd.setDate(dec31.getDate() + endOffset);
-    const totalDays = Math.round((gridEnd - gridStart) / 86400000) + 1;
-    const totalWeeks = totalDays / 7;
+  // --- Navigationsleiste (Vor / Monat-Jahr / Zur\u00fcck) ---
+  const nav = document.createElement('div');
+  nav.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:.5rem;';
+  const btnPrev = document.createElement('button');
+  btnPrev.textContent = '\u2039';
+  btnPrev.style.cssText = 'font-size:1.4rem;line-height:1;background:none;border:1px solid var(--border);border-radius:8px;width:40px;height:40px;cursor:pointer;color:var(--ink);flex-shrink:0;';
+  btnPrev.onclick = () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } buildCalendar(); };
+  const btnNext = document.createElement('button');
+  btnNext.textContent = '\u203a';
+  btnNext.style.cssText = btnPrev.style.cssText;
+  btnNext.onclick = () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } buildCalendar(); };
+  const title = document.createElement('div');
+  title.style.cssText = "font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:.04em;color:var(--ink);text-align:center;flex:1;";
+  title.textContent = MON[calMonth] + ' ' + calYear;
+  nav.appendChild(btnPrev);
+  nav.appendChild(title);
+  nav.appendChild(btnNext);
+  container.appendChild(nav);
 
-    const yearKeys = Object.keys(dm).filter(k => k.startsWith(year + '-'));
-    const maxAbs = yearKeys.length > 0 ? Math.max(...yearKeys.map(k => Math.abs(dm[k].pnl))) : 1;
+  // --- Monats-Statistik ---
+  const prefix = calYear + '-' + String(calMonth + 1).padStart(2, '0');
+  const mTrades = DATA.trades.filter(t => t.date.startsWith(prefix));
+  const mKeys = Object.keys(dm).filter(k => k.startsWith(prefix));
+  const maxAbs = mKeys.length > 0 ? Math.max(...mKeys.map(k => Math.abs(dm[k].pnl)), 1) : 1;
+  if (mTrades.length > 0) {
+    const mPnl = mTrades.reduce((s, t) => s + t.pnl, 0);
+    const mTax = mTrades.reduce((s, t) => s + t.tax, 0);
+    const wins = mKeys.filter(k => dm[k].pnl > 0).length;
+    const losses = mKeys.filter(k => dm[k].pnl < 0).length;
+    const sr = document.createElement('div');
+    sr.style.cssText = 'display:flex;gap:1.5rem;margin-bottom:1rem;font-family:"DM Mono",monospace;font-size:.65rem;color:var(--muted);flex-wrap:wrap;';
+    const c = mPnl >= 0 ? 'var(--green)' : 'var(--red)';
+    sr.innerHTML =
+      '<span>P&L: <strong style="color:' + c + '">' + fmtDE(mPnl) + '</strong></span>' +
+      '<span>' + mTrades.length + ' Trades</span>' +
+      '<span>' + wins + 'W / ' + losses + 'L</span>' +
+      '<span>Steuer: ' + fmtPlain(Math.abs(mTax)) + ' \u20ac</span>';
+    container.appendChild(sr);
+  } else {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-family:"DM Mono",monospace;font-size:.65rem;color:var(--muted);margin-bottom:1rem;';
+    empty.textContent = 'Keine Trades in diesem Monat.';
+    container.appendChild(empty);
+  }
 
-    const grid = [];
-    for (let w = 0; w < totalWeeks; w++) grid.push(Array(7).fill(null));
-    for (let i = 0; i < totalDays; i++) {
-      const d = new Date(gridStart); d.setDate(gridStart.getDate() + i);
-      const week = Math.floor(i / 7);
-      const dow = i % 7;
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      grid[week][dow] = { key, day: d.getDate(), isCur: d.getFullYear() === year, data: dm[key] || null };
-    }
-
-    const monthCols = {};
-    for (let mo = 0; mo < 12; mo++) {
-      const first = new Date(year, mo, 1);
-      const off = Math.round((first - gridStart) / 86400000);
-      monthCols[mo] = Math.floor(off / 7);
-    }
-
-    const section = document.createElement('div');
-    section.style.cssText = 'margin-bottom:2rem';
-
-    const yLabel = document.createElement('div');
-    yLabel.style.cssText = "font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:.06em;color:var(--ink);margin-bottom:.5rem;";
-    yLabel.textContent = year;
-    section.appendChild(yLabel);
-
-    const yTrades = DATA.trades.filter(t => t.date.startsWith(year + '-'));
-    const yPnl = yTrades.reduce((s, t) => s + t.pnl, 0);
-    const yTax = yTrades.reduce((s, t) => s + t.tax, 0);
-    const yWins = yearKeys.filter(k => dm[k].pnl > 0).length;
-    const yLosses = yearKeys.filter(k => dm[k].pnl < 0).length;
-    if (yTrades.length > 0) {
-      const sr = document.createElement('div');
-      sr.style.cssText = 'display:flex;gap:1.5rem;margin-bottom:.75rem;font-family:"DM Mono",monospace;font-size:.65rem;color:var(--muted);flex-wrap:wrap;';
-      const c = yPnl >= 0 ? 'var(--green)' : 'var(--red)';
-      sr.innerHTML =
-        '<span>P&L: <strong style="color:' + c + '">' + fmtDE(yPnl) + '</strong></span>' +
-        '<span>' + yTrades.length + ' Trades</span>' +
-        '<span>' + yWins + 'W / ' + yLosses + 'L</span>' +
-        '<span>Steuer: ' + fmtPlain(Math.abs(yTax)) + ' \u20ac</span>';
-      section.appendChild(sr);
-    }
-
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'display:flex;gap:0;overflow-x:auto;padding-bottom:4px;';
-
-    const dowCol = document.createElement('div');
-    dowCol.style.cssText = 'display:flex;flex-direction:column;gap:2px;margin-right:4px;padding-top:18px;flex-shrink:0;';
-    DOW.forEach((lbl, i) => {
-      const el = document.createElement('div');
-      el.style.cssText = 'font-family:"DM Mono",monospace;font-size:'+(isMobile?'10':'9')+'px;color:var(--muted);height:'+CELL+'px;line-height:'+CELL+'px;text-align:right;width:18px;';
-      el.textContent = (i % 2 === 0) ? lbl : '';
-      dowCol.appendChild(el);
-    });
-    wrap.appendChild(dowCol);
-
-    const area = document.createElement('div');
-    area.style.cssText = 'display:flex;flex-direction:column;';
-
-    const monthRow = document.createElement('div');
-    monthRow.style.cssText = 'display:flex;gap:2px;height:18px;margin-bottom:2px;';
-    for (let w = 0; w < totalWeeks; w++) {
-      const cell = document.createElement('div');
-      cell.style.cssText = 'width:'+CELL+'px;flex-shrink:0;font-family:"DM Mono",monospace;font-size:'+(isMobile?'10':'9')+'px;color:var(--muted);white-space:nowrap;overflow:visible;';
-      const me = Object.entries(monthCols).find(([mo, col]) => parseInt(col) === w);
-      if (me) cell.textContent = MON[parseInt(me[0])];
-      monthRow.appendChild(cell);
-    }
-    area.appendChild(monthRow);
-
-    const cellsRow = document.createElement('div');
-    cellsRow.style.cssText = 'display:flex;gap:2px;';
-    for (let w = 0; w < totalWeeks; w++) {
-      const col = document.createElement('div');
-      col.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
-      for (let d = 0; d < 7; d++) {
-        const cell = document.createElement('div');
-        const entry = grid[w][d];
-        cell.style.cssText = 'width:'+CELL+'px;height:'+CELL+'px;border-radius:2px;flex-shrink:0;';
-        if (!entry || !entry.isCur) {
-          cell.style.background = 'transparent';
-        } else if (!entry.data) {
-          cell.style.background = (d >= 5) ? 'rgba(224,219,212,0.4)' : 'var(--border)';
-          cell.style.cursor = 'pointer';
-          cell.title = entry.key;
-          (function (k) { cell.onclick = () => openDetailNew(k); })(entry.key);
-        } else {
-          cell.style.background = dayColor(entry.data.pnl, maxAbs) || 'var(--border)';
-          cell.style.cursor = 'pointer';
-          const sign = entry.data.pnl >= 0 ? '+' : '';
-          cell.title = entry.key + ': ' + sign + fmtPlain(entry.data.pnl) + ' \u20ac (' + entry.data.n + ' Trades)';
-          (function (k) { cell.onclick = () => showDetail(k); })(entry.key);
-        }
-        col.appendChild(cell);
-      }
-      cellsRow.appendChild(col);
-    }
-    area.appendChild(cellsRow);
-    wrap.appendChild(area);
-    section.appendChild(wrap);
-
-    if (year === years[0]) {
-      const legend = document.createElement('div');
-      legend.style.cssText = 'display:flex;align-items:center;gap:.4rem;margin-top:.5rem;font-family:"DM Mono",monospace;font-size:.58rem;color:var(--muted);flex-wrap:wrap;';
-      legend.innerHTML = '<span>Verlust</span>' +
-        '<div style="width:10px;height:10px;border-radius:2px;background:rgb(253,203,200)"></div>' +
-        '<div style="width:10px;height:10px;border-radius:2px;background:rgb(219,84,56)"></div>' +
-        '<div style="width:10px;height:10px;border-radius:2px;background:rgb(185,28,28)"></div>' +
-        '<span style="margin:0 .3rem">\u00b7</span>' +
-        '<div style="width:10px;height:10px;border-radius:2px;background:rgb(209,240,220)"></div>' +
-        '<div style="width:10px;height:10px;border-radius:2px;background:rgb(74,198,123)"></div>' +
-        '<div style="width:10px;height:10px;border-radius:2px;background:rgb(21,122,74)"></div>' +
-        '<span>Gewinn</span>' +
-        '<div style="width:10px;height:10px;border-radius:2px;background:var(--border);margin-left:.5rem"></div>' +
-        '<span>kein Trade</span>';
-      section.appendChild(legend);
-    }
-    container.appendChild(section);
+  // --- Wochentags-Kopfzeile (Mo-Fr) ---
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:6px;';
+  DOW.forEach(d => {
+    const h = document.createElement('div');
+    h.style.cssText = 'font-family:"DM Mono",monospace;font-size:.62rem;color:var(--muted);text-align:center;padding-bottom:.2rem;text-transform:uppercase;letter-spacing:.08em;';
+    h.textContent = d;
+    grid.appendChild(h);
   });
+
+  // --- Tageszellen ---
+  const firstOfMonth = new Date(calYear, calMonth, 1);
+  // Wochentag des Ersten (0=Mo ... 6=So); Wochenenden überspringen
+  const firstDow = (firstOfMonth.getDay() + 6) % 7;
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  // Leerzellen vor dem Ersten (nur Mo-Fr-Raster)
+  let leading = firstDow <= 4 ? firstDow : 0; // Sa/So am Anfang -> kein Vorlauf nötig
+  for (let i = 0; i < leading; i++) {
+    const blank = document.createElement('div');
+    grid.appendChild(blank);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(calYear, calMonth, day);
+    const dow = (date.getDay() + 6) % 7;
+    if (dow > 4) continue; // Sa/So überspringen
+
+    const key = calYear + '-' + String(calMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    const data = dm[key] || null;
+
+    const cell = document.createElement('div');
+    const bg = data ? (dayColor(data.pnl, maxAbs) || 'var(--surface)') : 'var(--surface)';
+    cell.style.cssText =
+      'aspect-ratio:1;border:1px solid var(--border);border-radius:8px;padding:.4rem;' +
+      'display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;' +
+      'background:' + bg + ';min-height:64px;overflow:hidden;';
+
+    const dnum = document.createElement('div');
+    dnum.style.cssText = 'font-family:"DM Mono",monospace;font-size:.72rem;font-weight:600;color:' + (data ? textColor(data.pnl, maxAbs) : 'var(--ink)') + ';';
+    dnum.textContent = String(day).padStart(2, '0') + '.';
+    cell.appendChild(dnum);
+
+    if (data) {
+      const amt = document.createElement('div');
+      const sign = data.pnl >= 0 ? '+' : '';
+      amt.style.cssText = 'font-family:"DM Mono",monospace;font-size:.7rem;font-weight:700;line-height:1.1;color:' + textColor(data.pnl, maxAbs) + ';';
+      amt.textContent = sign + Math.round(data.pnl) + '\u20ac';
+      cell.appendChild(amt);
+      const cnt = document.createElement('div');
+      cnt.style.cssText = 'font-family:"DM Mono",monospace;font-size:.52rem;opacity:.7;color:' + textColor(data.pnl, maxAbs) + ';';
+      cnt.textContent = data.n + (data.n === 1 ? ' Trade' : ' Trades');
+      cell.appendChild(cnt);
+      (function (k) { cell.onclick = () => showDetail(k); })(key);
+    } else {
+      (function (k) { cell.onclick = () => openDetailNew(k); })(key);
+    }
+    grid.appendChild(cell);
+  }
+
+  container.appendChild(grid);
 }
 
 /* ============================================================
    WEEKLY
    ============================================================ */
 function buildWeekly() {
-  const dm = dayMap();
+  const dm = dayMapDATA();
   const weeks = {};
   Object.entries(dm).forEach(([k, v]) => {
     const date = new Date(k);
@@ -455,7 +400,7 @@ function buildWeekly() {
    MONTHLY
    ============================================================ */
 function buildMonthly() {
-  const dm = dayMap();
+  const dm = dayMapDATA();
   const months = {};
   Object.entries(dm).forEach(([k, v]) => {
     const mo = k.slice(0, 7);
@@ -566,7 +511,7 @@ async function confirmClosePos() {
 function buildOpenPositions() {
   const wrap = $('open-pos-wrap');
   wrap.innerHTML = '';
-  const positions = deriveOpenPositions();
+  const positions = openPositionsDATA();
   if (positions.length === 0) {
     wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;padding:1rem 0">Keine offenen Positionen.</div>';
     return;
@@ -596,7 +541,7 @@ function buildOpenPositions() {
 function showDetail(key) {
   currentDetailDate = key;
   const trades = tradesByDate(key);
-  const dm = dayMap();
+  const dm = dayMapDATA();
   const v = dm[key] || { pnl: 0, rev: 0, tax: 0, n: 0 };
   const p = key.split('-');
   $('detail-date').textContent = p[2] + '.' + p[1] + '.' + p[0];
@@ -838,55 +783,11 @@ function parseXlsx(buffer) {
     return ta.localeCompare(tb);
   });
 
-  const isinBuyCost = {};
-  filtered.filter(r => r.type === 'Buy').forEach(r => {
-    const isin = r.isin; const amt = Math.abs(parseFloat(r.amount) || 0);
-    isinBuyCost[isin] = (isinBuyCost[isin] || 0) + amt;
-  });
-
-  // Start FIFO pools from existing open lots (so partial closes work across imports)
-  const buyPools = {};
-  DATA.openLots.forEach(lot => {
-    if (!buyPools[lot.isin]) buyPools[lot.isin] = [];
-    buyPools[lot.isin].push({ shares: lot.shares, amount: lot.amount, date: lot.date, desc: lot.desc, isin: lot.isin });
-  });
-
-  const closed = [];
-  filtered.forEach(row => {
-    const isin = row.isin;
-    const shares = parseFloat(row.shares) || 0;
-    const amount = parseFloat(row.amount) || 0;
-    const tax = parseFloat(row.tax) || 0;
-    const dateRaw = row.date;
-    const dateStr = typeof dateRaw === 'object' ? dateRaw.toISOString().slice(0, 10) : String(dateRaw).slice(0, 10);
-    if (row.type === 'Buy' && shares > 0) {
-      if (!buyPools[isin]) buyPools[isin] = [];
-      buyPools[isin].push({ shares, amount: Math.abs(amount), date: dateStr, desc: row.description, isin });
-    } else if (row.type === 'Sell' && shares > 0) {
-      const pool = buyPools[isin] || [];
-      let remaining = shares, cost = 0;
-      while (remaining > 0.001 && pool.length > 0) {
-        const b = pool[0];
-        const take = Math.min(b.shares, remaining);
-        const prop = take / b.shares;
-        cost += prop * b.amount;
-        b.amount *= (1 - prop);
-        b.shares -= take;
-        remaining -= take;
-        if (b.shares < 0.001) pool.shift();
-      }
-      const sellRev = Math.abs(amount);
-      const pnl = +(sellRev - cost - tax).toFixed(2);
-      const uid = isin + '_' + dateStr + '_' + sellRev.toFixed(2) + '_' + shares.toFixed(3);
-      closed.push({ uid, date: dateStr, isin, desc: row.description, broker: 'scalable', shares, buy: +cost.toFixed(2), sell: +sellRev.toFixed(2), tax: +tax.toFixed(2), pnl });
-    }
-  });
-
-  const newOpenLots = [];
-  Object.values(buyPools).forEach(pool => pool.forEach(lot => {
-    if (lot.shares > 0.001) newOpenLots.push(lot);
-  }));
-  pendingOpenLots = newOpenLots;
+  // FIFO-Matching über die zentrale Funktion aus fifo.js (keine Duplizierung).
+  // Knockout-Filter aus: ausgeknockte Positionen bleiben offen und können
+  // manuell geschlossen werden.
+  const { closed, openLots } = fifoMatch(filtered, DATA.openLots, false);
+  pendingOpenLots = openLots;
 
   const existingUids = new Set(DATA.trades.map(t => t.uid));
   let newCount = 0, dupCount = 0;

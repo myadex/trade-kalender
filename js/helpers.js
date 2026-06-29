@@ -22,6 +22,16 @@ export const fmtK = v => {
   return s + (a >= 1000 ? (a / 1000).toFixed(1) + 'k' : a.toFixed(0));
 };
 
+// Wandelt ein Date in einen lokalen 'YYYY-MM-DD'-String um.
+// WICHTIG: NICHT toISOString() verwenden — das rechnet in UTC um und
+// verschiebt Mitternachts-Zeiten um einen Tag zurück (Zeitzonen-Bug).
+export function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
 // Zeigt eine Statusmeldung im Header (oder versteckt sie bei leerem Text)
 export function setStatus(msg, isError) {
   const el = $('status-bar');

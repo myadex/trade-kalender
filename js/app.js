@@ -4,7 +4,7 @@
 // app.js — Haupt-Einstiegspunkt (verbindet alle Module)
 // ============================================================
 import { CLIENT_ID, SCOPE, DATA_FILENAME, KNOCKOUT_THRESHOLD, TAX_RATE, APP_VERSION } from './config.js';
-import { $, fmtDE, fmtPlain, fmtK, setStatus } from './helpers.js';
+import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 
 /* ============================================================
@@ -378,7 +378,7 @@ function buildWeekly() {
     const date = new Date(k);
     const mon = new Date(date);
     mon.setDate(date.getDate() - ((date.getDay() === 0 ? 6 : date.getDay() - 1)));
-    const wk = mon.toISOString().slice(0, 10);
+    const wk = toLocalDateStr(mon);
     if (!weeks[wk]) weeks[wk] = { pnl: 0, rev: 0, n: 0 };
     weeks[wk].pnl += v.pnl; weeks[wk].rev += v.rev; weeks[wk].n += v.n;
   });
@@ -441,7 +441,7 @@ function openClosePosModal(isin) {
   $('cp-name').textContent = lots[0].desc;
   $('cp-info').textContent = totalShares.toLocaleString('de-DE') + ' St\u00fcck \u00b7 Einstand ' + fmtPlain(totalCost, 2) + ' \u20ac';
   $('cp-cost').value = totalCost.toFixed(2);
-  $('cp-date').value = new Date().toISOString().slice(0, 10);
+  $('cp-date').value = toLocalDateStr(new Date());
   $('cp-sell').value = '';
   $('cp-tax').value = '';
   delete $('cp-tax').dataset.touched;
@@ -612,7 +612,7 @@ function openAddModalForDate() {
 }
 
 function openAddModal() {
-  if (!$('f-date').value) $('f-date').value = new Date().toISOString().slice(0, 10);
+  if (!$('f-date').value) $('f-date').value = toLocalDateStr(new Date());
   $('f-desc').value = ''; $('f-shares').value = ''; $('f-buy').value = ''; $('f-sell').value = ''; $('f-tax').value = '';
   updatePnlPreview();
   $('add-overlay').classList.add('open');
@@ -776,8 +776,8 @@ function parseXlsx(buffer) {
     return;
   }
   filtered.sort((a, b) => {
-    const da = typeof a.date === 'object' ? a.date.toISOString() : String(a.date);
-    const db = typeof b.date === 'object' ? b.date.toISOString() : String(b.date);
+    const da = (typeof a.date === 'object' && a.date instanceof Date) ? toLocalDateStr(a.date) : String(a.date);
+    const db = (typeof b.date === 'object' && b.date instanceof Date) ? toLocalDateStr(b.date) : String(b.date);
     const ta = da + String(a.time) + (a.type === 'Buy' ? '0' : '1');
     const tb = db + String(b.time) + (b.type === 'Buy' ? '0' : '1');
     return ta.localeCompare(tb);
@@ -909,7 +909,7 @@ function exportCSV() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'trade-kalender-' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.download = 'trade-kalender-' + toLocalDateStr(new Date()) + '.csv';
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -955,7 +955,7 @@ function rebuildAll() {
 /* ============================================================
    BOOT
    ============================================================ */
-window.addEventListener('DOMContentLoaded', () => {
+function bootApp() {
   // Versionsnummer im Header anzeigen
   const vEl = $('app-version');
   if (vEl) vEl.textContent = APP_VERSION;
@@ -1006,7 +1006,16 @@ window.addEventListener('DOMContentLoaded', () => {
       });
     }).catch(() => {});
   }
-});
+}
+
+// ES-Module laufen "deferred" — d.h. DOMContentLoaded kann schon vorbei sein,
+// wenn dieses Modul ausgeführt wird. Deshalb starten wir bootApp direkt,
+// falls das DOM bereits geladen ist, sonst warten wir auf das Event.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootApp);
+} else {
+  bootApp();
+}
 
 // Called by the GIS script onload (see index.html)
 // Da ES-Module verzögert laden, kann Googles Script früher fertig sein.

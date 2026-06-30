@@ -3,9 +3,10 @@
 // ============================================================
 // app.js — Haupt-Einstiegspunkt (verbindet alle Module)
 // ============================================================
-import { CLIENT_ID, SCOPE, DATA_FILENAME, KNOCKOUT_THRESHOLD, TAX_RATE, APP_VERSION } from './config.js';
+import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
+import { findDataFile, downloadData, createData, updateData } from './storage.js';
 
 /* ============================================================
    STATE
@@ -74,75 +75,26 @@ async function onSignedIn() {
 /* ============================================================
    GOOGLE DRIVE DATA LAYER
    ============================================================ */
-async function driveFetch(url, opts = {}) {
-  opts.headers = Object.assign({}, opts.headers, { Authorization: 'Bearer ' + accessToken });
-  const r = await fetch(url, opts);
-  if (r.status === 401) {
-    throw new Error('Sitzung abgelaufen \u2014 bitte neu anmelden.');
-  }
-  return r;
-}
-
-async function findDataFile() {
-  const q = encodeURIComponent("name='" + DATA_FILENAME + "' and trashed=false");
-  const url = 'https://www.googleapis.com/drive/v3/files?q=' + q + '&spaces=drive&fields=files(id,name)';
-  const r = await driveFetch(url);
-  const j = await r.json();
-  if (j.files && j.files.length > 0) return j.files[0].id;
-  return null;
-}
+// Die reine Drive-Kommunikation lebt jetzt in storage.js (zustandslos).
+// Hier bleiben nur die Funktionen, die den App-Zustand (accessToken,
+// driveFileId, DATA) mit diesen API-Aufrufen verbinden.
 
 async function loadFromDrive() {
-  driveFileId = await findDataFile();
+  driveFileId = await findDataFile(accessToken);
   if (!driveFileId) {
-    // No file yet — create empty
+    // Noch keine Datei vorhanden — leere anlegen
     DATA = { trades: [], openLots: [], capital: 0 };
-    await saveToDrive(true);
+    driveFileId = await createData(accessToken, DATA);
     return;
   }
-  const r = await driveFetch('https://www.googleapis.com/drive/v3/files/' + driveFileId + '?alt=media');
-  const text = await r.text();
-  try {
-    const parsed = JSON.parse(text);
-    DATA = {
-      trades: Array.isArray(parsed.trades) ? parsed.trades : [],
-      openLots: Array.isArray(parsed.openLots) ? parsed.openLots : [],
-      capital: typeof parsed.capital === 'number' ? parsed.capital : 0
-    };
-  } catch (e) {
-    DATA = { trades: [], openLots: [], capital: 0 };
-  }
+  DATA = await downloadData(accessToken, driveFileId);
 }
 
 async function saveToDrive(isCreate) {
-  const content = JSON.stringify(DATA, null, 2);
-  const metadata = { name: DATA_FILENAME, mimeType: 'application/json' };
-
   if (!driveFileId || isCreate) {
-    // multipart create
-    const boundary = 'tk_boundary_' + Date.now();
-    const body =
-      '--' + boundary + '\r\n' +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) + '\r\n' +
-      '--' + boundary + '\r\n' +
-      'Content-Type: application/json\r\n\r\n' +
-      content + '\r\n' +
-      '--' + boundary + '--';
-    const r = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-      method: 'POST',
-      headers: { 'Content-Type': 'multipart/related; boundary=' + boundary },
-      body
-    });
-    const j = await r.json();
-    driveFileId = j.id;
+    driveFileId = await createData(accessToken, DATA);
   } else {
-    // update media
-    await driveFetch('https://www.googleapis.com/upload/drive/v3/files/' + driveFileId + '?uploadType=media', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: content
-    });
+    await updateData(accessToken, driveFileId, DATA);
   }
 }
 

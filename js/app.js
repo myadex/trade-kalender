@@ -7,6 +7,7 @@ import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 import { findDataFile, downloadData, createData, updateData } from './storage.js';
+import { aggregateWeeks, aggregateMonths, computeStats } from './views.js';
 
 /* ============================================================
    STATE
@@ -132,45 +133,31 @@ function showTab(id) {
    STATS
    ============================================================ */
 function rebuildStats() {
-  const dm = dayMapDATA();
-  const days = Object.values(dm);
-  const allPnl = days.map(d => d.pnl);
-  const totalPnl = allPnl.reduce((a, b) => a + b, 0);
-  const totalTax = days.reduce((a, d) => a + (d.tax || 0), 0);
-  const wins = allPnl.filter(p => p > 0).length;
-  const losses = allPnl.filter(p => p < 0).length;
-  const totalTrades = days.reduce((a, d) => a + (d.n || 0), 0);
-  const avgDay = days.length > 0 ? totalPnl / days.length : 0;
-  const avgTrade = totalTrades > 0 ? totalPnl / totalTrades : 0;
-  let maxStreak = 0, cur = 0;
-  allPnl.forEach(p => { cur = p > 0 ? cur + 1 : 0; maxStreak = Math.max(maxStreak, cur); });
+  const s = computeStats(dayMapDATA(), DATA.capital);
 
-  $('hdr-pnl').textContent = fmtDE(totalPnl);
-  $('hdr-pnl').className = 'total-pnl ' + (totalPnl >= 0 ? 'pos' : 'neg');
-  $('s-winrate').textContent = ((wins + losses) > 0 ? ((wins / (wins + losses)) * 100).toFixed(1).replace('.', ',') : '0,0') + ' %';
-  $('s-wins').textContent = wins;
-  $('s-losses').textContent = losses;
-  $('s-trades').textContent = totalTrades;
-  $('s-avgday').textContent = fmtK(avgDay);
-  $('s-avgtrade').textContent = fmtK(avgTrade);
-  $('s-streak').textContent = maxStreak;
-  $('s-tax').textContent = fmtPlain(Math.abs(totalTax)) + ' \u20ac';
+  $('hdr-pnl').textContent = fmtDE(s.totalPnl);
+  $('hdr-pnl').className = 'total-pnl ' + (s.totalPnl >= 0 ? 'pos' : 'neg');
+  $('s-winrate').textContent = s.winrate.toFixed(1).replace('.', ',') + ' %';
+  $('s-wins').textContent = s.wins;
+  $('s-losses').textContent = s.losses;
+  $('s-trades').textContent = s.totalTrades;
+  $('s-avgday').textContent = fmtK(s.avgDay);
+  $('s-avgtrade').textContent = fmtK(s.avgTrade);
+  $('s-streak').textContent = s.maxStreak;
+  $('s-tax').textContent = fmtPlain(Math.abs(s.totalTax)) + ' \u20ac';
 
-  // Rendite = Netto-P&L / Einstand
-  const cap = DATA.capital || 0;
   const renditeEl = $('s-rendite');
   if (renditeEl) {
-    if (cap > 0) {
-      const rendite = (totalPnl / cap) * 100;
-      renditeEl.textContent = (rendite >= 0 ? '+' : '') + rendite.toFixed(1).replace('.', ',') + ' %';
-      renditeEl.className = 'stat-val ' + (rendite >= 0 ? 'pos' : 'neg');
+    if (s.rendite !== null) {
+      renditeEl.textContent = (s.rendite >= 0 ? '+' : '') + s.rendite.toFixed(1).replace('.', ',') + ' %';
+      renditeEl.className = 'stat-val ' + (s.rendite >= 0 ? 'pos' : 'neg');
     } else {
       renditeEl.textContent = '\u2014';
       renditeEl.className = 'stat-val';
     }
   }
   const capEl = $('s-capital');
-  if (capEl) capEl.textContent = cap > 0 ? fmtPlain(cap, 0) + ' \u20ac' : '\u2014';
+  if (capEl) capEl.textContent = s.capital > 0 ? fmtPlain(s.capital, 0) + ' \u20ac' : '\u2014';
 }
 
 /* ============================================================
@@ -324,27 +311,17 @@ function buildCalendar() {
    WEEKLY
    ============================================================ */
 function buildWeekly() {
-  const dm = dayMapDATA();
-  const weeks = {};
-  Object.entries(dm).forEach(([k, v]) => {
-    const date = new Date(k);
-    const mon = new Date(date);
-    mon.setDate(date.getDate() - ((date.getDay() === 0 ? 6 : date.getDay() - 1)));
-    const wk = toLocalDateStr(mon);
-    if (!weeks[wk]) weeks[wk] = { pnl: 0, rev: 0, n: 0 };
-    weeks[wk].pnl += v.pnl; weeks[wk].rev += v.rev; weeks[wk].n += v.n;
-  });
-  const sorted = Object.entries(weeks).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxAbs = Math.max(...sorted.map(w => Math.abs(w[1].pnl)), 1);
+  const sorted = aggregateWeeks(dayMapDATA());
+  const maxAbs = Math.max(...sorted.map(w => Math.abs(w.pnl)), 1);
   const tbody = $('weekly-tbody');
   tbody.innerHTML = '';
   if (sorted.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);padding:1rem">Keine Daten.</td></tr>'; return; }
-  sorted.forEach(([wk, v]) => {
-    const end = new Date(wk); end.setDate(end.getDate() + 4);
-    const lbl = wk.slice(8) + '.' + wk.slice(5, 7) + '.\u2013' + String(end.getDate()).padStart(2, '0') + '.' + String(end.getMonth() + 1).padStart(2, '0') + '.';
-    const pct = Math.round((Math.abs(v.pnl) / maxAbs) * 100);
-    const cls = v.pnl >= 0 ? 'pos' : 'neg';
-    tbody.innerHTML += '<tr><td>' + lbl + '</td><td class="r ' + cls + '">' + fmtDE(v.pnl) + '</td><td class="r">' + fmtPlain(v.rev, 0) + ' \u20ac</td><td class="r">' + v.n + '</td><td><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div></td></tr>';
+  sorted.forEach(({ week, pnl, rev, n }) => {
+    const end = new Date(week); end.setDate(end.getDate() + 4);
+    const lbl = week.slice(8) + '.' + week.slice(5, 7) + '.\u2013' + String(end.getDate()).padStart(2, '0') + '.' + String(end.getMonth() + 1).padStart(2, '0') + '.';
+    const pct = Math.round((Math.abs(pnl) / maxAbs) * 100);
+    const cls = pnl >= 0 ? 'pos' : 'neg';
+    tbody.innerHTML += '<tr><td>' + lbl + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td><td><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div></td></tr>';
   });
 }
 
@@ -352,30 +329,23 @@ function buildWeekly() {
    MONTHLY
    ============================================================ */
 function buildMonthly() {
-  const dm = dayMapDATA();
-  const months = {};
-  Object.entries(dm).forEach(([k, v]) => {
-    const mo = k.slice(0, 7);
-    if (!months[mo]) months[mo] = { pnl: 0, rev: 0, n: 0 };
-    months[mo].pnl += v.pnl; months[mo].rev += v.rev; months[mo].n += v.n;
-  });
-  const sorted = Object.entries(months).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxAbs = Math.max(...sorted.map(m => Math.abs(m[1].pnl)), 1);
+  const sorted = aggregateMonths(dayMapDATA());
+  const maxAbs = Math.max(...sorted.map(m => Math.abs(m.pnl)), 1);
   const MON = { '01': 'Jan', '02': 'Feb', '03': 'M\u00e4r', '04': 'Apr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Okt', '11': 'Nov', '12': 'Dez' };
   const barsWrap = $('monthly-bars-wrap');
   if (sorted.length === 0) { barsWrap.innerHTML = ''; $('monthly-tbody').innerHTML = '<tr><td colspan="4" style="color:var(--muted);padding:1rem">Keine Daten.</td></tr>'; return; }
   let bars = '<div class="monthly-bars">';
-  sorted.forEach(([mo, v]) => {
-    const pct = Math.max(Math.round((Math.abs(v.pnl) / maxAbs) * 100), 2);
-    const cls = v.pnl >= 0 ? 'pos' : 'neg';
-    bars += '<div class="month-bar-col"><div class="month-bar ' + cls + '" style="height:' + pct + '%" title="' + fmtDE(v.pnl) + '"></div><div class="month-bar-lbl">' + MON[mo.slice(5)] + '</div><div class="month-bar-val ' + cls + '">' + fmtK(v.pnl) + '</div></div>';
+  sorted.forEach(({ month, pnl }) => {
+    const pct = Math.max(Math.round((Math.abs(pnl) / maxAbs) * 100), 2);
+    const cls = pnl >= 0 ? 'pos' : 'neg';
+    bars += '<div class="month-bar-col"><div class="month-bar ' + cls + '" style="height:' + pct + '%" title="' + fmtDE(pnl) + '"></div><div class="month-bar-lbl">' + MON[month.slice(5)] + '</div><div class="month-bar-val ' + cls + '">' + fmtK(pnl) + '</div></div>';
   });
   barsWrap.innerHTML = bars + '</div>';
   const tbody = $('monthly-tbody');
   tbody.innerHTML = '';
-  sorted.forEach(([mo, v]) => {
-    const cls = v.pnl >= 0 ? 'pos' : 'neg';
-    tbody.innerHTML += '<tr><td>' + MON[mo.slice(5)] + ' ' + mo.slice(0, 4) + '</td><td class="r ' + cls + '">' + fmtDE(v.pnl) + '</td><td class="r">' + fmtPlain(v.rev, 0) + ' \u20ac</td><td class="r">' + v.n + '</td></tr>';
+  sorted.forEach(({ month, pnl, rev, n }) => {
+    const cls = pnl >= 0 ? 'pos' : 'neg';
+    tbody.innerHTML += '<tr><td>' + MON[month.slice(5)] + ' ' + month.slice(0, 4) + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td></tr>';
   });
 }
 

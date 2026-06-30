@@ -8,6 +8,7 @@ import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.j
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 import { findDataFile, downloadData, createData, updateData } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats } from './views.js';
+import { parseScalableXlsx, markDuplicates } from './import.js';
 
 /* ============================================================
    STATE
@@ -667,43 +668,10 @@ function importError(msg) {
 }
 
 function parseXlsx(buffer) {
-  let wb;
-  try {
-    wb = XLSX.read(buffer, { type: 'array', cellDates: true });
-  } catch (e) {
-    importError('Datei ist keine g\u00fcltige XLSX (besch\u00e4digt oder falsches Format).');
-    return;
-  }
-  if (!wb.SheetNames || wb.SheetNames.length === 0) {
-    importError('Die Datei enth\u00e4lt keine Tabellenbl\u00e4tter.');
-    return;
-  }
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  if (!ws) { importError('Erstes Tabellenblatt ist leer.'); return; }
-  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-  if (rows.length === 0) { importError('Keine Datenzeilen in der Tabelle gefunden.'); return; }
-
-  // Validate required columns exist
-  const required = ['type', 'status', 'isin', 'shares', 'amount', 'date'];
-  const cols = Object.keys(rows[0] || {});
-  const missing = required.filter(c => !cols.includes(c));
-  if (missing.length > 0) {
-    importError('Spalten fehlen im Export: ' + missing.join(', ') + '. Erwartet wird ein Scalable Capital XLSX-Export.');
-    return;
-  }
-
-  const filtered = rows.filter(r => (r.type === 'Buy' || r.type === 'Sell') && r.status === 'Executed');
-  if (filtered.length === 0) {
-    importError('Keine ausgef\u00fchrten Buy/Sell-Trades gefunden (Spalten type=Buy/Sell, status=Executed).');
-    return;
-  }
-  filtered.sort((a, b) => {
-    const da = (typeof a.date === 'object' && a.date instanceof Date) ? toLocalDateStr(a.date) : String(a.date);
-    const db = (typeof b.date === 'object' && b.date instanceof Date) ? toLocalDateStr(b.date) : String(b.date);
-    const ta = da + String(a.time) + (a.type === 'Buy' ? '0' : '1');
-    const tb = db + String(b.time) + (b.type === 'Buy' ? '0' : '1');
-    return ta.localeCompare(tb);
-  });
+  // Parsen + Validieren passiert in import.js (pure). Hier nur Fehleranzeige + Rendering.
+  const result = parseScalableXlsx(buffer, XLSX);
+  if (result.error) { importError(result.error); return; }
+  const filtered = result.rows;
 
   // FIFO-Matching über die zentrale Funktion aus fifo.js (keine Duplizierung).
   // Knockout-Filter aus: ausgeknockte Positionen bleiben offen und können
@@ -711,13 +679,8 @@ function parseXlsx(buffer) {
   const { closed, openLots } = fifoMatch(filtered, DATA.openLots, false);
   pendingOpenLots = openLots;
 
-  const existingUids = new Set(DATA.trades.map(t => t.uid));
-  let newCount = 0, dupCount = 0;
-  pendingImport = closed.map(t => {
-    const isDup = existingUids.has(t.uid);
-    if (isDup) dupCount++; else newCount++;
-    return Object.assign({}, t, { isDup });
-  });
+  const { marked, newCount, dupCount } = markDuplicates(closed, new Set(DATA.trades.map(t => t.uid)));
+  pendingImport = marked;
 
   const tbody = $('import-tbody');
   tbody.innerHTML = '';

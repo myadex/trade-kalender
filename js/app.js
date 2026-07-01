@@ -8,7 +8,7 @@ import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.j
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 import { findDataFile, downloadData, createData, updateData } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats } from './views.js';
-import { parseScalableXlsx, markDuplicates } from './import.js';
+import { parseScalableCsv, markDuplicates } from './import.js';
 
 /* ============================================================
    STATE
@@ -170,7 +170,7 @@ function buildCalendar() {
   container.innerHTML = '';
 
   if (DATA.trades.length === 0) {
-    container.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:2rem 0;text-align:center">Noch keine Trades. Importiere deine XLSX oder f\u00fcge einen Trade hinzu.</div>';
+    container.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:2rem 0;text-align:center">Noch keine Trades. Importiere deine CSV oder f\u00fcge einen Trade hinzu.</div>';
     return;
   }
 
@@ -620,7 +620,7 @@ async function saveEdit() {
 }
 
 /* ============================================================
-   XLSX IMPORT (FIFO, Buy-before-Sell tiebreak, UID dedup)
+   CSV IMPORT (FIFO, Buy-before-Sell tiebreak, UID dedup)
    ============================================================ */
 function openImportModal() {
   pendingImport = []; pendingOpenLots = [];
@@ -637,21 +637,21 @@ function handleDragLeave() { $('drop-zone').classList.remove('dragover'); }
 function handleDrop(e) { e.preventDefault(); $('drop-zone').classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }
 function handleFileSelect(file) {
   if (!file) return;
-  // Basic file-type sanity check
-  if (!/\.xlsx$/i.test(file.name)) {
-    importError('Bitte eine .xlsx-Datei ausw\u00e4hlen (Scalable Capital Export).');
+  // Dateityp-Check: CSV
+  if (!/\.csv$/i.test(file.name)) {
+    importError('Bitte eine .csv-Datei ausw\u00e4hlen (Scalable Capital Export).');
     return;
   }
   const r = new FileReader();
   r.onerror = () => importError('Datei konnte nicht gelesen werden.');
   r.onload = e => {
     try {
-      parseXlsx(e.target.result);
+      parseImport(e.target.result);
     } catch (err) {
       importError('Import fehlgeschlagen: ' + (err && err.message ? err.message : 'unbekannter Fehler'));
     }
   };
-  r.readAsArrayBuffer(file);
+  r.readAsText(file, 'utf-8');
 }
 
 function importError(msg) {
@@ -669,9 +669,9 @@ function importError(msg) {
   if (btn) btn.style.display = 'none';
 }
 
-function parseXlsx(buffer) {
+function parseImport(text) {
   // Parsen + Validieren passiert in import.js (pure). Hier nur Fehleranzeige + Rendering.
-  const result = parseScalableXlsx(buffer, XLSX);
+  const result = parseScalableCsv(text);
   if (result.error) { importError(result.error); return; }
   const filtered = result.rows;
 

@@ -1,9 +1,8 @@
-const CACHE = 'trade-kalender-v19';
+const CACHE = 'trade-kalender-v21';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
 ];
 
 self.addEventListener('install', e => {

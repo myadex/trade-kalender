@@ -6,9 +6,97 @@
 // Gibt entweder { error: '...' } oder { rows: [...gefilterte Zeilen] } zurück.
 // Das eigentliche FIFO-Matching und das DOM-Rendering passieren in app.js.
 
-import { toLocalDateStr } from './helpers.js';
+import { normalizeXlsxDate } from './helpers.js';
 
 const REQUIRED_COLUMNS = ['type', 'status', 'isin', 'shares', 'amount', 'date'];
+
+// ------------------------------------------------------------
+// Deutsches Zahlenformat -> Number.  "20.420,01" -> 20420.01
+// (Punkt = Tausender, Komma = Dezimal). Leere Felder -> 0.
+// ------------------------------------------------------------
+export function parseGermanNumber(s) {
+  if (s === null || s === undefined) return 0;
+  s = String(s).trim();
+  if (s === '') return 0;
+  s = s.replace(/\./g, '').replace(',', '.');
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+// ------------------------------------------------------------
+// Zerlegt eine CSV-Zeile und beachtet Anführungszeichen
+// (Felder in "..." dürfen das Trennzeichen enthalten).
+// ------------------------------------------------------------
+function parseCsvLine(line, delimiter) {
+  const fields = [];
+  let cur = '', inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (c === delimiter && !inQuotes) {
+      fields.push(cur); cur = '';
+    } else {
+      cur += c;
+    }
+  }
+  fields.push(cur);
+  return fields;
+}
+
+// ------------------------------------------------------------
+// Parst eine Scalable-Capital-CSV (Semikolon-getrennt, deutsche Zahlen).
+// Gibt { rows } oder { error } zurück — gleiche Struktur wie der XLSX-Parser,
+// damit die restliche Import-Pipeline unverändert bleibt.
+// Datum bleibt als String (z.B. "2026-07-01") — keine Zeitzonen-Umrechnung.
+// ------------------------------------------------------------
+export function parseScalableCsv(text) {
+  if (!text || String(text).trim() === '') {
+    return { error: 'Die CSV-Datei ist leer.' };
+  }
+  const allLines = String(text).split(/\r?\n/).filter(l => l.trim() !== '');
+  if (allLines.length < 2) {
+    return { error: 'Keine Datenzeilen in der CSV gefunden.' };
+  }
+  // Trennzeichen automatisch erkennen (Scalable nutzt Semikolon)
+  const first = allLines[0];
+  const delimiter = (first.split(';').length >= first.split(',').length) ? ';' : ',';
+  const headers = parseCsvLine(allLines[0], delimiter).map(h => h.trim());
+
+  const missing = REQUIRED_COLUMNS.filter(c => !headers.includes(c));
+  if (missing.length > 0) {
+    return { error: 'Spalten fehlen in der CSV: ' + missing.join(', ') + '. Erwartet wird ein Scalable Capital CSV-Export.' };
+  }
+
+  const rows = [];
+  for (let i = 1; i < allLines.length; i++) {
+    const vals = parseCsvLine(allLines[i], delimiter);
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (vals[idx] || '').trim(); });
+    // Zahlenfelder ins numerische Format bringen (wie der XLSX-Pfad es liefert)
+    obj.shares = parseGermanNumber(obj.shares);
+    obj.amount = parseGermanNumber(obj.amount);
+    obj.tax = parseGermanNumber(obj.tax);
+    rows.push(obj);
+  }
+
+  const filtered = rows.filter(r => (r.type === 'Buy' || r.type === 'Sell') && r.status === 'Executed');
+  if (filtered.length === 0) {
+    return { error: 'Keine ausgef\u00fchrten Buy/Sell-Trades gefunden (Spalten type=Buy/Sell, status=Executed).' };
+  }
+
+  // Nach datetime sortieren, bei Gleichstand Buy vor Sell
+  filtered.sort((a, b) => {
+    const da = normalizeXlsxDate(a.date);
+    const db = normalizeXlsxDate(b.date);
+    const ta = da + String(a.time) + (a.type === 'Buy' ? '0' : '1');
+    const tb = db + String(b.time) + (b.type === 'Buy' ? '0' : '1');
+    return ta.localeCompare(tb);
+  });
+
+  return { rows: filtered };
+}
 
 // ------------------------------------------------------------
 // Parst und validiert eine Scalable-Capital-XLSX.
@@ -45,8 +133,8 @@ export function parseScalableXlsx(buffer, xlsxLib) {
 
   // Nach datetime sortieren, bei Gleichstand Buy vor Sell
   filtered.sort((a, b) => {
-    const da = (typeof a.date === 'object' && a.date instanceof Date) ? toLocalDateStr(a.date) : String(a.date);
-    const db = (typeof b.date === 'object' && b.date instanceof Date) ? toLocalDateStr(b.date) : String(b.date);
+    const da = normalizeXlsxDate(a.date);
+    const db = normalizeXlsxDate(b.date);
     const ta = da + String(a.time) + (a.type === 'Buy' ? '0' : '1');
     const tb = db + String(b.time) + (b.type === 'Buy' ? '0' : '1');
     return ta.localeCompare(tb);

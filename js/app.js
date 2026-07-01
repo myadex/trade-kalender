@@ -177,27 +177,29 @@ function buildCalendar() {
   const MON = ['Januar', 'Februar', 'M\u00e4rz', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const DOW = ['Mo', 'Di', 'Mi', 'Do', 'Fr']; // nur Handelstage
 
-  // Farbskala je nach Tagesergebnis (relativ zum stärksten Tag des Monats)
+  // Farbskala für dunkles Theme: von dunkler Fläche zu kräftigem Grün/Rot.
   function dayColor(pnl, maxAbs) {
     if (!pnl || pnl === 0) return null;
     const t = Math.min(Math.abs(pnl) / maxAbs, 1);
     if (pnl > 0) {
-      const r = Math.round(232 - (232 - 21) * t);
-      const g = Math.round(245 - (245 - 122) * t);
-      const b = Math.round(238 - (238 - 74) * t);
+      // von #0d1a12 (dunkelgrün) zu #22c55e (kräftig)
+      const r = Math.round(13 + (34 - 13) * t);
+      const g = Math.round(26 + (197 - 26) * t);
+      const b = Math.round(18 + (94 - 18) * t);
       return 'rgb(' + r + ',' + g + ',' + b + ')';
     } else {
-      const r = Math.round(253 - (253 - 185) * t);
-      const g = Math.round(236 - (236 - 28) * t);
-      const b = Math.round(234 - (234 - 28) * t);
+      // von #1f1214 (dunkelrot) zu #ef4444 (kräftig)
+      const r = Math.round(31 + (239 - 31) * t);
+      const g = Math.round(18 + (68 - 18) * t);
+      const b = Math.round(20 + (68 - 20) * t);
       return 'rgb(' + r + ',' + g + ',' + b + ')';
     }
   }
-  // Heller Text auf kräftigem Hintergrund, sonst dunkel
+  // Auf kräftiger Fläche dunkler Text, auf schwacher heller Text
   function textColor(pnl, maxAbs) {
     if (!pnl) return 'var(--ink)';
     const t = Math.min(Math.abs(pnl) / maxAbs, 1);
-    return t > 0.5 ? '#fff' : 'var(--ink)';
+    return t > 0.55 ? '#0a0e14' : 'var(--ink)';
   }
 
   // --- Navigationsleiste (Vor / Monat-Jahr / Zur\u00fcck) ---
@@ -212,7 +214,7 @@ function buildCalendar() {
   btnNext.style.cssText = btnPrev.style.cssText;
   btnNext.onclick = () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } buildCalendar(); };
   const title = document.createElement('div');
-  title.style.cssText = "font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:.04em;color:var(--ink);text-align:center;flex:1;";
+  title.style.cssText = "font-family:'Chakra Petch',sans-serif;font-size:1.6rem;letter-spacing:.04em;color:var(--ink);text-align:center;flex:1;";
   title.textContent = MON[calMonth] + ' ' + calYear;
   nav.appendChild(btnPrev);
   nav.appendChild(title);
@@ -230,7 +232,7 @@ function buildCalendar() {
     const wins = mKeys.filter(k => dm[k].pnl > 0).length;
     const losses = mKeys.filter(k => dm[k].pnl < 0).length;
     const sr = document.createElement('div');
-    sr.style.cssText = 'display:flex;gap:1.5rem;margin-bottom:1rem;font-family:"DM Mono",monospace;font-size:.65rem;color:var(--muted);flex-wrap:wrap;';
+    sr.style.cssText = 'display:flex;gap:1.5rem;margin-bottom:1rem;font-family:"JetBrains Mono",monospace;font-size:.65rem;color:var(--muted);flex-wrap:wrap;';
     const c = mPnl >= 0 ? 'var(--green)' : 'var(--red)';
     sr.innerHTML =
       '<span>P&L: <strong style="color:' + c + '">' + fmtDE(mPnl) + '</strong></span>' +
@@ -240,7 +242,7 @@ function buildCalendar() {
     container.appendChild(sr);
   } else {
     const empty = document.createElement('div');
-    empty.style.cssText = 'font-family:"DM Mono",monospace;font-size:.65rem;color:var(--muted);margin-bottom:1rem;';
+    empty.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:.65rem;color:var(--muted);margin-bottom:1rem;';
     empty.textContent = 'Keine Trades in diesem Monat.';
     container.appendChild(empty);
   }
@@ -250,7 +252,7 @@ function buildCalendar() {
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(5,1fr);gap:6px;';
   DOW.forEach(d => {
     const h = document.createElement('div');
-    h.style.cssText = 'font-family:"DM Mono",monospace;font-size:.62rem;color:var(--muted);text-align:center;padding-bottom:.2rem;text-transform:uppercase;letter-spacing:.08em;';
+    h.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:.62rem;color:var(--muted);text-align:center;padding-bottom:.2rem;text-transform:uppercase;letter-spacing:.08em;';
     h.textContent = d;
     grid.appendChild(h);
   });
@@ -277,25 +279,25 @@ function buildCalendar() {
     const data = dm[key] || null;
 
     const cell = document.createElement('div');
-    const bg = data ? (dayColor(data.pnl, maxAbs) || 'var(--surface)') : 'var(--surface)';
+    const bg = data ? (dayColor(data.pnl, maxAbs) || 'var(--paper)') : 'var(--paper)';
     cell.style.cssText =
       'aspect-ratio:1;border:1px solid var(--border);border-radius:8px;padding:.4rem;' +
       'display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;' +
       'background:' + bg + ';min-height:64px;overflow:hidden;';
 
     const dnum = document.createElement('div');
-    dnum.style.cssText = 'font-family:"DM Mono",monospace;font-size:.72rem;font-weight:600;color:' + (data ? textColor(data.pnl, maxAbs) : 'var(--ink)') + ';';
+    dnum.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:.72rem;font-weight:600;color:' + (data ? textColor(data.pnl, maxAbs) : 'var(--ink)') + ';';
     dnum.textContent = String(day).padStart(2, '0') + '.';
     cell.appendChild(dnum);
 
     if (data) {
       const amt = document.createElement('div');
       const sign = data.pnl >= 0 ? '+' : '';
-      amt.style.cssText = 'font-family:"DM Mono",monospace;font-size:.7rem;font-weight:700;line-height:1.1;color:' + textColor(data.pnl, maxAbs) + ';';
+      amt.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:.7rem;font-weight:700;line-height:1.1;color:' + textColor(data.pnl, maxAbs) + ';';
       amt.textContent = sign + Math.round(data.pnl) + '\u20ac';
       cell.appendChild(amt);
       const cnt = document.createElement('div');
-      cnt.style.cssText = 'font-family:"DM Mono",monospace;font-size:.52rem;opacity:.7;color:' + textColor(data.pnl, maxAbs) + ';';
+      cnt.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:.52rem;opacity:.7;color:' + textColor(data.pnl, maxAbs) + ';';
       cnt.textContent = data.n + (data.n === 1 ? ' Trade' : ' Trades');
       cell.appendChild(cnt);
       (function (k) { cell.onclick = () => showDetail(k); })(key);

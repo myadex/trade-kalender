@@ -309,7 +309,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 
   <div class="toolbar">
     <button class="btn" id="btn-add">+ Trade hinzuf&uuml;gen</button>
-    <button class="btn" id="btn-import">&uarr; XLSX importieren</button>
+    <button class="btn" id="btn-import">&uarr; CSV importieren</button>
     <button class="btn" id="btn-export">&darr; Export CSV</button>
     <button class="btn" id="btn-restore">&#8593; JSON wiederherstellen</button>
     <button class="btn" id="btn-reset" style="border-color:var(--red-mid);color:var(--red)">&#8635; Reset</button>
@@ -433,14 +433,14 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <!-- IMPORT MODAL -->
 <div class="modal-overlay" id="import-overlay" onclick="if(event.target===this)closeImportModal()">
   <div class="modal" style="max-width:600px">
-    <h3>XLSX importieren</h3>
+    <h3>CSV importieren</h3>
     <div class="drop-zone" id="drop-zone"
       ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)"
-      onclick="document.getElementById('xlsx-input').click()">
-      <p>XLSX hier reinziehen oder klicken</p>
+      onclick="document.getElementById('csv-input').click()">
+      <p>CSV hier reinziehen oder klicken</p>
       <p style="margin-top:.4rem;font-size:.58rem">Scalable Capital Export &middot; Buy/Sell &middot; Executed</p>
     </div>
-    <input type="file" id="xlsx-input" accept=".xlsx" style="display:none" onchange="handleFileSelect(this.files[0])">
+    <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFileSelect(this.files[0])">
     <div class="import-preview" id="import-preview" style="display:none">
       <table><thead><tr><th>Datum</th><th>Produkt</th><th>St&uuml;ck</th><th class="r">Kauf</th><th class="r">Verkauf</th><th class="r">P&amp;L</th><th>Status</th></tr></thead>
       <tbody id="import-tbody"></tbody></table>
@@ -453,7 +453,6 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script type="module" src="js/app.js"></script>
 <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
 
@@ -469,7 +468,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <!-- MOBILE ACTION SHEET -->
 <div id="mobile-actions">
   <button onclick="closeMobileActions();openAddModal()">+ Trade hinzuf&uuml;gen</button>
-  <button onclick="closeMobileActions();openImportModal()">&uarr; XLSX importieren</button>
+  <button onclick="closeMobileActions();openImportModal()">&uarr; CSV importieren</button>
   <button onclick="closeMobileActions();exportCSV()">&darr; Export CSV</button>
   <button id="btn-restore-m">&#8593; JSON wiederherstellen</button>
   <button class="danger" onclick="closeMobileActions();resetAllData()">&#8635; Alle Daten l&ouml;schen</button>

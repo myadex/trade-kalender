@@ -32,6 +32,34 @@ export function toLocalDateStr(d) {
   return y + '-' + m + '-' + day;
 }
 
+// Normalisiert das date-Feld aus einem XLSX-Import zu 'YYYY-MM-DD'.
+// SheetJS liefert Excel-Datumszellen als Date-Objekt bei UTC-Mitternacht
+// (z.B. 2026-06-29T00:00:00Z). Deshalb müssen die UTC-Komponenten gelesen
+// werden — sonst rutscht das Datum je nach Zeitzone um einen Tag.
+// Strings (falls die Zelle als Text vorliegt) werden direkt geparst.
+export function normalizeXlsxDate(raw) {
+  if (raw instanceof Date) {
+    const y = raw.getUTCFullYear();
+    const m = String(raw.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(raw.getUTCDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  }
+  const s = String(raw).trim();
+  // ISO: 2026-06-29 oder 2026-06-29T...
+  let mm = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (mm) return mm[1] + '-' + mm[2] + '-' + mm[3];
+  // Deutsch: 29.06.2026
+  mm = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (mm) return mm[3] + '-' + mm[2].padStart(2, '0') + '-' + mm[1].padStart(2, '0');
+  // US: 06/29/2026 oder 06/29/26
+  mm = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (mm) {
+    let yr = mm[3].length === 2 ? '20' + mm[3] : mm[3];
+    return yr + '-' + mm[1].padStart(2, '0') + '-' + mm[2].padStart(2, '0');
+  }
+  return s.slice(0, 10);
+}
+
 // Zeigt eine Statusmeldung im Header (oder versteckt sie bei leerem Text)
 export function setStatus(msg, isError) {
   const el = $('status-bar');

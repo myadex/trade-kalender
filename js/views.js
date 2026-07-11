@@ -68,3 +68,67 @@ export function computeStats(dm, capital) {
   const rendite = cap > 0 ? (totalPnl / cap) * 100 : null;
   return { totalPnl, totalTax, wins, losses, totalTrades, avgDay, avgTrade, maxStreak, winrate, capital: cap, rendite };
 }
+
+// ------------------------------------------------------------
+// DAX-Handelsphasen für die Uhrzeit-Statistik.
+// Der DAX hat eine "gespaltene Persönlichkeit": Vorbörse, Xetra-Kassa,
+// Mittagsflaute, US-Eröffnung — die Performance unterscheidet sich oft
+// systematisch zwischen diesen Blöcken.
+// ------------------------------------------------------------
+export const TIME_BLOCKS = [
+  { key: 'pre',     label: 'Vorb\u00f6rse',        from: 8 * 60,       to: 9 * 60 },
+  { key: 'open',    label: 'Xetra-Er\u00f6ffnung', from: 9 * 60,       to: 10 * 60 },
+  { key: 'morning', label: 'Vormittag',            from: 10 * 60,      to: 13 * 60 },
+  { key: 'lunch',   label: 'Mittagsflaute',        from: 13 * 60,      to: 15 * 60 + 30 },
+  { key: 'us',      label: 'US-Er\u00f6ffnung',    from: 15 * 60 + 30, to: 17 * 60 + 30 },
+  { key: 'late',    label: 'Nachb\u00f6rse',       from: 17 * 60 + 30, to: 22 * 60 }
+];
+
+// "17:26:48" -> Minuten seit Mitternacht (1046). Ungültig -> null.
+export function timeToMinutes(t) {
+  if (t === null || t === undefined) return null;
+  const m = String(t).trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+// ------------------------------------------------------------
+// Berechnet die Uhrzeit-Statistik über alle Trades:
+// - blocks: pro DAX-Phase { n, wins, losses, winrate, pnl, avg }
+// - hours:  pro Stunde (8-21) dasselbe (für das Balken-Profil)
+// - noTime: Anzahl Trades ohne Uhrzeit (Alt-Daten, manuelle Einträge)
+// ------------------------------------------------------------
+export function computeTimeStats(trades) {
+  const mkBucket = () => ({ n: 0, wins: 0, losses: 0, pnl: 0 });
+  const blocks = TIME_BLOCKS.map(b => Object.assign({ key: b.key, label: b.label, from: b.from, to: b.to }, mkBucket()));
+  const hours = {};
+  for (let h = 8; h <= 21; h++) hours[h] = mkBucket();
+  let noTime = 0;
+
+  (trades || []).forEach(t => {
+    const min = timeToMinutes(t.time);
+    if (min === null) { noTime++; return; }
+    const add = b => {
+      b.n++;
+      if (t.pnl > 0) b.wins++;
+      else if (t.pnl < 0) b.losses++;
+      b.pnl += t.pnl;
+    };
+    const block = blocks.find(b => min >= b.from && min < b.to);
+    if (block) add(block);
+    const h = Math.floor(min / 60);
+    if (hours[h]) add(hours[h]);
+  });
+
+  const finalize = b => {
+    b.pnl = +b.pnl.toFixed(2);
+    b.winrate = (b.wins + b.losses) > 0 ? +((b.wins / (b.wins + b.losses)) * 100).toFixed(1) : null;
+    b.avg = b.n > 0 ? +(b.pnl / b.n).toFixed(2) : 0;
+    return b;
+  };
+  blocks.forEach(finalize);
+  Object.values(hours).forEach(finalize);
+  return { blocks, hours, noTime };
+}

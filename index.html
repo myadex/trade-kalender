@@ -108,6 +108,25 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .op-btns{display:flex;gap:.4rem;align-items:center;flex-shrink:0;}
 .btn-del-pos{font-family:'JetBrains Mono',monospace;font-size:.72rem;padding:.4rem .55rem;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:none;color:var(--muted);flex-shrink:0;line-height:1;}
 .btn-del-pos:hover{border-color:var(--red-mid);color:var(--red);background:var(--red-bg);}
+.ts-head{margin-bottom:1rem;}
+.ts-title{font-family:'Chakra Petch',sans-serif;font-size:1.3rem;font-weight:600;color:var(--ink);margin:0;letter-spacing:.03em;}
+.ts-sub{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:.25rem;}
+.ts-h3{font-family:'Chakra Petch',sans-serif;font-size:.95rem;font-weight:600;color:var(--ink);margin:1.6rem 0 .6rem;letter-spacing:.03em;}
+.ts-note{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--amber);border:1px solid var(--border);border-radius:8px;padding:.5rem .7rem;margin-bottom:.8rem;}
+.ts-block{display:flex;align-items:center;gap:.9rem;border:1px solid var(--border);border-radius:10px;padding:.7rem .9rem;margin-bottom:.5rem;background:var(--paper);}
+.ts-block-label{flex:0 0 168px;}
+.ts-block-name{font-family:'Chakra Petch',sans-serif;font-size:.85rem;font-weight:600;color:var(--ink);}
+.ts-block-range{font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);letter-spacing:.05em;}
+.ts-block-stats{display:flex;gap:1.1rem;flex:1;flex-wrap:wrap;}
+.ts-stat{min-width:64px;}
+.ts-stat-lbl{font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
+.ts-stat-val{font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:500;color:var(--ink);margin-top:.1rem;}
+.ts-hour-row{display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem;}
+.ts-hour-lbl{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted);flex:0 0 46px;text-align:right;}
+.ts-hour-track{flex:1;height:16px;background:var(--paper);border:1px solid var(--border);border-radius:4px;overflow:hidden;position:relative;}
+.ts-hour-fill{height:100%;}
+.ts-hour-val{font-family:'JetBrains Mono',monospace;font-size:.6rem;flex:0 0 130px;}
+@media(max-width:640px){.ts-block{flex-direction:column;align-items:flex-start;gap:.4rem;}.ts-block-label{flex:none;}}
 .btn-del:hover{background:var(--red-bg);color:var(--red);}
 .btn-edit:hover{background:var(--blue-bg);color:var(--blue);}
 .add-day-btn{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;margin-top:.8rem;padding:.5rem;border:1px dashed var(--border);border-radius:6px;background:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.64rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}
@@ -324,6 +343,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     <button class="nav-tab" onclick="showTab('weekly')">W&ouml;chentlich</button>
     <button class="nav-tab" onclick="showTab('monthly')">Monatlich</button>
     <button class="nav-tab" onclick="showTab('open')">Offene Positionen</button>
+    <button class="nav-tab" onclick="showTab('timestats')">Statistik</button>
   </div>
 
   <div id="tab-calendar" class="section active"><div id="cal-container"></div></div>
@@ -344,6 +364,17 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   </div>
 
   <div id="tab-open" class="section"><div id="open-pos-wrap"></div></div>
+
+<div id="tab-timestats" class="section">
+  <div class="ts-head">
+    <h2 class="ts-title">Uhrzeit-Statistik</h2>
+    <div class="ts-sub">P&amp;L und Trefferquote nach DAX-Handelsphasen (Verkaufszeitpunkt)</div>
+  </div>
+  <div id="ts-note" style="display:none"></div>
+  <div id="ts-blocks"></div>
+  <h3 class="ts-h3">Stunden-Profil</h3>
+  <div id="ts-hours"></div>
+</div>
 </div>
 
 <!-- DAY DETAIL -->
@@ -465,6 +496,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <button data-tab="weekly" onclick="mobileTab('weekly')"><span class="bb-icon">&#128202;</span>Woche</button>
   <button data-tab="monthly" onclick="mobileTab('monthly')"><span class="bb-icon">&#128200;</span>Monat</button>
   <button data-tab="open" onclick="mobileTab('open')"><span class="bb-icon">&#128193;</span>Offen</button>
+  <button data-tab="timestats" onclick="mobileTab('timestats')"><span class="bb-icon">&#9202;</span>Statistik</button>
   <button class="accent" onclick="toggleMobileActions()"><span class="bb-icon">&#43;</span>Aktion</button>
 </div>
 

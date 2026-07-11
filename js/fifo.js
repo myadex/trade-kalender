@@ -140,7 +140,7 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
       const pnl = +(sellRev - cost - tax).toFixed(2); // Steuer MIT Vorzeichen
       const uid = isin + '_' + dateStr + '_' + sellRev.toFixed(2) + '_' + shares.toFixed(3);
       closed.push({
-        uid, date: dateStr, isin, desc: row.description, broker: 'scalable',
+        uid, date: dateStr, time: String(row.time || ''), isin, desc: row.description, broker: 'scalable',
         shares, buy: +cost.toFixed(2), sell: +sellRev.toFixed(2), tax: +tax.toFixed(2), pnl
       });
     }

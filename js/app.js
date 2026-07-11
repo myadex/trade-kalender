@@ -7,7 +7,7 @@ import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 import { findDataFile, downloadData, createData, updateData } from './storage.js';
-import { aggregateWeeks, aggregateMonths, computeStats } from './views.js';
+import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats } from './views.js';
 import { parseScalableCsv, markDuplicates } from './import.js';
 
 /* ============================================================
@@ -125,7 +125,7 @@ function openPositionsDATA() { return deriveOpenPositions(DATA.openLots); }
    TABS
    ============================================================ */
 function showTab(id) {
-  const order = ['calendar', 'weekly', 'monthly', 'open'];
+  const order = ['calendar', 'weekly', 'monthly', 'open', 'timestats'];
   document.querySelectorAll('.nav-tab').forEach((t, i) => t.classList.toggle('active', order[i] === id));
   document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + id));
 }
@@ -483,6 +483,72 @@ async function deleteOpenPosition(isin) {
 }
 
 /* ============================================================
+   UHRZEIT-STATISTIK (DAX-Handelsphasen)
+   ============================================================ */
+function fmtMin(m) {
+  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+function buildTimeStats() {
+  const { blocks, hours, noTime } = computeTimeStats(DATA.trades);
+
+  // Hinweis auf Trades ohne Uhrzeit (Alt-Daten / manuelle Einträge)
+  const note = $('ts-note');
+  if (noTime > 0) {
+    note.className = 'ts-note';
+    note.textContent = noTime + ' Trade' + (noTime !== 1 ? 's' : '') + ' ohne Uhrzeit (Alt-Daten oder manuell) \u2014 nicht in der Statistik enthalten. Ein CSV-Neuimport liefert die Uhrzeiten.';
+    note.style.display = 'block';
+  } else {
+    note.style.display = 'none';
+  }
+
+  // Phasen-Karten
+  const wrap = $('ts-blocks');
+  wrap.innerHTML = '';
+  const withData = blocks.filter(b => b.n > 0);
+  if (withData.length === 0) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;padding:1rem 0">Noch keine Trades mit Uhrzeit. Importiere eine CSV \u2014 die Verkaufszeit wird dann automatisch erfasst.</div>';
+    $('ts-hours').innerHTML = '';
+    return;
+  }
+  blocks.forEach(b => {
+    const div = document.createElement('div');
+    div.className = 'ts-block';
+    const wrCls = b.winrate === null ? '' : (b.winrate >= 50 ? 'style="color:var(--green)"' : 'style="color:var(--red)"');
+    const pnlCls = b.pnl >= 0 ? 'style="color:var(--green)"' : 'style="color:var(--red)"';
+    div.innerHTML =
+      '<div class="ts-block-label"><div class="ts-block-name">' + b.label + '</div>' +
+      '<div class="ts-block-range">' + fmtMin(b.from) + '\u2013' + fmtMin(b.to) + ' Uhr</div></div>' +
+      '<div class="ts-block-stats">' +
+      '<div class="ts-stat"><div class="ts-stat-lbl">Trades</div><div class="ts-stat-val">' + b.n + '</div></div>' +
+      '<div class="ts-stat"><div class="ts-stat-lbl">Trefferquote</div><div class="ts-stat-val" ' + wrCls + '>' + (b.winrate === null ? '\u2014' : b.winrate.toFixed(1).replace('.', ',') + ' %') + '</div></div>' +
+      '<div class="ts-stat"><div class="ts-stat-lbl">P&L</div><div class="ts-stat-val" ' + pnlCls + '>' + fmtDE(b.pnl) + '</div></div>' +
+      '<div class="ts-stat"><div class="ts-stat-lbl">\u00d8/Trade</div><div class="ts-stat-val">' + fmtDE(b.avg) + '</div></div>' +
+      '</div>';
+    wrap.appendChild(div);
+  });
+
+  // Stunden-Profil (Balken, skaliert am stärksten |P&L|)
+  const hw = $('ts-hours');
+  hw.innerHTML = '';
+  const hourKeys = Object.keys(hours).map(Number).sort((a, b) => a - b);
+  const maxAbs = Math.max(...hourKeys.map(h => Math.abs(hours[h].pnl)), 1);
+  hourKeys.forEach(h => {
+    const b = hours[h];
+    if (b.n === 0) return;
+    const pct = Math.max(Math.round((Math.abs(b.pnl) / maxAbs) * 100), 2);
+    const col = b.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const row = document.createElement('div');
+    row.className = 'ts-hour-row';
+    row.innerHTML =
+      '<div class="ts-hour-lbl">' + String(h).padStart(2, '0') + '\u2013' + String(h + 1).padStart(2, '0') + '</div>' +
+      '<div class="ts-hour-track"><div class="ts-hour-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
+      '<div class="ts-hour-val" style="color:' + col + '">' + fmtDE(b.pnl) + ' \u00b7 ' + b.n + ' T \u00b7 ' + (b.winrate === null ? '\u2014' : b.winrate.toFixed(0) + '%') + '</div>';
+    hw.appendChild(row);
+  });
+}
+
+/* ============================================================
    DAY DETAIL PANEL
    ============================================================ */
 function showDetail(key) {
@@ -810,9 +876,9 @@ async function handleJsonRestore(file) {
 }
 
 function exportCSV() {
-  const rows = ['UID;Datum;ISIN;Produkt;Broker;Kauf;Verkauf;Steuer;P&L'];
+  const rows = ['UID;Datum;Zeit;ISIN;Produkt;Broker;Kauf;Verkauf;Steuer;P&L'];
   DATA.trades.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
-    rows.push([t.uid || '', t.date, t.isin || '', t.desc, t.broker || '', t.buy, t.sell, t.tax, t.pnl].join(';'));
+    rows.push([t.uid || '', t.date, t.time || '', t.isin || '', t.desc, t.broker || '', t.buy, t.sell, t.tax, t.pnl].join(';'));
   });
   const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -859,6 +925,7 @@ function rebuildAll() {
   buildWeekly();
   buildMonthly();
   buildOpenPositions();
+  buildTimeStats();
 }
 
 /* ============================================================

@@ -454,10 +454,32 @@ function buildOpenPositions() {
       '<div><div class="op-num-lbl">Lots</div><div class="op-num-val">' + p.lots + '</div></div>' +
       '<div><div class="op-num-lbl">Einstand</div><div class="op-num-val">' + fmtPlain(p.cost, 0) + ' \u20ac</div></div>' +
       '</div>' +
-      '<button class="btn-close-pos" data-isin="' + p.isin + '">Schlie\u00dfen</button>';
+      '<div class="op-btns">' +
+      '<button class="btn-close-pos" data-isin="' + p.isin + '">Schlie\u00dfen</button>' +
+      '<button class="btn-del-pos" data-isin="' + p.isin + '" title="Position l\u00f6schen (ohne P&L-Buchung)">\u2715</button>' +
+      '</div>';
     card.querySelector('.btn-close-pos').onclick = () => openClosePosModal(p.isin);
+    card.querySelector('.btn-del-pos').onclick = () => deleteOpenPosition(p.isin);
     wrap.appendChild(card);
   });
+}
+
+// Löscht eine offene Position komplett (alle Lots der ISIN) — OHNE
+// P&L-Buchung und ohne Steuer. Für Rest-Lots, Import-Artefakte oder
+// Positionen, die nicht getrackt werden sollen. Mit Sicherheitsabfrage.
+async function deleteOpenPosition(isin) {
+  const lots = DATA.openLots.filter(l => l.isin === isin);
+  if (lots.length === 0) return;
+  const shares = lots.reduce((s, l) => s + l.shares, 0);
+  const cost = lots.reduce((s, l) => s + Math.abs(l.amount), 0);
+  const desc = lots[0].description || isin;
+  if (!confirm('Offene Position l\u00f6schen?\n\n' + desc + '\n' + isin + '\n' +
+    shares.toLocaleString('de-DE') + ' St\u00fcck, Einstand ' + fmtPlain(cost, 2) + ' \u20ac\n\n' +
+    'Die Position wird OHNE P&L-Buchung entfernt (kein Gewinn/Verlust, keine Steuer). ' +
+    'Kann nicht r\u00fcckg\u00e4ngig gemacht werden.')) return;
+  DATA.openLots = DATA.openLots.filter(l => l.isin !== isin);
+  await persist();
+  rebuildAll();
 }
 
 /* ============================================================

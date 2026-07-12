@@ -36,3 +36,7 @@ Die App-H\u00fclle, alle lokalen JavaScript-Module und Icons werden beim Service
 Worker-Install vorgeladen. Offline kann eine Navigation daher die vorhandene
 `index.html` anzeigen. Google-Anmeldung, Drive-Daten und Google-Fonts bleiben
 bewusst online-only; ohne Netz ist kein Login oder Datensynchronisieren m\u00f6glich.
+
+## Weiterentwicklung
+
+Die priorisierte Liste aller offenen Punkte steht in [BACKLOG.md](BACKLOG.md).

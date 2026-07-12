@@ -34,6 +34,10 @@ const hasRootServiceWorker = fs.existsSync(swPath);
 check('Service Worker liegt im Projekt-Root', hasRootServiceWorker);
 const swJs = hasRootServiceWorker ? fs.readFileSync(swPath, 'utf8') : '';
 const html = fs.readFileSync(DIR + '/index.html', 'utf8');
+const backlogPath = DIR + '/BACKLOG.md';
+const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8') : '';
+check('Projekt-Backlog mit offenen Punkten vorhanden',
+  backlog.includes('# App-Backlog') && backlog.includes('## Prioritaet 1'));
 if (hasRootServiceWorker) {
 try { acorn.parse(swJs, { ecmaVersion: 2020 }); check('sw.js parses', true); }
 catch (e) { check('sw.js parses (' + e.message + ')', false); }

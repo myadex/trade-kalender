@@ -1,0 +1,118 @@
+# App-Backlog
+
+Diese Liste ist die gemeinsame Arbeitsgrundlage fuer die weitere Entwicklung.
+Ein Punkt wird erst nach Test, Dokumentation und Verifikation auf erledigt
+gesetzt. `P1` betrifft Daten oder Sicherheit, `P2` den Produktfluss und `P3`
+Wartbarkeit bzw. Komfort.
+
+## Prioritaet 1
+
+### Git-Historie von Finanzdaten bereinigen
+
+- **Status:** Entscheidung offen.
+- **Warum:** `trade-kalender.json` ist fuer neue Commits aus dem Index entfernt,
+  kann aber in bereits veroeffentlichten Commits noch vorhanden sein.
+- **Naechster Schritt:** Historie mit einem geeigneten Git-Werkzeug neu schreiben
+  und anschliessend den Remote per Force-Push aktualisieren.
+- **Entscheidung noetig:** Explizite Freigabe fuer den destruktiven Rewrite und
+  Abstimmung mit allen Klonen des Repositories.
+
+### Drive-Konflikte zwischen Tabs und Geraeten erkennen
+
+- **Status:** Offen.
+- **Warum:** Die lokale Schreibqueue schuetzt einen Browser-Tab, aber nicht zwei
+  Tabs oder zwei Geraete. Dort gilt weiterhin "last write wins".
+- **Naechster Schritt:** ETag beim Laden speichern und Updates mit `If-Match`
+  absichern; bei Konflikt die Daten nicht ueberschreiben, sondern neu laden und
+  den Nutzer informieren.
+
+### Legacy-Daten vollstaendig neu aufbauen
+
+- **Status:** Offen, Original-CSV erforderlich.
+- **Warum:** Vor v35 gespeicherte Trades enthalten keine Rohzeilen und bleiben
+  deshalb bewusst Legacy-Daten.
+- **Naechster Schritt:** Vollstaendigen Scalable-Capital-Export gegen Golden
+  Values pruefen und die Drive-JSON in eine neue, nachvollziehbare Datei
+  migrieren.
+- **Entscheidung noetig:** Originalexport bereitstellen und Sollwerte vor der
+  Migration festlegen.
+
+## Prioritaet 2
+
+### Importierte Trades im Ledger bearbeiten
+
+- **Status:** Offen.
+- **Heute:** Importierte Trades werden sicher durch Loeschen und korrigierten
+  CSV-Reimport behandelt.
+- **Ziel:** Editieren soll die zugehoerige Roh-Verkaufszeile aendern, danach den
+  Ledger erneut abspielen und den abgeleiteten Einstand schreibgeschuetzt halten.
+
+### Position ohne P&L dauerhaft aus dem Tracking ausblenden
+
+- **Status:** Offen.
+- **Heute:** Die Aktion ist bei aktivem Ledger gesperrt, damit ein Replay keine
+  geloschte Position wieder erscheinen laesst.
+- **Ziel:** Ein explizites, versioniertes Ausblend-Ereignis mit Rueckgaengig-
+  Aktion einfuehren.
+
+### Import-Migration in der UI erklaeren
+
+- **Status:** Offen.
+- **Warum:** Der erste Ledger-Import akzeptiert bewusst nur neue Brokerzeilen.
+- **Ziel:** Dialog mit erklaertem Stichtag, erkannter Historie und klarer
+  Handlungsanweisung statt einer reinen Fehlermeldung.
+
+### CSV-Export gegen Tabellenformeln absichern
+
+- **Status:** Offen.
+- **Warum:** Produkttexte koennen beim Oeffnen einer CSV in Tabellenprogrammen
+  als Formel interpretiert werden.
+- **Ziel:** Gefaehrliche Zellpraefixe im Export neutralisieren und mit einem
+  Regressionstest absichern.
+
+## Prioritaet 3
+
+### PWA im echten Browser offline pruefen
+
+- **Status:** Offen.
+- **Heute:** Asset-Liste und Offline-Fallback sind automatisiert geprueft.
+- **Ziel:** Installieren, offline navigieren, Service-Worker-Update und erneute
+  Online-Synchronisierung in einem echten Browser testen.
+
+### Testlauf als Standardkommando und CI etablieren
+
+- **Status:** Offen.
+- **Ziel:** `npm test` als Einstiegspunkt sowie einen GitHub-Actions-Lauf bei
+  jedem Push und Pull Request einrichten.
+
+### Node-ESM-Warnung im Testlauf beseitigen
+
+- **Status:** Offen.
+- **Warum:** Die dynamisch importierten Browser-Module verursachen aktuell eine
+  harmlose Node-Warnung zur automatischen ESM-Erkennung.
+- **Ziel:** Test-Harness und Paketmetadaten ohne Warnung kompatibel machen, ohne
+  den CommonJS-Harness zu brechen.
+
+### UI-Controller weiter aufteilen
+
+- **Status:** Offen.
+- **Warum:** `js/app.js` enthaelt weiterhin State, Rendering und Event-Logik.
+- **Ziel:** Tabs und Dialoge in kleine Render-Module auslagern; pure Logik bleibt
+  in den bestehenden Fachmodulen.
+
+### Bedienbarkeit und Barrierefreiheit pruefen
+
+- **Status:** Offen.
+- **Ziel:** Fokusfuehrung in Dialogen, Escape-Taste, eindeutige Labels,
+  Tastaturnavigation und Kontraste systematisch verbessern.
+
+## Erledigte Grundlagen
+
+- Service Worker liegt im Root, Version und Cache sind testgleich.
+- Test-Harness prueft Syntax, Modulvertraege, Struktur, Golden Values und
+  Regressionen.
+- HTML aus Import- und JSON-Daten wird vor DOM-Ausgabe escaped.
+- FIFO-Ueberverkaeufe werden vor dem Speichern abgelehnt.
+- Neue Importe werden als Roh-Ledger gespeichert und sind reproduzierbar.
+- Drive-Fehler, korrupte JSON und parallele Schreibvorgaenge innerhalb eines
+  Tabs sind abgesichert.

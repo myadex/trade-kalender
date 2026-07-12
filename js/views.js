@@ -272,6 +272,22 @@ export function computeInsights(trades) {
     findings.push({ kind: 'warn', id: 'worst-hour-dir', data: worstCombo });
   }
 
+  // Haltedauer-Asymmetrie (Dispositionseffekt): Verlierer laenger gehalten?
+  // Bewusst auf die JUENGSTE Periode (45 Tage) bezogen — der Gesamt-Median
+  // versteckt aktuelle Verhaltensmuster hinter der langen Historie.
+  const allDates = (trades || []).map(t => t.date).filter(Boolean).sort();
+  if (allDates.length) {
+    const newest = allDates[allDates.length - 1];
+    const [ny, nm, nd] = newest.split('-').map(Number);
+    const cutoff = new Date(ny, nm - 1, nd - 45);
+    const cutoffStr = cutoff.getFullYear() + '-' + String(cutoff.getMonth() + 1).padStart(2, '0') + '-' + String(cutoff.getDate()).padStart(2, '0');
+    const recent = (trades || []).filter(t => t.date >= cutoffStr);
+    const holdRecent = computeHoldStats(recent);
+    if (holdRecent.winN >= 8 && holdRecent.lossN >= 5 && holdRecent.ratio !== null && holdRecent.ratio >= 2) {
+      findings.push({ kind: 'warn', id: 'hold-asymmetry', data: Object.assign({ since: cutoffStr }, holdRecent) });
+    }
+  }
+
   return { findings, overnight: { total: onTotal, early: onEarly, stuck: onStuck, planned: onPlanned, byHour: onByHour } };
 }
 
@@ -310,4 +326,94 @@ export function diagnoseBucket(bucketTrades) {
     dirSkew,
     tags
   };
+}
+
+// ------------------------------------------------------------
+// Haltedauer eines Trades in Minuten (Einstieg -> Ausstieg).
+// Braucht buyDate/buyTime und date/time. Sonst null.
+// ------------------------------------------------------------
+export function holdMinutes(t) {
+  if (!t.buyDate || !t.buyTime || !t.date || !t.time) return null;
+  const p = (ds, ts) => {
+    const [y, m, d] = ds.split('-').map(Number);
+    const mins = timeToMinutes(ts);
+    if (!y || mins === null) return null;
+    return new Date(y, m - 1, d).getTime() / 60000 + mins;
+  };
+  const a = p(t.buyDate, t.buyTime), b = p(t.date, t.time);
+  if (a === null || b === null) return null;
+  const diff = b - a;
+  return diff >= 0 ? Math.round(diff) : null;
+}
+
+// Median einer Zahlenliste (leer -> null)
+function median(arr) {
+  if (!arr.length) return null;
+  const s = arr.slice().sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+
+// ------------------------------------------------------------
+// Haltedauer-Asymmetrie: halten Verlierer laenger als Gewinner?
+// (Der messbare Kern des Dispositionseffekts.)
+// ------------------------------------------------------------
+export function computeHoldStats(trades) {
+  const winHolds = [], lossHolds = [];
+  (trades || []).forEach(t => {
+    const h = holdMinutes(t);
+    if (h === null) return;
+    if (t.pnl > 0) winHolds.push(h);
+    else if (t.pnl < 0) lossHolds.push(h);
+  });
+  return {
+    winMedian: median(winHolds),
+    lossMedian: median(lossHolds),
+    winN: winHolds.length,
+    lossN: lossHolds.length,
+    ratio: (median(winHolds) && median(lossHolds)) ? +(median(lossHolds) / median(winHolds)).toFixed(1) : null
+  };
+}
+
+// ------------------------------------------------------------
+// Disziplin-Trend pro Monat: die Kernmetriken, an denen sich
+// Verbesserung ablesen laesst. Sortiert aufsteigend nach Monat.
+// bigLossLimit = Schwelle fuer "Grossverlust" (Default 1000 Euro).
+// ------------------------------------------------------------
+export function computeMonthlyDiscipline(trades, bigLossLimit = 1000) {
+  const byMonth = {};
+  (trades || []).forEach(t => {
+    const mo = (t.date || '').slice(0, 7);
+    if (mo.length !== 7) return;
+    if (!byMonth[mo]) byMonth[mo] = [];
+    byMonth[mo].push(t);
+  });
+  return Object.keys(byMonth).sort().map(mo => {
+    const ts = byMonth[mo];
+    const wins = ts.filter(t => t.pnl > 0), losses = ts.filter(t => t.pnl < 0);
+    const avgWin = wins.length ? wins.reduce((s, t) => s + t.pnl, 0) / wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((s, t) => s + t.pnl, 0) / losses.length : 0;
+    const overnight = ts.filter(t => t.buyDate && t.buyDate !== t.date);
+    const bigLosses = losses.filter(t => t.pnl <= -bigLossLimit);
+    const winH = [], lossH = [];
+    ts.forEach(t => {
+      const h = holdMinutes(t);
+      if (h === null) return;
+      if (t.pnl > 0) winH.push(h);
+      else if (t.pnl < 0) lossH.push(h);
+    });
+    return {
+      month: mo,
+      n: ts.length,
+      pnl: +ts.reduce((s, t) => s + t.pnl, 0).toFixed(2),
+      avgLoss: +avgLoss.toFixed(2),
+      overnightPnl: +overnight.reduce((s, t) => s + t.pnl, 0).toFixed(2),
+      overnightN: overnight.length,
+      bigLossN: bigLosses.length,
+      bigLossSum: +bigLosses.reduce((s, t) => s + t.pnl, 0).toFixed(2),
+      payoff: avgLoss !== 0 ? +(avgWin / Math.abs(avgLoss)).toFixed(2) : null,
+      holdWinMedian: median(winH),
+      holdLossMedian: median(lossH)
+    };
+  });
 }

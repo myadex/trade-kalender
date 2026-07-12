@@ -7,7 +7,7 @@ import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 import { findDataFile, downloadData, createData, updateData } from './storage.js';
-import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket } from './views.js';
+import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
 import { parseScalableCsv, markDuplicates } from './import.js';
 
 /* ============================================================
@@ -667,6 +667,8 @@ function buildInsights() {
       return '<b>' + stronger + '</b> ist deine st\u00e4rkere Seite: ' + s.n + ' Trades, ' + wr(s) + ', ' + money(s.pnl) +
         ' \u2014 ' + wName + ': ' + w.n + ' Trades, ' + wr(w) + ', ' + money(w.pnl) + '.';
     },
+    'hold-asymmetry': d =>
+      'FOMO-Check (seit ' + d.since.slice(8) + '.' + d.since.slice(5, 7) + '.): Du h\u00e4ltst Verlierer <b>' + d.ratio + '\u00d7 l\u00e4nger</b> als Gewinner (Median ' + fmtHold(d.lossMedian) + ' vs. ' + fmtHold(d.winMedian) + ') \u2014 Verluste aussitzen statt schlie\u00dfen. Dispositionseffekt.',
     'worst-hour-dir': d =>
       'Teuerste Kombination: <b>' + (d.dir === 'short' ? 'Short' : 'Long') + '-Ausstiege ' + String(d.hour).padStart(2, '0') + '\u2013' + String(d.hour + 1).padStart(2, '0') + ' Uhr</b> \u2014 ' +
       d.n + ' Trades = ' + money(d.pnl) + ' bei ' + wr(d) + ' Trefferquote.'
@@ -704,6 +706,43 @@ function buildInsights() {
     html += '<tr><td>' + label + '</td><td class="r">' + d.n + '</td><td class="r">' + wr(d) + '</td><td class="r" style="color:' + col + '">' + fmtDE(d.pnl) + '</td></tr>';
   });
   det.innerHTML = html + '</table>';
+
+  buildDiscipline();
+}
+
+// Haltedauer huebsch formatieren: 37min, 2h49, 1,3d
+function fmtHold(m) {
+  if (m === null || m === undefined) return '\u2014';
+  if (m >= 1440) return (m / 1440).toFixed(1).replace('.', ',') + 'd';
+  if (m >= 60) return Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0');
+  return m + 'min';
+}
+
+/* ============================================================
+   DISZIPLIN-TREND PRO MONAT ("Werde ich besser?")
+   ============================================================ */
+function buildDiscipline() {
+  const el = $('ts-discipline');
+  if (!el) return;
+  const months = computeMonthlyDiscipline(DATA.trades);
+  if (months.length === 0) { el.innerHTML = ''; return; }
+  const money = v => '<span style="color:' + (v >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtK(v) + '</span>';
+  const MON = { '01': 'Jan', '02': 'Feb', '03': 'M\u00e4r', '04': 'Apr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Okt', '11': 'Nov', '12': 'Dez' };
+  let html = '<table class="ts-on-table"><tr><th>Monat</th><th style="text-align:right">Trades</th><th style="text-align:right">P&L</th><th style="text-align:right">\u00d8-Verlust</th><th style="text-align:right">Overnight</th><th style="text-align:right">Verluste &gt;1k</th><th style="text-align:right">Payoff</th><th style="text-align:right">Haltezeit V/G</th></tr>';
+  months.forEach(m => {
+    const bigCol = m.bigLossN > 0 ? 'var(--red)' : 'var(--muted)';
+    const payoffCol = m.payoff === null ? 'var(--muted)' : (m.payoff >= 1 ? 'var(--green)' : 'var(--amber)');
+    html += '<tr><td>' + MON[m.month.slice(5)] + ' ' + m.month.slice(2, 4) + '</td>' +
+      '<td class="r">' + m.n + '</td>' +
+      '<td class="r">' + money(m.pnl) + '</td>' +
+      '<td class="r" style="color:var(--muted)">' + (m.avgLoss ? fmtK(m.avgLoss) : '\u2014') + '</td>' +
+      '<td class="r">' + (m.overnightN ? money(m.overnightPnl) : '\u2014') + '</td>' +
+      '<td class="r" style="color:' + bigCol + '">' + m.bigLossN + (m.bigLossN ? ' (' + fmtK(m.bigLossSum) + ')' : '') + '</td>' +
+      '<td class="r" style="color:' + payoffCol + '">' + (m.payoff === null ? '\u2014' : String(m.payoff).replace('.', ',')) + '</td>' +
+      '<td class="r" style="color:var(--muted)">' + fmtHold(m.holdLossMedian) + ' / ' + fmtHold(m.holdWinMedian) + '</td></tr>';
+  });
+  el.innerHTML = html + '</table>' +
+    '<div style="font-family:\'JetBrains Mono\',monospace;font-size:.55rem;color:var(--muted);margin-top:.4rem;">Payoff = \u00d8-Gewinn \u00f7 \u00d8-Verlust (\u22651 gut) \u00b7 Haltezeit V/G = Median Verlierer / Gewinner (V \u226b G = Dispositionseffekt)</div>';
 }
 
 /* ============================================================

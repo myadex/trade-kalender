@@ -4,7 +4,7 @@
 // app.js — Haupt-Einstiegspunkt (verbindet alle Module)
 // ============================================================
 import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
-import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.js';
+import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 import { findDataFile, downloadData, createData, updateData } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
@@ -324,7 +324,7 @@ function buildWeekly() {
     const lbl = week.slice(8) + '.' + week.slice(5, 7) + '.\u2013' + String(end.getDate()).padStart(2, '0') + '.' + String(end.getMonth() + 1).padStart(2, '0') + '.';
     const pct = Math.round((Math.abs(pnl) / maxAbs) * 100);
     const cls = pnl >= 0 ? 'pos' : 'neg';
-    tbody.innerHTML += '<tr><td>' + lbl + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td><td><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div></td></tr>';
+    tbody.innerHTML += '<tr><td>' + escapeHtml(lbl) + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td><td><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div></td></tr>';
   });
 }
 
@@ -348,7 +348,7 @@ function buildMonthly() {
   tbody.innerHTML = '';
   sorted.forEach(({ month, pnl, rev, n }) => {
     const cls = pnl >= 0 ? 'pos' : 'neg';
-    tbody.innerHTML += '<tr><td>' + MON[month.slice(5)] + ' ' + month.slice(0, 4) + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td></tr>';
+    tbody.innerHTML += '<tr><td>' + escapeHtml(MON[month.slice(5)] + ' ' + month.slice(0, 4)) + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td></tr>';
   });
 }
 
@@ -445,9 +445,9 @@ function buildOpenPositions() {
     const card = document.createElement('div');
     card.className = 'open-pos-card';
     card.innerHTML =
-      '<div><div class="op-name">' + p.desc + '</div>' +
-      '<div class="op-isin">' + p.isin + '</div>' +
-      '<div class="op-badge">' + p.dir + ' \u00b7 offen seit ' + p.since + '</div></div>' +
+      '<div><div class="op-name">' + escapeHtml(p.desc) + '</div>' +
+      '<div class="op-isin">' + escapeHtml(p.isin) + '</div>' +
+      '<div class="op-badge">' + escapeHtml(p.dir) + ' \u00b7 offen seit ' + escapeHtml(p.since) + '</div></div>' +
       '<div class="op-nums">' +
       '<div><div class="op-num-lbl">St\u00fcck</div><div class="op-num-val">' + p.shares.toLocaleString('de-DE') + '</div></div>' +
       '<div><div class="op-num-lbl">\u00d8 Preis</div><div class="op-num-val">' + fmtPlain(p.avgPrice, 4) + '</div></div>' +
@@ -455,8 +455,8 @@ function buildOpenPositions() {
       '<div><div class="op-num-lbl">Einstand</div><div class="op-num-val">' + fmtPlain(p.cost, 0) + ' \u20ac</div></div>' +
       '</div>' +
       '<div class="op-btns">' +
-      '<button class="btn-close-pos" data-isin="' + p.isin + '">Schlie\u00dfen</button>' +
-      '<button class="btn-del-pos" data-isin="' + p.isin + '" title="Position l\u00f6schen (ohne P&L-Buchung)">\u2715</button>' +
+      '<button class="btn-close-pos" data-isin="' + escapeHtml(p.isin) + '">Schlie\u00dfen</button>' +
+      '<button class="btn-del-pos" data-isin="' + escapeHtml(p.isin) + '" title="Position l\u00f6schen (ohne P&L-Buchung)">\u2715</button>' +
       '</div>';
     card.querySelector('.btn-close-pos').onclick = () => openClosePosModal(p.isin);
     card.querySelector('.btn-del-pos').onclick = () => deleteOpenPosition(p.isin);
@@ -732,7 +732,7 @@ function buildDiscipline() {
   months.forEach(m => {
     const bigCol = m.bigLossN > 0 ? 'var(--red)' : 'var(--muted)';
     const payoffCol = m.payoff === null ? 'var(--muted)' : (m.payoff >= 1 ? 'var(--green)' : 'var(--amber)');
-    html += '<tr><td>' + MON[m.month.slice(5)] + ' ' + m.month.slice(2, 4) + '</td>' +
+    html += '<tr><td>' + escapeHtml(MON[m.month.slice(5)] + ' ' + m.month.slice(2, 4)) + '</td>' +
       '<td class="r">' + m.n + '</td>' +
       '<td class="r">' + money(m.pnl) + '</td>' +
       '<td class="r" style="color:var(--muted)">' + (m.avgLoss ? fmtK(m.avgLoss) : '\u2014') + '</td>' +
@@ -769,7 +769,7 @@ function showDetail(key) {
     const row = document.createElement('div');
     row.className = 'trade-row';
     row.innerHTML = '<div class="trade-left">' +
-      '<div class="trade-desc">' + t.desc + ' <span class="broker-tag ' + bc + '">' + bl + '</span></div>' +
+      '<div class="trade-desc">' + escapeHtml(t.desc) + ' <span class="broker-tag ' + bc + '">' + bl + '</span></div>' +
       '<div class="trade-meta">' +
       '<span>Kauf: ' + fmtPlain(t.buy) + ' \u20ac</span>' +
       '<span>Verkauf: ' + fmtPlain(t.sell) + ' \u20ac</span>' +
@@ -963,7 +963,16 @@ function parseImport(text) {
   // FIFO-Matching über die zentrale Funktion aus fifo.js (keine Duplizierung).
   // Knockout-Filter aus: ausgeknockte Positionen bleiben offen und können
   // manuell geschlossen werden.
-  const { closed, openLots } = fifoMatch(filtered, DATA.openLots, false);
+  const { closed, openLots, errors } = fifoMatch(filtered, DATA.openLots, false);
+  if (errors.length > 0) {
+    const first = errors[0];
+    importError(
+      'Import abgebrochen: Verkauf ' + first.requestedShares + ' St\u00fcck (' + first.isin +
+      ') am ' + first.date + ' hat nur ' + first.availableShares + ' offene St\u00fcck. ' +
+      'Bitte CSV oder offene Positionen pr\u00fcfen.'
+    );
+    return;
+  }
   pendingOpenLots = openLots;
 
   const { marked, newCount, dupCount } = markDuplicates(closed, new Set(DATA.trades.map(t => t.uid)));
@@ -976,8 +985,8 @@ function parseImport(text) {
     const col = t.pnl >= 0 ? 'var(--green)' : 'var(--red)';
     const tr = document.createElement('tr');
     tr.className = cls;
-    tr.innerHTML = '<td>' + t.date + '</td>' +
-      '<td style="font-size:.65rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + t.desc + '</td>' +
+    tr.innerHTML = '<td>' + escapeHtml(t.date) + '</td>' +
+      '<td style="font-size:.65rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(t.desc) + '</td>' +
       '<td class="r">' + t.shares + '</td>' +
       '<td class="r">' + fmtPlain(t.buy, 0) + '</td>' +
       '<td class="r">' + fmtPlain(t.sell, 0) + '</td>' +
@@ -1220,4 +1229,3 @@ Object.assign(window, {
   handleDragOver, handleDragLeave, handleDrop,
   closeClosePosModal, confirmClosePos, setCloseTotalLoss, updateClosePreview, onCloseTaxInput
 });
-

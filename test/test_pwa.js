@@ -268,6 +268,9 @@ const realFifoCheck = (async () => {
     const md = imod.markDuplicates([{ uid: 'a' }, { uid: 'b' }], new Set(['b']));
     check('import: markDuplicates (1 neu, 1 dup)', md.newCount === 1 && md.dupCount === 1);
     const hmod = await import('file://' + DIR + '/js/helpers.js');
+    check('helpers: escapeHtml neutralisiert HTML aus Importdaten',
+      typeof hmod.escapeHtml === 'function' &&
+      hmod.escapeHtml('<img src=x onerror="alert(1)">&\'') === '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;&amp;&#39;');
     const sjsDate = new Date(Date.UTC(2026, 5, 29));
     check('helpers: normalizeXlsxDate SheetJS-Date = 2026-06-29', hmod.normalizeXlsxDate(sjsDate) === '2026-06-29');
     check('helpers: normalizeXlsxDate deutsch 29.06.2026', hmod.normalizeXlsxDate('29.06.2026') === '2026-06-29');
@@ -309,6 +312,15 @@ const realFifoCheck = (async () => {
     ];
     const fr = fmod.fifoMatch(fifoRows, [], false);
     check('fifo: buyDate/buyTime im Trade', fr.closed[0].buyDate === '2026-06-29' && fr.closed[0].buyTime === '09:15:00');
+    const oversell = fmod.fifoMatch([
+      { type: 'Buy', status: 'Executed', isin: 'OVER', shares: 5, amount: -500, date: '2026-06-29', time: '09:00:00' },
+      { type: 'Sell', status: 'Executed', isin: 'OVER', shares: 6, amount: 600, date: '2026-06-29', time: '10:00:00', tax: 20 }
+    ], [], false);
+    check('fifo: Ueberverkauf wird als Fehler gemeldet',
+      Array.isArray(oversell.errors) && oversell.errors.length === 1 &&
+      oversell.errors[0].isin === 'OVER' && oversell.errors[0].unmatchedShares === 1);
+    check('fifo: Ueberverkauf verbraucht keine offenen Lots',
+      oversell.closed.length === 0 && oversell.openLots.length === 1 && oversell.openLots[0].shares === 5);
     // computeInsights: Overnight-Kategorien + Befunde
     const insTrades = [];
     for (let i = 0; i < 10; i++) insTrades.push({ pnl: -500, time: '09:00:00', buyTime: '15:30:00', buyDate: '2026-06-01', date: '2026-06-02', desc: 'DAX Long' });
@@ -380,6 +392,14 @@ console.log('\n=== 6b. FEATURE CALCULATION LOGIC ===');
 })();
 
 console.log('\n=== 6c. IMPORT ROBUSTHEIT ===');
+check('UI escaped Texte aus CSV und JSON vor innerHTML',
+  appJs.includes('escapeHtml(p.desc)') &&
+  appJs.includes('escapeHtml(p.isin)') &&
+  appJs.includes('escapeHtml(t.desc)') &&
+  appJs.includes('escapeHtml(t.date)'));
+check('Import blockiert FIFO-Ueberverkaeufe vor dem Speichern',
+  appJs.includes('const { closed, openLots, errors } = fifoMatch') &&
+  appJs.includes('if (errors.length > 0)'));
 check('import.js: parseScalableCsv vorhanden', appJs.includes('export function parseScalableCsv'));
 check('import.js: deutsche Zahlen-Parser', appJs.includes('export function parseGermanNumber'));
 check('import.js: Pflichtspalten-Pruefung', appJs.includes("const REQUIRED_COLUMNS = ['type', 'status', 'isin'"));

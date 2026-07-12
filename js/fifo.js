@@ -79,7 +79,7 @@ export function tradePnl(buy, sell, tax) {
 //   offene Lots unter KNOCKOUT_THRESHOLD verworfen. Standardmäßig aus,
 //   damit ausgeknockte Positionen sichtbar bleiben und manuell
 //   geschlossen werden können.
-// Liefert: { closed: [...Trades], openLots: [...Lots] }
+// Liefert: { closed: [...Trades], openLots: [...Lots], errors: [...] }
 //
 // Regeln (alle in der App validiert):
 //  - Sortierung nach datetime, bei Gleichstand Buy VOR Sell
@@ -112,6 +112,7 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
   });
 
   const closed = [];
+  const errors = [];
   sorted.forEach(row => {
     const isin = row.isin;
     const shares = parseFloat(row.shares) || 0;
@@ -125,6 +126,21 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
       buyPools[isin].push({ shares, amount: Math.abs(amount), date: dateStr, time: String(row.time || ''), desc: row.description, isin });
     } else if (row.type === 'Sell' && shares > 0) {
       const pool = buyPools[isin] || [];
+      const availableShares = pool.reduce((sum, lot) => sum + lot.shares, 0);
+      // Ein Ueberverkauf darf nicht teilweise gegen vorhandene Lots gerechnet
+      // werden: Das wuerde einen zu kleinen Einstand und damit falsches P&L
+      // persistieren. Erst pruefen, dann das Pool mutieren.
+      if (shares - availableShares > 0.001) {
+        errors.push({
+          isin,
+          date: dateStr,
+          time: String(row.time || ''),
+          requestedShares: +shares.toFixed(3),
+          availableShares: +availableShares.toFixed(3),
+          unmatchedShares: +(shares - availableShares).toFixed(3)
+        });
+        return;
+      }
       // Positionseroeffnung = aeltestes Lot (FIFO): Einstiegszeitpunkt des Trades
       const firstLot = pool.length > 0 ? { date: pool[0].date, time: pool[0].time || '' } : null;
       let remaining = shares, cost = 0;
@@ -159,5 +175,5 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
     openLots.push(lot);
   }));
 
-  return { closed, openLots };
+  return { closed, openLots, errors };
 }

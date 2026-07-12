@@ -22,6 +22,16 @@ export const fmtK = v => {
   return s + (a >= 1000 ? (a / 1000).toFixed(1) + 'k' : a.toFixed(0));
 };
 
+// CSV-Importe und JSON-Restores sind Nutzereingaben. Bevor solche Werte in
+// innerHTML landen, muessen sie Text bleiben; sonst wird eine Produktbezeichnung
+// wie "<img onerror=...>" als Code statt als Beschreibung interpretiert.
+export const escapeHtml = value => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 // Wandelt ein Date in einen lokalen 'YYYY-MM-DD'-String um.
 // WICHTIG: NICHT toISOString() verwenden — das rechnet in UTC um und
 // verschiebt Mitternachts-Zeiten um einen Tag zurück (Zeitzonen-Bug).

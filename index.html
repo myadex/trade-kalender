@@ -113,7 +113,9 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .ts-sub{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:.25rem;}
 .ts-h3{font-family:'Chakra Petch',sans-serif;font-size:.95rem;font-weight:600;color:var(--ink);margin:1.6rem 0 .6rem;letter-spacing:.03em;}
 .ts-note{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--amber);border:1px solid var(--border);border-radius:8px;padding:.5rem .7rem;margin-bottom:.8rem;}
-.ts-block{display:flex;align-items:center;gap:.9rem;border:1px solid var(--border);border-radius:10px;padding:.7rem .9rem;margin-bottom:.5rem;background:var(--paper);}
+.ts-block{display:flex;flex-wrap:wrap;align-items:center;gap:.9rem;border:1px solid var(--border);border-radius:10px;padding:.7rem .9rem;margin-bottom:.5rem;background:var(--paper);}
+.ts-dir-row{flex-basis:100%;display:flex;gap:1.4rem;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--ink);border-top:1px solid var(--border);padding-top:.45rem;margin-top:.1rem;}
+.ts-dir-row b{font-weight:600;}
 .ts-block-label{flex:0 0 168px;}
 .ts-block-name{font-family:'Chakra Petch',sans-serif;font-size:.85rem;font-weight:600;color:var(--ink);}
 .ts-block-range{font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);letter-spacing:.05em;}
@@ -126,6 +128,26 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .ts-hour-track{flex:1;height:16px;background:var(--paper);border:1px solid var(--border);border-radius:4px;overflow:hidden;position:relative;}
 .ts-hour-fill{height:100%;}
 .ts-hour-val{font-family:'JetBrains Mono',monospace;font-size:.6rem;flex:0 0 130px;}
+.ts-hour-dir{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);margin:-.1rem 0 .35rem 52px;}
+.ts-hour-diag{font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--amber);margin:-.05rem 0 .5rem 52px;}
+.ts-mode-row{display:flex;gap:.4rem;margin-bottom:.9rem;}
+.ts-mode-btn{font-family:'JetBrains Mono',monospace;font-size:.62rem;letter-spacing:.05em;text-transform:uppercase;padding:.45rem .9rem;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:none;color:var(--muted);}
+.ts-mode-btn.active{border-color:var(--green);color:var(--green);background:var(--green-bg);}
+.ts-on{border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:10px;padding:.6rem .9rem;margin-bottom:.9rem;background:var(--paper);font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--ink);}
+.ts-on b{color:var(--amber);}
+.ts-ins{margin-bottom:1rem;}
+.ts-ins-item{display:flex;gap:.6rem;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem;margin-bottom:.4rem;background:var(--paper);font-family:'Chakra Petch',sans-serif;font-size:.82rem;line-height:1.45;color:var(--ink);}
+.ts-ins-item .mark{font-family:'JetBrains Mono',monospace;font-size:.8rem;flex-shrink:0;margin-top:.05rem;}
+.ts-ins-item.warn{border-left:3px solid var(--red);}
+.ts-ins-item.warn .mark{color:var(--red);}
+.ts-ins-item.good{border-left:3px solid var(--green);}
+.ts-ins-item.good .mark{color:var(--green);}
+.ts-ins-item.info{border-left:3px solid var(--blue);}
+.ts-ins-item.info .mark{color:var(--blue);}
+.ts-on-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:.68rem;}
+.ts-on-table th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:.55rem;letter-spacing:.08em;padding:.35rem .5rem;border-bottom:1px solid var(--border);}
+.ts-on-table td{padding:.4rem .5rem;border-bottom:1px solid var(--border);color:var(--ink);}
+.ts-on-table td.r{text-align:right;}
 @media(max-width:640px){.ts-block{flex-direction:column;align-items:flex-start;gap:.4rem;}.ts-block-label{flex:none;}}
 .btn-del:hover{background:var(--red-bg);color:var(--red);}
 .btn-edit:hover{background:var(--blue-bg);color:var(--blue);}
@@ -370,10 +392,18 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     <h2 class="ts-title">Uhrzeit-Statistik</h2>
     <div class="ts-sub">P&amp;L und Trefferquote nach DAX-Handelsphasen (Verkaufszeitpunkt)</div>
   </div>
+  <div id="ts-insights"></div>
+  <div class="ts-mode-row">
+    <button id="ts-mode-sell" class="ts-mode-btn active" onclick="setTsMode('sell')">Nach Ausstieg</button>
+    <button id="ts-mode-buy" class="ts-mode-btn" onclick="setTsMode('buy')">Nach Einstieg</button>
+  </div>
   <div id="ts-note" style="display:none"></div>
+  <div id="ts-overnight"></div>
   <div id="ts-blocks"></div>
   <h3 class="ts-h3">Stunden-Profil</h3>
   <div id="ts-hours"></div>
+  <h3 class="ts-h3">Overnight-Analyse (nach Einstiegszeit)</h3>
+  <div id="ts-on-detail"></div>
 </div>
 </div>
 

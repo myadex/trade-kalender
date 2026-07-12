@@ -7,7 +7,7 @@ import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
 import { findDataFile, downloadData, createData, updateData } from './storage.js';
-import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats } from './views.js';
+import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket } from './views.js';
 import { parseScalableCsv, markDuplicates } from './import.js';
 
 /* ============================================================
@@ -489,17 +489,44 @@ function fmtMin(m) {
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 }
 
-function buildTimeStats() {
-  const { blocks, hours, noTime } = computeTimeStats(DATA.trades);
+let tsMode = 'sell'; // 'sell' = nach Ausstieg, 'buy' = nach Einstieg
 
-  // Hinweis auf Trades ohne Uhrzeit (Alt-Daten / manuelle Einträge)
+function setTsMode(mode) {
+  tsMode = mode;
+  $('ts-mode-sell').classList.toggle('active', mode === 'sell');
+  $('ts-mode-buy').classList.toggle('active', mode === 'buy');
+  buildTimeStats();
+}
+
+function buildTimeStats() {
+  const { blocks, hours, noTime, overnight } = computeTimeStats(DATA.trades, tsMode);
+
+  // Hinweis auf Trades ohne (passende) Uhrzeit
   const note = $('ts-note');
   if (noTime > 0) {
     note.className = 'ts-note';
-    note.textContent = noTime + ' Trade' + (noTime !== 1 ? 's' : '') + ' ohne Uhrzeit (Alt-Daten oder manuell) \u2014 nicht in der Statistik enthalten. Ein CSV-Neuimport liefert die Uhrzeiten.';
+    note.textContent = noTime + ' Trade' + (noTime !== 1 ? 's' : '') + ' ohne ' +
+      (tsMode === 'buy' ? 'Einstiegszeit (Alt-Daten, manuelle Eintr\u00e4ge)' : 'Uhrzeit (Alt-Daten oder manuell)') +
+      ' \u2014 nicht in der Statistik enthalten.';
     note.style.display = 'block';
   } else {
     note.style.display = 'none';
+  }
+
+  // Overnight-Trades: eigene "Strategie", separat ausgewiesen
+  const onEl = $('ts-overnight');
+  if (overnight.n > 0) {
+    const col = overnight.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    onEl.className = 'ts-on';
+    onEl.innerHTML = '<b>\u00dcber Nacht gehalten:</b> ' + overnight.n + ' Trades \u00b7 Trefferquote ' +
+      (overnight.winrate === null ? '\u2014' : overnight.winrate.toFixed(1).replace('.', ',') + ' %') +
+      ' \u00b7 P&L <span style="color:' + col + '">' + fmtDE(overnight.pnl) + '</span>' +
+      ' \u00b7 Long ' + overnight.long.n + ' / Short ' + overnight.short.n +
+      ' \u2014 diese Trades stecken auch in den Phasen unten (' + (tsMode === 'buy' ? 'nach Einstiegszeit' : 'nach Ausstiegszeit') + ' einsortiert).';
+    onEl.style.display = 'block';
+  } else {
+    onEl.style.display = 'none';
+    onEl.innerHTML = '';
   }
 
   // Phasen-Karten
@@ -516,6 +543,12 @@ function buildTimeStats() {
     div.className = 'ts-block';
     const wrCls = b.winrate === null ? '' : (b.winrate >= 50 ? 'style="color:var(--green)"' : 'style="color:var(--red)"');
     const pnlCls = b.pnl >= 0 ? 'style="color:var(--green)"' : 'style="color:var(--red)"';
+    const dirLine = (d, name) => {
+      if (d.n === 0) return '<span style="color:var(--muted)">' + name + ': \u2014</span>';
+      const col = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+      const wr = d.winrate === null ? '\u2014' : d.winrate.toFixed(0) + '%';
+      return '<span>' + name + ': <b>' + d.n + '</b> \u00b7 ' + wr + ' \u00b7 <span style="color:' + col + '">' + fmtK(d.pnl) + '</span></span>';
+    };
     div.innerHTML =
       '<div class="ts-block-label"><div class="ts-block-name">' + b.label + '</div>' +
       '<div class="ts-block-range">' + fmtMin(b.from) + '\u2013' + fmtMin(b.to) + ' Uhr</div></div>' +
@@ -524,7 +557,8 @@ function buildTimeStats() {
       '<div class="ts-stat"><div class="ts-stat-lbl">Trefferquote</div><div class="ts-stat-val" ' + wrCls + '>' + (b.winrate === null ? '\u2014' : b.winrate.toFixed(1).replace('.', ',') + ' %') + '</div></div>' +
       '<div class="ts-stat"><div class="ts-stat-lbl">P&L</div><div class="ts-stat-val" ' + pnlCls + '>' + fmtDE(b.pnl) + '</div></div>' +
       '<div class="ts-stat"><div class="ts-stat-lbl">\u00d8/Trade</div><div class="ts-stat-val">' + fmtDE(b.avg) + '</div></div>' +
-      '</div>';
+      '</div>' +
+      '<div class="ts-dir-row">' + dirLine(b.long, 'Long') + dirLine(b.short, 'Short') + '</div>';
     wrap.appendChild(div);
   });
 
@@ -545,7 +579,131 @@ function buildTimeStats() {
       '<div class="ts-hour-track"><div class="ts-hour-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
       '<div class="ts-hour-val" style="color:' + col + '">' + fmtDE(b.pnl) + ' \u00b7 ' + b.n + ' T \u00b7 ' + (b.winrate === null ? '\u2014' : b.winrate.toFixed(0) + '%') + '</div>';
     hw.appendChild(row);
+    // Long/Short-Detailzeile unter dem Balken
+    if (b.long.n > 0 || b.short.n > 0) {
+      const dirPart = (d, name) => {
+        if (d.n === 0) return name + ': \u2014';
+        const c = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+        const wr = d.winrate === null ? '\u2014' : d.winrate.toFixed(0) + '%';
+        return name + ': ' + d.n + ' \u00b7 ' + wr + ' \u00b7 <span style="color:' + c + '">' + fmtK(d.pnl) + '</span>';
+      };
+      const sub = document.createElement('div');
+      sub.className = 'ts-hour-dir';
+      sub.innerHTML = dirPart(b.long, 'Long') + '&nbsp;&nbsp;&nbsp;&nbsp;' + dirPart(b.short, 'Short');
+      hw.appendChild(sub);
+    }
+    // Automatische Diagnose fuer rote Stunden: WARUM ist sie negativ?
+    if (b.pnl < 0) {
+      const diag = diagnoseBucket(b.trades);
+      if (diag) {
+        const dEl = document.createElement('div');
+        dEl.className = 'ts-hour-diag';
+        dEl.innerHTML = '\u2192 ' + diagText(diag);
+        hw.appendChild(dEl);
+      }
+    }
   });
+
+  buildInsights();
+}
+
+// Diagnose-Befund in Klartext. Unterscheidet "Ausreisser/Overnight-Grabstaette"
+// von systematisch schlechten Stunden — das ist der Kern der Analyse.
+function diagText(d) {
+  const parts = [];
+  if (d.tags.includes('outlier')) {
+    parts.push(d.outlierShare + '% der Verluste aus nur ' + Math.min(2, d.lossCount) + ' Trade' + (d.lossCount > 1 ? 's' : '') + ' (' + fmtK(d.top2) + ')');
+  }
+  if (d.tags.includes('overnight')) {
+    parts.push(d.overnightCount + ' Overnight-Verlust' + (d.overnightCount !== 1 ? 'e' : '') + ' = ' + d.overnightShare + '% der Verlustsumme');
+  }
+  if (d.tags.includes('systematic')) {
+    parts.push('systematisch: ' + d.lossCount + ' Verluste ohne dominanten Ausreisser');
+  }
+  if (d.dirSkew) {
+    parts.push('fast nur ' + (d.dirSkew === 'short' ? 'Short' : 'Long') + '-Verluste');
+  }
+  let verdict;
+  if (d.tags.includes('systematic')) {
+    verdict = 'echtes Stunden-Problem';
+  } else if (d.tags.includes('overnight')) {
+    verdict = 'kein Stunden-Problem, sondern Endstation h\u00e4ngengebliebener Positionen';
+  } else if (d.tags.includes('outlier')) {
+    verdict = 'Einzelfall-getrieben, kein Muster';
+  } else {
+    verdict = 'gemischtes Bild';
+  }
+  return 'Diagnose: ' + parts.join(' \u00b7 ') + ' \u2014 ' + verdict + '.';
+}
+
+/* ============================================================
+   AUTO-ERKENNTNISSE + OVERNIGHT-ANALYSE
+   ============================================================ */
+function buildInsights() {
+  const { findings, overnight } = computeInsights(DATA.trades);
+  const wrap = $('ts-insights');
+  wrap.innerHTML = '';
+
+  const money = v => '<span style="color:' + (v >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtDE(v) + '</span>';
+  const wr = d => d.winrate === null ? '\u2014' : d.winrate.toFixed(0) + '%';
+  const hasStuck = findings.some(f => f.id === 'overnight-stuck');
+
+  const texts = {
+    'overnight-stuck': d =>
+      'Tages-Positionen \u00fcber Nacht zu halten kostet dich am meisten: <b>' + d.stuck.n + ' Trades</b> mit Einstieg 11\u201319 Uhr, \u00fcber Nacht gehalten = ' + money(d.stuck.pnl) +
+      ' (Trefferquote ' + wr(d.stuck) + '). Geplante Abend-Einstiege ab 19 Uhr dagegen: ' + money(d.planned.pnl) + ' bei ' + wr(d.planned) + ' \u2014 Regel: Was bis Handelsschluss nicht aufgeht, wird geschlossen.',
+    'overnight-neg': d =>
+      '\u00dcbernacht-Positionen sind in Summe negativ: ' + d.total.n + ' Trades = ' + money(d.total.pnl) + ' trotz ' + wr(d.total) + ' Trefferquote.',
+    'overnight-planned': d =>
+      'Geplante Abend-Overnights (Einstieg ab 19 Uhr) sind ein Edge: <b>' + d.planned.n + ' Trades</b>, ' + wr(d.planned) + ' Trefferquote, ' + money(d.planned.pnl) + '.',
+    'best-phase': d =>
+      'St\u00e4rkste Einstiegs-Phase: <b>' + d.label + '</b> \u2014 ' + d.n + ' Trades, ' + wr(d) + ' Trefferquote, ' + money(d.pnl) + '.',
+    'worst-phase': d =>
+      'Schw\u00e4chste Einstiegs-Phase: <b>' + d.label + '</b> \u2014 ' + d.n + ' Trades, ' + wr(d) + ' Trefferquote, ' + money(d.pnl) + '.',
+    'direction-bias': d => {
+      const stronger = d.long.pnl >= d.short.pnl ? 'Long' : 'Short';
+      const s = stronger === 'Long' ? d.long : d.short, w = stronger === 'Long' ? d.short : d.long;
+      const wName = stronger === 'Long' ? 'Short' : 'Long';
+      return '<b>' + stronger + '</b> ist deine st\u00e4rkere Seite: ' + s.n + ' Trades, ' + wr(s) + ', ' + money(s.pnl) +
+        ' \u2014 ' + wName + ': ' + w.n + ' Trades, ' + wr(w) + ', ' + money(w.pnl) + '.';
+    },
+    'worst-hour-dir': d =>
+      'Teuerste Kombination: <b>' + (d.dir === 'short' ? 'Short' : 'Long') + '-Ausstiege ' + String(d.hour).padStart(2, '0') + '\u2013' + String(d.hour + 1).padStart(2, '0') + ' Uhr</b> \u2014 ' +
+      d.n + ' Trades = ' + money(d.pnl) + ' bei ' + wr(d) + ' Trefferquote.'
+  };
+  const marks = { warn: '\u26a0', good: '\u2713', info: '\u2139' };
+
+  findings.forEach(f => {
+    if (f.id === 'overnight-planned' && hasStuck) return; // steckt schon im stuck-Text
+    const gen = texts[f.id];
+    if (!gen) return;
+    const div = document.createElement('div');
+    div.className = 'ts-ins-item ' + f.kind;
+    div.innerHTML = '<span class="mark">' + marks[f.kind] + '</span><span>' + gen(f.data) + '</span>';
+    wrap.appendChild(div);
+  });
+  if (wrap.children.length === 0) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:.75rem;">Noch zu wenige Daten f\u00fcr belastbare Erkenntnisse.</div>';
+  }
+
+  // Overnight-Kategorien-Tabelle
+  const det = $('ts-on-detail');
+  const cats = [
+    ['Fr\u00fch (Einstieg vor 11 Uhr)', overnight.early],
+    ['Tags\u00fcber (11\u201319 Uhr) \u2014 "h\u00e4ngengeblieben"', overnight.stuck],
+    ['Abend (ab 19 Uhr) \u2014 geplant', overnight.planned],
+    ['Gesamt', overnight.total]
+  ];
+  if (overnight.total.n === 0) {
+    det.innerHTML = '<div style="color:var(--muted);font-size:.75rem;">Keine Overnight-Trades (oder Einstiegszeiten fehlen).</div>';
+    return;
+  }
+  let html = '<table class="ts-on-table"><tr><th>Kategorie</th><th style="text-align:right">Trades</th><th style="text-align:right">Trefferquote</th><th style="text-align:right">P&L</th></tr>';
+  cats.forEach(([label, d]) => {
+    const col = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    html += '<tr><td>' + label + '</td><td class="r">' + d.n + '</td><td class="r">' + wr(d) + '</td><td class="r" style="color:' + col + '">' + fmtDE(d.pnl) + '</td></tr>';
+  });
+  det.innerHTML = html + '</table>';
 }
 
 /* ============================================================
@@ -1000,6 +1158,7 @@ function gisLoaded() {
   initAuth();
 }
 window.gisLoaded = gisLoaded;
+window.setTsMode = setTsMode;
 
 // Falls das Google-Script schon geladen war, bevor dieses Modul lief:
 if (window.google && window.google.accounts && window.google.accounts.oauth2) {

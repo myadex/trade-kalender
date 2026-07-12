@@ -108,7 +108,7 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
   const buyPools = {};
   (existingOpenLots || []).forEach(lot => {
     if (!buyPools[lot.isin]) buyPools[lot.isin] = [];
-    buyPools[lot.isin].push({ shares: lot.shares, amount: lot.amount, date: lot.date, desc: lot.desc, isin: lot.isin });
+    buyPools[lot.isin].push({ shares: lot.shares, amount: lot.amount, date: lot.date, time: lot.time || '', desc: lot.desc, isin: lot.isin });
   });
 
   const closed = [];
@@ -122,9 +122,11 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
 
     if (row.type === 'Buy' && shares > 0) {
       if (!buyPools[isin]) buyPools[isin] = [];
-      buyPools[isin].push({ shares, amount: Math.abs(amount), date: dateStr, desc: row.description, isin });
+      buyPools[isin].push({ shares, amount: Math.abs(amount), date: dateStr, time: String(row.time || ''), desc: row.description, isin });
     } else if (row.type === 'Sell' && shares > 0) {
       const pool = buyPools[isin] || [];
+      // Positionseroeffnung = aeltestes Lot (FIFO): Einstiegszeitpunkt des Trades
+      const firstLot = pool.length > 0 ? { date: pool[0].date, time: pool[0].time || '' } : null;
       let remaining = shares, cost = 0;
       while (remaining > 0.001 && pool.length > 0) {
         const b = pool[0];
@@ -141,6 +143,7 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
       const uid = isin + '_' + dateStr + '_' + sellRev.toFixed(2) + '_' + shares.toFixed(3);
       closed.push({
         uid, date: dateStr, time: String(row.time || ''), isin, desc: row.description, broker: 'scalable',
+        buyDate: firstLot ? firstLot.date : '', buyTime: firstLot ? firstLot.time : '',
         shares, buy: +cost.toFixed(2), sell: +sellRev.toFixed(2), tax: +tax.toFixed(2), pnl
       });
     }

@@ -44,10 +44,12 @@ export async function downloadData(accessToken, fileId) {
     return {
       trades: Array.isArray(parsed.trades) ? parsed.trades : [],
       openLots: Array.isArray(parsed.openLots) ? parsed.openLots : [],
-      capital: typeof parsed.capital === 'number' ? parsed.capital : 0
+      capital: typeof parsed.capital === 'number' ? parsed.capital : 0,
+      importRows: Array.isArray(parsed.importRows) ? parsed.importRows : [],
+      importBaseOpenLots: Array.isArray(parsed.importBaseOpenLots) ? parsed.importBaseOpenLots : null
     };
   } catch (e) {
-    return { trades: [], openLots: [], capital: 0 };
+    return { trades: [], openLots: [], capital: 0, importRows: [], importBaseOpenLots: null };
   }
 }
 

@@ -174,7 +174,7 @@ check('storage.js: Drive-Funktionen ausgelagert', appJs.includes('export async f
 check('app.js nutzt storage-Modul', appJs.includes("from './storage.js'"));
 check('storage.js: zustandslos (accessToken als Parameter)', appJs.includes('export async function driveFetch(accessToken'));
 check('fifoMatch in fifo.js vorhanden', appJs.includes('export function fifoMatch('));
-check('parseImport nutzt fifoMatch (keine FIFO-Duplizierung)', appJs.includes('fifoMatch(filtered, DATA.openLots, false)'));
+check('parseImport nutzt den zentralen Import-Ledger (keine FIFO-Duplizierung)', appJs.includes('replayImportLedger(importRows, importBaseOpenLots)'));
 check('Knockout-Filter optional (default aus)', appJs.includes('applyKnockoutFilter = false'));
 check('close-position functions present', appJs.includes('function confirmClosePos(') && appJs.includes('function openClosePosModal('));
 check('TAX_RATE constant present', appJs.includes('const TAX_RATE = 0.26375'));
@@ -267,6 +267,31 @@ const realFifoCheck = (async () => {
     check('import: CSV fehlende Spalten -> error', !!imod.parseScalableCsv('foo;bar\n1;2').error);
     const md = imod.markDuplicates([{ uid: 'a' }, { uid: 'b' }], new Set(['b']));
     check('import: markDuplicates (1 neu, 1 dup)', md.newCount === 1 && md.dupCount === 1);
+    const ledgerFnsReady =
+      typeof imod.withSourceRowIds === 'function' &&
+      typeof imod.mergeImportRows === 'function' &&
+      typeof fmod.replayImportLedger === 'function';
+    check('Import-Ledger: pure Funktionen exportiert', ledgerFnsReady);
+    if (ledgerFnsReady) {
+      const ledgerRows = imod.withSourceRowIds([
+        { type: 'Buy', status: 'Executed', isin: 'LEDGER', shares: 10, amount: -1000, date: '2026-07-01', time: '09:00:00', description: 'DAX Call', tax: 0 },
+        { type: 'Sell', status: 'Executed', isin: 'LEDGER', shares: 10, amount: 1200, date: '2026-07-01', time: '10:00:00', description: 'DAX Call', tax: 50 }
+      ]);
+      const mergedRows = imod.mergeImportRows([], [ledgerRows[0], ledgerRows[0], ledgerRows[1]]);
+      check('Import-Ledger: gleiche Rohzeile wird nur einmal gespeichert', mergedRows.length === 2);
+      const ledger = fmod.replayImportLedger(ledgerRows, []);
+      check('Import-Ledger: Replay markiert abgeleiteten Trade und Quelle',
+        ledger.errors.length === 0 && ledger.trades.length === 1 &&
+        ledger.trades[0].source === 'import' && ledger.trades[0].sourceRowId === ledgerRows[1].sourceRowId);
+      const afterDelete = fmod.replayImportLedger(ledgerRows.filter(r => r.type !== 'Sell'), []);
+      check('Import-Ledger: geloeschter Verkauf stellt offenes Lot wieder her',
+        afterDelete.errors.length === 0 && afterDelete.trades.length === 0 &&
+        afterDelete.openLots.length === 1 && afterDelete.openLots[0].shares === 10);
+    } else {
+      check('Import-Ledger: gleiche Rohzeile wird nur einmal gespeichert', false);
+      check('Import-Ledger: Replay markiert abgeleiteten Trade und Quelle', false);
+      check('Import-Ledger: geloeschter Verkauf stellt offenes Lot wieder her', false);
+    }
     const hmod = await import('file://' + DIR + '/js/helpers.js');
     check('helpers: escapeHtml neutralisiert HTML aus Importdaten',
       typeof hmod.escapeHtml === 'function' &&
@@ -398,8 +423,19 @@ check('UI escaped Texte aus CSV und JSON vor innerHTML',
   appJs.includes('escapeHtml(t.desc)') &&
   appJs.includes('escapeHtml(t.date)'));
 check('Import blockiert FIFO-Ueberverkaeufe vor dem Speichern',
-  appJs.includes('const { closed, openLots, errors } = fifoMatch') &&
+  appJs.includes('const { trades: closed, openLots, errors } = replayImportLedger') &&
   appJs.includes('if (errors.length > 0)'));
+check('App persistiert Import-Ledger getrennt von Legacy-Trades',
+  appJs.includes('importRows') &&
+  appJs.includes('importBaseOpenLots') &&
+  appJs.includes('replayImportLedger'));
+check('Import-Ledger speichert auch reine Buy-Zeilen ohne Verkauf',
+  appJs.includes('const newImportRowCount =') &&
+  appJs.includes('if (newImportRowCount > 0)'));
+check('Ledger erfasst manuelles Schliessen als Rohverkauf',
+  appJs.includes('if (hasImportLedger())') &&
+  appJs.includes("type: 'Sell', status: 'Executed'") &&
+  appJs.includes('mergeImportRows(DATA.importRows'));
 check('import.js: parseScalableCsv vorhanden', appJs.includes('export function parseScalableCsv'));
 check('import.js: deutsche Zahlen-Parser', appJs.includes('export function parseGermanNumber'));
 check('import.js: Pflichtspalten-Pruefung', appJs.includes("const REQUIRED_COLUMNS = ['type', 'status', 'isin'"));

@@ -160,7 +160,8 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
       closed.push({
         uid, date: dateStr, time: String(row.time || ''), isin, desc: row.description, broker: 'scalable',
         buyDate: firstLot ? firstLot.date : '', buyTime: firstLot ? firstLot.time : '',
-        shares, buy: +cost.toFixed(2), sell: +sellRev.toFixed(2), tax: +tax.toFixed(2), pnl
+        shares, buy: +cost.toFixed(2), sell: +sellRev.toFixed(2), tax: +tax.toFixed(2), pnl,
+        sourceRowId: row.sourceRowId || null
       });
     }
   });
@@ -176,4 +177,16 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
   }));
 
   return { closed, openLots, errors };
+}
+
+// Spielt alle ab Migration gespeicherten Brokerzeilen gegen den unveraenderten
+// Legacy-Bestand ab. Trades und offene Lots sind damit abgeleitete Daten und
+// nach dem Loeschen einer Importzeile jederzeit reproduzierbar.
+export function replayImportLedger(importRows, importBaseOpenLots) {
+  const result = fifoMatch(importRows || [], importBaseOpenLots || [], false);
+  return {
+    trades: result.closed.map(trade => Object.assign({}, trade, { source: 'import' })),
+    openLots: result.openLots,
+    errors: result.errors
+  };
 }

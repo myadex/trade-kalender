@@ -23,6 +23,45 @@ export function parseGermanNumber(s) {
   return isNaN(n) ? 0 : n;
 }
 
+// Eine Rohzeile braucht eine stabile Identitaet, damit ein wiederholter CSV-
+// Import dieselbe Buchung nicht erneut im Ledger ablegt. Sie beschreibt die
+// Brokerzeile selbst, nicht das daraus abgeleitete FIFO-Ergebnis.
+export function sourceRowId(row) {
+  const numberKey = (value, decimals) => (parseFloat(value) || 0).toFixed(decimals);
+  return JSON.stringify([
+    String(row.type || ''),
+    String(row.status || ''),
+    normalizeXlsxDate(row.date),
+    String(row.time || ''),
+    String(row.isin || ''),
+    numberKey(row.shares, 6),
+    numberKey(row.amount, 2),
+    numberKey(row.tax, 2),
+    String(row.description || '')
+  ]);
+}
+
+// Neue Ledger-Zeilen behalten alle Brokerfelder und erhalten nur die technische
+// Quell-ID. Die FIFO-Logik kann sie dadurch spaeter vollstaendig erneut abspielen.
+export function withSourceRowIds(rows) {
+  return (rows || []).map(row => Object.assign({}, row, {
+    sourceRowId: row.sourceRowId || sourceRowId(row)
+  }));
+}
+
+// Fuegt nur bislang unbekannte Brokerzeilen hinzu. So bleibt der Import
+// idempotent, auch wenn ein CSV-Export historische Zeilen erneut enthaelt.
+export function mergeImportRows(existingRows, incomingRows) {
+  const merged = withSourceRowIds(existingRows);
+  const known = new Set(merged.map(row => row.sourceRowId));
+  withSourceRowIds(incomingRows).forEach(row => {
+    if (known.has(row.sourceRowId)) return;
+    known.add(row.sourceRowId);
+    merged.push(row);
+  });
+  return merged;
+}
+
 // ------------------------------------------------------------
 // Zerlegt eine CSV-Zeile und beachtet Anführungszeichen
 // (Felder in "..." dürfen das Trennzeichen enthalten).

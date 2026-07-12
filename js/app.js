@@ -5,10 +5,10 @@
 // ============================================================
 import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml } from './helpers.js';
-import { dayMap, deriveOpenPositions, fifoMatch, closePositionPnl, tradePnl } from './fifo.js';
+import { dayMap, deriveOpenPositions, fifoMatch, replayImportLedger, closePositionPnl, tradePnl } from './fifo.js';
 import { findDataFile, downloadData, createData, updateData } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
-import { parseScalableCsv, markDuplicates } from './import.js';
+import { parseScalableCsv, markDuplicates, mergeImportRows } from './import.js';
 
 /* ============================================================
    STATE
@@ -16,9 +16,12 @@ import { parseScalableCsv, markDuplicates } from './import.js';
 let tokenClient = null;
 let accessToken = null;
 let driveFileId = null;          // id of trade-kalender.json in Drive
-let DATA = { trades: [], openLots: [], capital: 0 };
+const emptyData = () => ({ trades: [], openLots: [], capital: 0, importRows: [], importBaseOpenLots: null });
+let DATA = emptyData();
 let pendingImport = [];
 let pendingOpenLots = [];
+let pendingImportRows = null;
+let pendingImportBaseOpenLots = null;
 let currentDetailDate = null;
 // Aktuell angezeigter Monat im Kalender (Jahr + Monat 0-11). Standard: aktueller Monat.
 let calYear = new Date().getFullYear();
@@ -54,7 +57,7 @@ function signOut() {
   }
   accessToken = null;
   driveFileId = null;
-  DATA = { trades: [], openLots: [], capital: 0 };
+  DATA = emptyData();
   $('app-main').style.display = 'none';
   $('login-screen').style.display = 'flex';
   $('btn-logout').style.display = 'none';
@@ -85,7 +88,7 @@ async function loadFromDrive() {
   driveFileId = await findDataFile(accessToken);
   if (!driveFileId) {
     // Noch keine Datei vorhanden — leere anlegen
-    DATA = { trades: [], openLots: [], capital: 0 };
+    DATA = emptyData();
     driveFileId = await createData(accessToken, DATA);
     return;
   }
@@ -120,6 +123,21 @@ function tradesByDate(date) { return DATA.trades.filter(t => t.date === date); }
 // unverändert dayMapDATA()/openPositionsDATA() nutzen kann.
 function dayMapDATA() { return dayMap(DATA.trades); }
 function openPositionsDATA() { return deriveOpenPositions(DATA.openLots); }
+
+// Alte Daten haben keine Rohzeilen. Der Snapshot offener Lots zu Beginn der
+// Migration bleibt deshalb unveraendert die Basis; nur neue Importe werden
+// vollstaendig aus ihren Brokerzeilen abgeleitet.
+function hasImportLedger() { return Array.isArray(DATA.importBaseOpenLots); }
+function cloneLots(lots) { return (lots || []).map(lot => Object.assign({}, lot)); }
+function legacyTrades() { return DATA.trades.filter(t => t.source !== 'import'); }
+
+function replayStoredImports(importRows = DATA.importRows, importBaseOpenLots = DATA.importBaseOpenLots) {
+  const replay = replayImportLedger(importRows, importBaseOpenLots);
+  if (replay.errors.length > 0) {
+    throw new Error('Import-Ledger enth\u00e4lt einen Verkauf ohne ausreichende offene Lots.');
+  }
+  return replay;
+}
 
 /* ============================================================
    TABS
@@ -418,6 +436,30 @@ async function confirmClosePos() {
   const totalShares = lots.reduce((s, l) => s + l.shares, 0);
   const totalCost = lots.reduce((s, l) => s + l.amount, 0);
   const desc = lots[0].desc;
+  if (hasImportLedger()) {
+    // Nach der Migration muss auch ein manueller Schluss im Roh-Ledger landen.
+    // Sonst wuerde der naechste Replay den bereits geschlossenen Restbestand
+    // wieder als offen ableiten.
+    const nextRows = mergeImportRows(DATA.importRows, [{
+      type: 'Sell', status: 'Executed', isin: closingIsin,
+      shares: +totalShares.toFixed(3), amount: +sell.toFixed(2), tax: +tax.toFixed(2),
+      date, time: '', description: desc
+    }]);
+    let replay;
+    try {
+      replay = replayStoredImports(nextRows);
+    } catch (e) {
+      alert('Position konnte nicht geschlossen werden: ' + e.message);
+      return;
+    }
+    DATA.importRows = nextRows;
+    DATA.trades = legacyTrades().concat(replay.trades);
+    DATA.openLots = replay.openLots;
+    await persist();
+    closeClosePosModal();
+    rebuildAll();
+    return;
+  }
   const pnl = +(sell - totalCost - tax).toFixed(2);
   const base = closingIsin + '_' + date + '_' + sell.toFixed(2) + '_' + totalShares.toFixed(3);
   const uid = DATA.trades.some(t => t.uid === base) ? base + '_' + Date.now() : base;
@@ -804,8 +846,25 @@ function closeDetail() { $('detail-overlay').classList.remove('open'); currentDe
 async function deleteTrade(uid, date) {
   if (!uid) { alert('Kein UID \u2014 Trade kann nicht gel\u00f6scht werden.'); return; }
   if (!confirm('Trade l\u00f6schen?')) return;
-  DATA.trades = DATA.trades.filter(t => t.uid !== uid);
-  recomputeOpenLots();
+  const trade = DATA.trades.find(t => t.uid === uid);
+  if (!trade) { alert('Trade nicht gefunden.'); return; }
+  if (trade.source === 'import') {
+    if (!trade.sourceRowId) { alert('Import-Quelle fehlt \u2014 Trade kann nicht sicher gel\u00f6scht werden.'); return; }
+    const nextRows = DATA.importRows.filter(row => row.sourceRowId !== trade.sourceRowId);
+    let replay;
+    try {
+      replay = replayStoredImports(nextRows);
+    } catch (e) {
+      alert('L\u00f6schen abgebrochen: ' + e.message);
+      return;
+    }
+    DATA.importRows = nextRows;
+    DATA.trades = legacyTrades().concat(replay.trades);
+    DATA.openLots = replay.openLots;
+  } else {
+    DATA.trades = DATA.trades.filter(t => t.uid !== uid);
+    recomputeOpenLots();
+  }
   await persist();
   rebuildAll();
   const rem = tradesByDate(date);
@@ -861,6 +920,10 @@ async function saveTrade() {
 function openEditModal(uid) {
   const t = DATA.trades.find(x => x.uid === uid);
   if (!t) { alert('Trade nicht gefunden.'); return; }
+  if (t.source === 'import') {
+    alert('Importierte Trades werden aus ihren Rohzeilen abgeleitet. Bitte den Verkauf l\u00f6schen und die korrigierte CSV erneut importieren.');
+    return;
+  }
   $('e-uid').value = uid;
   $('e-date').value = t.date;
   $('e-desc').value = t.desc;
@@ -908,7 +971,7 @@ async function saveEdit() {
    CSV IMPORT (FIFO, Buy-before-Sell tiebreak, UID dedup)
    ============================================================ */
 function openImportModal() {
-  pendingImport = []; pendingOpenLots = [];
+  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null;
   $('import-tbody').innerHTML = '';
   $('import-preview').style.display = 'none';
   $('import-summary').style.display = 'none';
@@ -959,11 +1022,14 @@ function parseImport(text) {
   const result = parseScalableCsv(text);
   if (result.error) { importError(result.error); return; }
   const filtered = result.rows;
+  const importBaseOpenLots = hasImportLedger() ? cloneLots(DATA.importBaseOpenLots) : cloneLots(DATA.openLots);
+  const importRows = mergeImportRows(DATA.importRows, filtered);
+  const newImportRowCount = importRows.length - DATA.importRows.length;
 
   // FIFO-Matching über die zentrale Funktion aus fifo.js (keine Duplizierung).
   // Knockout-Filter aus: ausgeknockte Positionen bleiben offen und können
   // manuell geschlossen werden.
-  const { closed, openLots, errors } = fifoMatch(filtered, DATA.openLots, false);
+  const { trades: closed, openLots, errors } = replayImportLedger(importRows, importBaseOpenLots);
   if (errors.length > 0) {
     const first = errors[0];
     importError(
@@ -973,7 +1039,16 @@ function parseImport(text) {
     );
     return;
   }
+  // Ein erster Ledger-Import darf keine alte Historie nochmals uebernehmen:
+  // deren Rohzeilen fehlen, daher waere ein Mix aus Legacy und Replay falsch.
+  const legacyUids = new Set(legacyTrades().map(t => t.uid));
+  if (!hasImportLedger() && closed.some(t => legacyUids.has(t.uid))) {
+    importError('Dieser CSV-Export enth\u00e4lt bereits historische Trades. Bitte f\u00fcr den ersten Ledger-Import nur neue Brokerzeilen verwenden.');
+    return;
+  }
   pendingOpenLots = openLots;
+  pendingImportRows = importRows;
+  pendingImportBaseOpenLots = importBaseOpenLots;
 
   const { marked, newCount, dupCount } = markDuplicates(closed, new Set(DATA.trades.map(t => t.uid)));
   pendingImport = marked;
@@ -1003,22 +1078,30 @@ function parseImport(text) {
   $('import-preview').style.display = 'block';
   $('drop-zone').style.display = 'none';
   const sumEl = $('import-summary');
-  sumEl.textContent = newCount + ' neue Trades' + (dupCount ? ', ' + dupCount + ' bereits vorhanden (werden \u00fcbersprungen)' : '') + '.';
-  sumEl.className = 'import-summary' + (newCount === 0 ? ' warn' : '');
+  sumEl.textContent = newCount + ' neue Trades' +
+    (dupCount ? ', ' + dupCount + ' bereits vorhanden' : '') +
+    (newImportRowCount > 0 && newCount === 0 ? ', ' + newImportRowCount + ' neue Brokerzeile(n) f\u00fcr offene Positionen' : '') + '.';
+  sumEl.className = 'import-summary' + (newImportRowCount === 0 ? ' warn' : '');
   sumEl.style.display = 'block';
-  if (newCount > 0) {
+  if (newImportRowCount > 0) {
     const btn = $('import-confirm-btn');
     btn.style.display = 'inline-block';
-    btn.textContent = newCount + ' Trade' + (newCount !== 1 ? 's' : '') + ' importieren';
+    btn.textContent = newCount > 0
+      ? newCount + ' Trade' + (newCount !== 1 ? 's' : '') + ' importieren'
+      : newImportRowCount + ' Brokerzeile' + (newImportRowCount !== 1 ? 'n' : '') + ' importieren';
   }
 }
 
 async function confirmImport() {
-  pendingImport.filter(t => !t.isDup).forEach(t => {
+  if (!pendingImportRows || !pendingImportBaseOpenLots) return;
+  const importedTrades = pendingImport.map(t => {
     const o = Object.assign({}, t);
     delete o.isDup;
-    DATA.trades.push(o);
+    return o;
   });
+  DATA.importRows = pendingImportRows;
+  DATA.importBaseOpenLots = pendingImportBaseOpenLots;
+  DATA.trades = legacyTrades().concat(importedTrades);
   DATA.openLots = pendingOpenLots;
   await persist();
   closeImportModal();
@@ -1041,7 +1124,7 @@ function recomputeOpenLots() {
    ============================================================ */
 async function resetAllData() {
   if (!confirm('Wirklich ALLE Trades l\u00f6schen? Die Datei in Google Drive wird geleert (alles auf 0). Kann nicht r\u00fcckg\u00e4ngig gemacht werden.')) return;
-  DATA = { trades: [], openLots: [], capital: 0 };
+  DATA = emptyData();
   await persist();
   rebuildAll();
   alert('Alle Daten gel\u00f6scht. Du kannst jetzt neu importieren.');
@@ -1072,7 +1155,9 @@ async function handleJsonRestore(file) {
     DATA = {
       trades: parsed.trades,
       openLots: Array.isArray(parsed.openLots) ? parsed.openLots : [],
-      capital: typeof parsed.capital === 'number' ? parsed.capital : 0
+      capital: typeof parsed.capital === 'number' ? parsed.capital : 0,
+      importRows: Array.isArray(parsed.importRows) ? parsed.importRows : [],
+      importBaseOpenLots: Array.isArray(parsed.importBaseOpenLots) ? parsed.importBaseOpenLots : null
     };
     await persist();
     rebuildAll();

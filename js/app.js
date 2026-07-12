@@ -6,7 +6,7 @@
 import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, replayImportLedger, closePositionPnl, tradePnl } from './fifo.js';
-import { findDataFile, downloadData, createData, updateData } from './storage.js';
+import { findDataFile, downloadData, createData, updateData, createWriteQueue } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
 import { parseScalableCsv, markDuplicates, mergeImportRows } from './import.js';
 
@@ -22,6 +22,7 @@ let pendingImport = [];
 let pendingOpenLots = [];
 let pendingImportRows = null;
 let pendingImportBaseOpenLots = null;
+const enqueuePersist = createWriteQueue();
 let currentDetailDate = null;
 // Aktuell angezeigter Monat im Kalender (Jahr + Monat 0-11). Standard: aktueller Monat.
 let calYear = new Date().getFullYear();
@@ -95,22 +96,28 @@ async function loadFromDrive() {
   DATA = await downloadData(accessToken, driveFileId);
 }
 
-async function saveToDrive(isCreate) {
+async function saveToDrive(isCreate, data = DATA) {
   if (!driveFileId || isCreate) {
-    driveFileId = await createData(accessToken, DATA);
+    driveFileId = await createData(accessToken, data);
   } else {
-    await updateData(accessToken, driveFileId, DATA);
+    await updateData(accessToken, driveFileId, data);
   }
 }
 
-async function persist() {
-  setStatus('Speichere in Google Drive \u2026');
-  try {
-    await saveToDrive(false);
-    setStatus('');
-  } catch (e) {
-    setStatus('Speichern fehlgeschlagen: ' + e.message, true);
-  }
+function persist() {
+  // Jede Aktion speichert ihren eigenen Zustandsschnappschuss. Ohne Snapshot
+  // koennte eine spaetere Mutation waehrend eines laufenden Requests in den
+  // falschen Schreibauftrag gelangen.
+  const snapshot = JSON.parse(JSON.stringify(DATA));
+  return enqueuePersist(async () => {
+    setStatus('Speichere in Google Drive \u2026');
+    try {
+      await saveToDrive(false, snapshot);
+      setStatus('');
+    } catch (e) {
+      setStatus('Speichern fehlgeschlagen: ' + e.message, true);
+    }
+  });
 }
 
 /* ============================================================

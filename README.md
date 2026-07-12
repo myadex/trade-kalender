@@ -15,3 +15,10 @@ inhaltliche Korrekturen wird die korrigierte CSV erneut importiert.
 Das Entfernen einer offenen Position ohne P&L-Buchung ist bei aktivem Ledger
 bewusst gesperrt: Es gibt daf\u00fcr kein reproduzierbares Brokerereignis und die
 Position w\u00fcrde beim n\u00e4chsten Replay sonst wieder erscheinen.
+
+## Drive-Sicherheit ab v37
+
+Jeder Drive-HTTP-Fehler au\u00dfer 401 wird mit Status und Servermeldung angezeigt.
+Eine ung\u00fcltige Drive-JSON wird nicht als leerer Bestand interpretiert. Lokale
+Schreibauftr\u00e4ge werden mit einem eigenen Daten-Snapshot nacheinander gespeichert,
+damit schnelle aufeinanderfolgende Aktionen sich nicht gegenseitig \u00fcberschreiben.

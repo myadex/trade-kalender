@@ -7,14 +7,42 @@
 
 import { DATA_FILENAME } from './config.js';
 
+// Serialisiert Schreibauftraege innerhalb eines Tabs. Nach einem Fehler bleibt
+// die Queue nutzbar, damit ein spaeterer Speicherversuch nicht mit dem ersten
+// fehlgeschlagenen Promise verkettet haengen bleibt.
+export function createWriteQueue() {
+  let tail = Promise.resolve();
+  return task => {
+    const current = tail.then(task);
+    tail = current.catch(() => {});
+    return current;
+  };
+}
+
+async function driveErrorMessage(response) {
+  let text = '';
+  try { text = await response.text(); } catch (e) { return ''; }
+  if (!text) return '';
+  try {
+    const parsed = JSON.parse(text);
+    return String((parsed.error && parsed.error.message) || parsed.message || text).slice(0, 300);
+  } catch (e) {
+    return text.slice(0, 300);
+  }
+}
+
 // ------------------------------------------------------------
 // fetch mit Bearer-Token. Wirft bei abgelaufener Sitzung (401).
 // ------------------------------------------------------------
 export async function driveFetch(accessToken, url, opts = {}) {
   opts.headers = Object.assign({}, opts.headers, { Authorization: 'Bearer ' + accessToken });
   const r = await fetch(url, opts);
-  if (r.status === 401) {
-    throw new Error('Sitzung abgelaufen \u2014 bitte neu anmelden.');
+  if (!r.ok) {
+    if (r.status === 401) {
+      throw new Error('Sitzung abgelaufen \u2014 bitte neu anmelden.');
+    }
+    const detail = await driveErrorMessage(r);
+    throw new Error('Google Drive Fehler (' + r.status + ')' + (detail ? ': ' + detail : ''));
   }
   return r;
 }
@@ -49,7 +77,7 @@ export async function downloadData(accessToken, fileId) {
       importBaseOpenLots: Array.isArray(parsed.importBaseOpenLots) ? parsed.importBaseOpenLots : null
     };
   } catch (e) {
-    return { trades: [], openLots: [], capital: 0, importRows: [], importBaseOpenLots: null };
+    throw new Error('Datendatei in Google Drive ist ung\u00fcltig und wurde nicht geladen.');
   }
 }
 

@@ -300,6 +300,43 @@ const realFifoCheck = (async () => {
     check('helpers: normalizeXlsxDate SheetJS-Date = 2026-06-29', hmod.normalizeXlsxDate(sjsDate) === '2026-06-29');
     check('helpers: normalizeXlsxDate deutsch 29.06.2026', hmod.normalizeXlsxDate('29.06.2026') === '2026-06-29');
     check('helpers: normalizeXlsxDate US 06/29/26', hmod.normalizeXlsxDate('06/29/26') === '2026-06-29');
+    const smod = await import('file://' + DIR + '/js/storage.js');
+    const originalFetch = global.fetch;
+    try {
+      let request = null;
+      global.fetch = async (url, opts) => {
+        request = { url, opts };
+        return new Response('{}', { status: 200 });
+      };
+      await smod.driveFetch('test-token', 'https://example.test/data', { headers: { 'X-Test': 'ok' } });
+      check('storage: driveFetch sendet Bearer-Token und bestehende Header',
+        request && request.opts.headers.Authorization === 'Bearer test-token' && request.opts.headers['X-Test'] === 'ok');
+
+      global.fetch = async () => new Response(JSON.stringify({ error: { message: 'Keine Berechtigung' } }), { status: 403 });
+      let driveError = '';
+      try { await smod.driveFetch('test-token', 'https://example.test/data'); }
+      catch (e) { driveError = e.message; }
+      check('storage: Drive-403 wird mit Servermeldung geworfen', driveError.includes('403') && driveError.includes('Keine Berechtigung'));
+
+      global.fetch = async () => new Response('{kaputt', { status: 200 });
+      let corruptDataError = '';
+      try { await smod.downloadData('test-token', 'file-id'); }
+      catch (e) { corruptDataError = e.message; }
+      check('storage: kaputte Drive-JSON wird nicht als leere Daten akzeptiert', corruptDataError.includes('ung\u00fcltig'));
+
+      const enqueue = smod.createWriteQueue();
+      const order = [];
+      const first = enqueue(async () => {
+        order.push('first-start');
+        await Promise.resolve();
+        order.push('first-end');
+      });
+      const second = enqueue(async () => { order.push('second'); });
+      await Promise.all([first, second]);
+      check('storage: Schreibqueue haelt die Reihenfolge ein', order.join('|') === 'first-start|first-end|second');
+    } finally {
+      global.fetch = originalFetch;
+    }
     const tst = vmod.computeTimeStats([
       { pnl: 100, time: '09:15:00' },   // Xetra-Eroeffnung
       { pnl: -50, time: '13:30:00' },   // Mittagsflaute
@@ -438,6 +475,9 @@ check('Ledger erfasst manuelles Schliessen als Rohverkauf',
   appJs.includes('mergeImportRows(DATA.importRows'));
 check('Ledger blockiert Loeschen offener Positionen ohne Rohereignis',
   /function deleteOpenPosition[\s\S]{0,300}if \(hasImportLedger\(\)\)/.test(appJs));
+check('App serialisiert Drive-Speichervorgaenge mit Snapshot',
+  appJs.includes('const enqueuePersist = createWriteQueue()') &&
+  appJs.includes('const snapshot = JSON.parse(JSON.stringify(DATA))'));
 check('import.js: parseScalableCsv vorhanden', appJs.includes('export function parseScalableCsv'));
 check('import.js: deutsche Zahlen-Parser', appJs.includes('export function parseGermanNumber'));
 check('import.js: Pflichtspalten-Pruefung', appJs.includes("const REQUIRED_COLUMNS = ['type', 'status', 'isin'"));

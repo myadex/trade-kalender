@@ -35,8 +35,18 @@ check('Service Worker liegt im Projekt-Root', hasRootServiceWorker);
 const swJs = hasRootServiceWorker ? fs.readFileSync(swPath, 'utf8') : '';
 const html = fs.readFileSync(DIR + '/index.html', 'utf8');
 if (hasRootServiceWorker) {
-  try { acorn.parse(swJs, { ecmaVersion: 2020 }); check('sw.js parses', true); }
-  catch (e) { check('sw.js parses (' + e.message + ')', false); }
+try { acorn.parse(swJs, { ecmaVersion: 2020 }); check('sw.js parses', true); }
+catch (e) { check('sw.js parses (' + e.message + ')', false); }
+const offlineAssets = [
+  './index.html', './manifest.json', './icon-192.png', './icon-512.png',
+  './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
+  './js/import.js', './js/storage.js', './js/views.js'
+];
+check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
+check('PWA: Navigation hat einen Offline-Fallback auf index.html',
+  swJs.includes("e.request.mode === 'navigate'") && swJs.includes("caches.match('./index.html')"));
+check('PWA: Google Auth und Drive werden nie gecacht',
+  swJs.includes("url.includes('googleapis.com')") && swJs.includes("url.includes('accounts.google.com')"));
 }
 
 console.log('\n=== 1b. IMPORT/EXPORT-KONSISTENZ (Modul-Vertraege) ===');

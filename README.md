@@ -29,3 +29,10 @@ damit schnelle aufeinanderfolgende Aktionen sich nicht gegenseitig \u00fcberschr
 wird nicht versioniert. Die kanonischen Daten liegen in Google Drive. Bereits
 ver\u00f6ffentlichte Git-Historie wird dadurch nicht bereinigt; eine History-Rewrite
 mit anschlie\u00dfendem Force-Push ist eine separate, bewusste Sicherheitsma\u00dfnahme.
+
+## Offline-PWA ab v39
+
+Die App-H\u00fclle, alle lokalen JavaScript-Module und Icons werden beim Service-
+Worker-Install vorgeladen. Offline kann eine Navigation daher die vorhandene
+`index.html` anzeigen. Google-Anmeldung, Drive-Daten und Google-Fonts bleiben
+bewusst online-only; ohne Netz ist kein Login oder Datensynchronisieren m\u00f6glich.

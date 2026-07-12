@@ -2,6 +2,7 @@
 const fs = require('fs');
 const { JSDOM } = require('jsdom');
 const acorn = require('acorn');
+const { execFileSync } = require('child_process');
 
 const DIR = __dirname + '/..';
 let pass = 0, fail = 0;
@@ -109,6 +110,16 @@ const r2 = /\$\(['"]([^'"]+)['"]\)/g; while ((m = r2.exec(appJs))) ids.add(m[1])
 const missingIds = [...ids].filter(id => !html.includes('id="' + id + '"'));
 check('all ' + ids.size + ' getElementById IDs exist in HTML', missingIds.length === 0);
 if (missingIds.length) console.log('     missing: ' + missingIds.join(', '));
+
+console.log('\n=== 2b. DATENSCHUTZ ===');
+const gitignore = fs.readFileSync(DIR + '/.gitignore', 'utf8');
+check('Laufzeit-Datensnapshot ist in .gitignore', gitignore.includes('trade-kalender.json'));
+let runtimeDataTracked = false;
+try {
+  execFileSync('git', ['ls-files', '--error-unmatch', 'trade-kalender.json'], { cwd: DIR, stdio: 'ignore' });
+  runtimeDataTracked = true;
+} catch (e) {}
+check('Laufzeit-Datensnapshot ist nicht im Git-Index', !runtimeDataTracked);
 
 console.log('\n=== 3. EVENT HANDLERS ===');
 const handlers = new Set();

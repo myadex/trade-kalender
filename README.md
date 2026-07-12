@@ -22,3 +22,10 @@ Jeder Drive-HTTP-Fehler au\u00dfer 401 wird mit Status und Servermeldung angezei
 Eine ung\u00fcltige Drive-JSON wird nicht als leerer Bestand interpretiert. Lokale
 Schreibauftr\u00e4ge werden mit einem eigenen Daten-Snapshot nacheinander gespeichert,
 damit schnelle aufeinanderfolgende Aktionen sich nicht gegenseitig \u00fcberschreiben.
+
+## Datenschutz
+
+`trade-kalender.json` ist ein lokaler, personenbezogener Laufzeit-Snapshot und
+wird nicht versioniert. Die kanonischen Daten liegen in Google Drive. Bereits
+ver\u00f6ffentlichte Git-Historie wird dadurch nicht bereinigt; eine History-Rewrite
+mit anschlie\u00dfendem Force-Push ist eine separate, bewusste Sicherheitsma\u00dfnahme.

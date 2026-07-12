@@ -436,6 +436,8 @@ check('Ledger erfasst manuelles Schliessen als Rohverkauf',
   appJs.includes('if (hasImportLedger())') &&
   appJs.includes("type: 'Sell', status: 'Executed'") &&
   appJs.includes('mergeImportRows(DATA.importRows'));
+check('Ledger blockiert Loeschen offener Positionen ohne Rohereignis',
+  /function deleteOpenPosition[\s\S]{0,300}if \(hasImportLedger\(\)\)/.test(appJs));
 check('import.js: parseScalableCsv vorhanden', appJs.includes('export function parseScalableCsv'));
 check('import.js: deutsche Zahlen-Parser', appJs.includes('export function parseGermanNumber'));
 check('import.js: Pflichtspalten-Pruefung', appJs.includes("const REQUIRED_COLUMNS = ['type', 'status', 'isin'"));

@@ -11,3 +11,7 @@ Der erste Ledger-Import darf deshalb nur neue Brokerzeilen enthalten. Einen
 vollst\u00e4ndigen historischen Neuaufbau erfordert weiterhin den originalen CSV-
 Export. Importierte Trades werden gel\u00f6scht und durch Replay korrigiert; f\u00fcr
 inhaltliche Korrekturen wird die korrigierte CSV erneut importiert.
+
+Das Entfernen einer offenen Position ohne P&L-Buchung ist bei aktivem Ledger
+bewusst gesperrt: Es gibt daf\u00fcr kein reproduzierbares Brokerereignis und die
+Position w\u00fcrde beim n\u00e4chsten Replay sonst wieder erscheinen.

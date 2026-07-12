@@ -510,6 +510,10 @@ function buildOpenPositions() {
 // P&L-Buchung und ohne Steuer. Für Rest-Lots, Import-Artefakte oder
 // Positionen, die nicht getrackt werden sollen. Mit Sicherheitsabfrage.
 async function deleteOpenPosition(isin) {
+  if (hasImportLedger()) {
+    alert('Offene Positionen ohne P&L-Buchung lassen sich nach dem Ledger-Start nicht l\u00f6schen. Bitte die Position schlie\u00dfen oder die zugrundeliegende CSV korrigieren.');
+    return;
+  }
   const lots = DATA.openLots.filter(l => l.isin === isin);
   if (lots.length === 0) return;
   const shares = lots.reduce((s, l) => s + l.shares, 0);

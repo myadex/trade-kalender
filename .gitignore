@@ -1,0 +1,29 @@
+# Installierte Abhaengigkeiten gehoeren nicht ins Repository.
+node_modules/
+
+# Moegliche Test- und Coverage-Ausgaben.
+coverage/
+.nyc_output/
+
+# Package-Manager-Protokolle.
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Lokale Secrets und entwicklerspezifische Konfiguration.
+.env
+.env.*
+!.env.example
+
+# Lokale IDE- und Betriebssystemdateien.
+.idea/
+.vs/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Personenbezogener Laufzeit-Datensnapshot. Die kanonischen Daten liegen in
+# Google Drive; bereits getrackte Dateien muessen separat aus dem Git-Index.
+trade-kalender.json

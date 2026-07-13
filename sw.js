@@ -1,4 +1,4 @@
-const CACHE = 'trade-kalender-v40';
+const CACHE = 'trade-kalender-v41';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './js/fifo.js',
   './js/helpers.js',
   './js/import.js',
+  './js/migration.js',
   './js/storage.js',
   './js/views.js',
 ];

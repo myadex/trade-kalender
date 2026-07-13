@@ -38,13 +38,16 @@ const backlogPath = DIR + '/BACKLOG.md';
 const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8') : '';
 check('Projekt-Backlog mit offenen Punkten vorhanden',
   backlog.includes('# App-Backlog') && backlog.includes('## Prioritaet 1'));
+const migrationPath = DIR + '/js/migration.js';
+const hasMigrationModule = fs.existsSync(migrationPath);
+check('Vollstaendiger CSV-Neuaufbau ist als Fachmodul vorhanden', hasMigrationModule);
 if (hasRootServiceWorker) {
 try { acorn.parse(swJs, { ecmaVersion: 2020 }); check('sw.js parses', true); }
 catch (e) { check('sw.js parses (' + e.message + ')', false); }
 const offlineAssets = [
   './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
-  './js/import.js', './js/storage.js', './js/views.js'
+  './js/import.js', './js/migration.js', './js/storage.js', './js/views.js'
 ];
 check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
 check('PWA: Navigation hat einen Offline-Fallback auf index.html',
@@ -317,6 +320,23 @@ const realFifoCheck = (async () => {
       check('Import-Ledger: Replay markiert abgeleiteten Trade und Quelle', false);
       check('Import-Ledger: geloeschter Verkauf stellt offenes Lot wieder her', false);
     }
+    if (hasMigrationModule) {
+      const mmod = await import('file://' + migrationPath);
+      const migrationRows = [
+        { type: 'Buy', status: 'Executed', isin: 'MIGRATION', shares: 10, amount: -1000, date: '2026-07-01', time: '09:00:00', description: 'DAX Call', tax: 0 },
+        { type: 'Sell', status: 'Executed', isin: 'MIGRATION', shares: 10, amount: 1200, date: '2026-07-01', time: '10:00:00', description: 'DAX Call', tax: 50 }
+      ];
+      const rebuilt = mmod.buildFullRebuild([migrationRows[0], migrationRows[0], migrationRows[1]], 1234);
+      check('Migration: CSV ersetzt Legacy durch dedupliziertes Roh-Ledger',
+        !rebuilt.error && rebuilt.data.importRows.length === 2 &&
+        rebuilt.data.trades.length === 1 && rebuilt.data.trades[0].source === 'import' &&
+        rebuilt.data.importBaseOpenLots.length === 0);
+      check('Migration: Kapitalwert bleibt bei CSV-Neuaufbau erhalten',
+        !rebuilt.error && rebuilt.data.capital === 1234);
+    } else {
+      check('Migration: CSV ersetzt Legacy durch dedupliziertes Roh-Ledger', false);
+      check('Migration: Kapitalwert bleibt bei CSV-Neuaufbau erhalten', false);
+    }
     const hmod = await import('file://' + DIR + '/js/helpers.js');
     check('helpers: escapeHtml neutralisiert HTML aus Importdaten',
       typeof hmod.escapeHtml === 'function' &&
@@ -503,6 +523,14 @@ check('Ledger blockiert Loeschen offener Positionen ohne Rohereignis',
 check('App serialisiert Drive-Speichervorgaenge mit Snapshot',
   appJs.includes('const enqueuePersist = createWriteQueue()') &&
   appJs.includes('const snapshot = JSON.parse(JSON.stringify(DATA))'));
+check('UI bietet einen bestaetigten CSV-Neuaufbau mit lokaler Sicherung',
+  html.includes('id="import-rebuild-mode"') &&
+  appJs.includes('buildFullRebuild') &&
+  appJs.includes('downloadMigrationBackup'));
+check('CSV-Neuaufbau stellt bei Drive-Fehler den vorherigen Zustand wieder her',
+  appJs.includes('const previousData = DATA') &&
+  appJs.includes('const saved = await persist()') &&
+  appJs.includes('DATA = previousData'));
 check('import.js: parseScalableCsv vorhanden', appJs.includes('export function parseScalableCsv'));
 check('import.js: deutsche Zahlen-Parser', appJs.includes('export function parseGermanNumber'));
 check('import.js: Pflichtspalten-Pruefung', appJs.includes("const REQUIRED_COLUMNS = ['type', 'status', 'isin'"));

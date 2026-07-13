@@ -177,6 +177,8 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .import-preview tr.dup td{opacity:.35;text-decoration:line-through;}
 .import-summary{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);margin:.5rem 0;}
 .import-summary.warn{color:var(--amber);}
+.import-rebuild-option{display:block;margin:.7rem 0;font-size:.74rem;line-height:1.45;color:var(--muted);cursor:pointer;}
+.import-rebuild-option input{margin-right:.45rem;vertical-align:middle;}
 
 /* Desktop defaults: mobile-only elements hidden (overridden inside media query) */
 #bottom-bar { display: none; }
@@ -506,6 +508,10 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       <p>CSV hier reinziehen oder klicken</p>
       <p style="margin-top:.4rem;font-size:.58rem">Scalable Capital Export &middot; Buy/Sell &middot; Executed</p>
     </div>
+    <label class="import-rebuild-option">
+      <input type="checkbox" id="import-rebuild-mode">
+      Vollst&auml;ndig aus diesem Broker-Export neu aufbauen. Ersetzt alle bisherigen Trades und offenen Positionen; vor dem Speichern wird eine lokale JSON-Sicherung erstellt.
+    </label>
     <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFileSelect(this.files[0])">
     <div class="import-preview" id="import-preview" style="display:none">
       <table><thead><tr><th>Datum</th><th>Produkt</th><th>St&uuml;ck</th><th class="r">Kauf</th><th class="r">Verkauf</th><th class="r">P&amp;L</th><th>Status</th></tr></thead>

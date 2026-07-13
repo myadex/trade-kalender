@@ -9,6 +9,7 @@ import { dayMap, deriveOpenPositions, fifoMatch, replayImportLedger, closePositi
 import { findDataFile, downloadData, createData, updateData, createWriteQueue } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
 import { parseScalableCsv, markDuplicates, mergeImportRows } from './import.js';
+import { buildFullRebuild } from './migration.js';
 
 /* ============================================================
    STATE
@@ -22,6 +23,7 @@ let pendingImport = [];
 let pendingOpenLots = [];
 let pendingImportRows = null;
 let pendingImportBaseOpenLots = null;
+let pendingFullRebuild = null;
 const enqueuePersist = createWriteQueue();
 let currentDetailDate = null;
 // Aktuell angezeigter Monat im Kalender (Jahr + Monat 0-11). Standard: aktueller Monat.
@@ -114,10 +116,27 @@ function persist() {
     try {
       await saveToDrive(false, snapshot);
       setStatus('');
+      return true;
     } catch (e) {
       setStatus('Speichern fehlgeschlagen: ' + e.message, true);
+      return false;
     }
   });
+}
+
+// Ein Komplett-Neuaufbau ersetzt den Drive-Bestand. Die lokale JSON-Sicherung
+// entsteht vor dem Speichern, damit der vorherige Zustand auch ohne Drive-
+// Versionsverwaltung direkt ueber "JSON wiederherstellen" verfuegbar bleibt.
+function downloadMigrationBackup() {
+  const blob = new Blob([JSON.stringify(DATA, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'trade-kalender-backup-' + toLocalDateStr(new Date()) + '.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /* ============================================================
@@ -982,7 +1001,8 @@ async function saveEdit() {
    CSV IMPORT (FIFO, Buy-before-Sell tiebreak, UID dedup)
    ============================================================ */
 function openImportModal() {
-  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null;
+  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null; pendingFullRebuild = null;
+  $('import-rebuild-mode').checked = false;
   $('import-tbody').innerHTML = '';
   $('import-preview').style.display = 'none';
   $('import-summary').style.display = 'none';
@@ -1028,11 +1048,66 @@ function importError(msg) {
   if (btn) btn.style.display = 'none';
 }
 
+function parseFullRebuild(filtered) {
+  const rebuilt = buildFullRebuild(filtered, DATA.capital);
+  if (rebuilt.error) {
+    const first = rebuilt.error;
+    importError(
+      'Neuaufbau abgebrochen: Verkauf ' + first.requestedShares + ' St\u00fcck (' + first.isin +
+      ') am ' + first.date + ' hat nur ' + first.availableShares + ' offene St\u00fcck.'
+    );
+    return;
+  }
+
+  pendingFullRebuild = rebuilt.data;
+  pendingImportRows = rebuilt.data.importRows;
+  pendingImportBaseOpenLots = rebuilt.data.importBaseOpenLots;
+  pendingOpenLots = rebuilt.data.openLots;
+  const { marked, newCount } = markDuplicates(rebuilt.data.trades, new Set());
+  pendingImport = marked;
+
+  const tbody = $('import-tbody');
+  tbody.innerHTML = '';
+  pendingImport.slice(0, 40).forEach(t => {
+    const col = t.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + escapeHtml(t.date) + '</td>' +
+      '<td style="font-size:.65rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(t.desc) + '</td>' +
+      '<td class="r">' + t.shares + '</td>' +
+      '<td class="r">' + fmtPlain(t.buy, 0) + '</td>' +
+      '<td class="r">' + fmtPlain(t.sell, 0) + '</td>' +
+      '<td class="r" style="color:' + col + '">' + fmtDE(t.pnl) + '</td>' +
+      '<td>Neu</td>';
+    tbody.appendChild(tr);
+  });
+  if (pendingImport.length > 40) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="7" style="color:var(--muted);font-size:.65rem;padding:.3rem .5rem">\u2026 und ' + (pendingImport.length - 40) + ' weitere</td>';
+    tbody.appendChild(tr);
+  }
+
+  $('import-preview').style.display = 'block';
+  $('drop-zone').style.display = 'none';
+  const sumEl = $('import-summary');
+  sumEl.textContent = 'Vollst\u00e4ndiger Neuaufbau: ' + newCount + ' Trades und ' + rebuilt.data.openLots.length +
+    ' offene Lots. Bestehende Daten werden nach Best\u00e4tigung ersetzt; vorher wird eine lokale JSON-Sicherung erstellt.';
+  sumEl.className = 'import-summary warn';
+  sumEl.style.display = 'block';
+  const btn = $('import-confirm-btn');
+  btn.style.display = 'inline-block';
+  btn.textContent = 'Sicherung erstellen und Daten ersetzen';
+}
+
 function parseImport(text) {
   // Parsen + Validieren passiert in import.js (pure). Hier nur Fehleranzeige + Rendering.
   const result = parseScalableCsv(text);
   if (result.error) { importError(result.error); return; }
   const filtered = result.rows;
+  pendingFullRebuild = null;
+  if ($('import-rebuild-mode').checked) {
+    parseFullRebuild(filtered);
+    return;
+  }
   const importBaseOpenLots = hasImportLedger() ? cloneLots(DATA.importBaseOpenLots) : cloneLots(DATA.openLots);
   const importRows = mergeImportRows(DATA.importRows, filtered);
   const newImportRowCount = importRows.length - DATA.importRows.length;
@@ -1105,6 +1180,24 @@ function parseImport(text) {
 
 async function confirmImport() {
   if (!pendingImportRows || !pendingImportBaseOpenLots) return;
+  if (pendingFullRebuild) {
+    const n = pendingFullRebuild.trades.length;
+    if (!confirm(n + ' Trades aus dem Broker-Export \u00fcbernehmen und alle bisherigen Daten in Google Drive ersetzen? Zuvor wird eine lokale JSON-Sicherung heruntergeladen.')) return;
+    const previousData = DATA;
+    downloadMigrationBackup();
+    DATA = pendingFullRebuild;
+    const saved = await persist();
+    if (!saved) {
+      DATA = previousData;
+      rebuildAll();
+      alert('Neuaufbau wurde nicht in Google Drive gespeichert. Der vorherige Stand ist wieder aktiv; die JSON-Sicherung wurde heruntergeladen.');
+      return;
+    }
+    closeImportModal();
+    rebuildAll();
+    alert('Neuaufbau abgeschlossen. Die vorherigen Daten liegen in der heruntergeladenen JSON-Sicherung.');
+    return;
+  }
   const importedTrades = pendingImport.map(t => {
     const o = Object.assign({}, t);
     delete o.isDup;

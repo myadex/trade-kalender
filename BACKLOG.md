@@ -28,14 +28,14 @@ Wartbarkeit bzw. Komfort.
 
 ### Legacy-Daten vollstaendig neu aufbauen
 
-- **Status:** Offen, Original-CSV erforderlich.
-- **Warum:** Vor v35 gespeicherte Trades enthalten keine Rohzeilen und bleiben
-  deshalb bewusst Legacy-Daten.
-- **Naechster Schritt:** Vollstaendigen Scalable-Capital-Export gegen Golden
-  Values pruefen und die Drive-JSON in eine neue, nachvollziehbare Datei
-  migrieren.
-- **Entscheidung noetig:** Originalexport bereitstellen und Sollwerte vor der
-  Migration festlegen.
+- **Status:** Bereit zur Ausfuehrung in Drive.
+- **Erledigt:** Ein vollstaendiger Scalable-Capital-Export wurde ohne FIFO-
+  Fehler gegen den neuen Neuaufbau geprueft. Die App kann den Legacy-Bestand
+  nun nach einer zweiten Bestaetigung durch ein Roh-Ledger ersetzen und legt
+  vorher eine lokale JSON-Sicherung an.
+- **Restschritt:** In der angemeldeten App den CSV-Import oeffnen, die Option
+  "Vollstaendig aus diesem Broker-Export neu aufbauen" aktivieren und die
+  Vorschau bestaetigen. Anschliessend Drive-Daten erneut laden und pruefen.
 
 ## Prioritaet 2
 

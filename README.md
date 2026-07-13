@@ -12,6 +12,18 @@ vollst\u00e4ndigen historischen Neuaufbau erfordert weiterhin den originalen CSV
 Export. Importierte Trades werden gel\u00f6scht und durch Replay korrigiert; f\u00fcr
 inhaltliche Korrekturen wird die korrigierte CSV erneut importiert.
 
+## Vollst\u00e4ndiger CSV-Neuaufbau ab v41
+
+Im CSV-Import kann die Option **"Vollst\u00e4ndig aus diesem Broker-Export neu
+aufbauen"** aktiviert werden. Sie ist ausschlie\u00dflich f\u00fcr einen l\u00fcckenlosen,
+ma\u00dfgeblichen Broker-Export gedacht und ersetzt alle Legacy-Trades sowie offene
+Lots durch das reproduzierbare Roh-Ledger. Der manuell gepflegte Kapitalwert
+bleibt erhalten.
+
+Vor dem Ersetzen erzeugt die App eine lokale JSON-Sicherung des aktuellen
+Stands. Erst danach wird die neue Datei in Google Drive gespeichert.
+Die Sicherung kann bei Bedarf mit "JSON wiederherstellen" eingespielt werden.
+
 Das Entfernen einer offenen Position ohne P&L-Buchung ist bei aktivem Ledger
 bewusst gesperrt: Es gibt daf\u00fcr kein reproduzierbares Brokerereignis und die
 Position w\u00fcrde beim n\u00e4chsten Replay sonst wieder erscheinen.

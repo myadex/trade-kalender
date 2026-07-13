@@ -25,16 +25,21 @@ function displayDate(date) {
     String(date.getUTCFullYear()).padStart(4, '0');
 }
 
-export function isoWeekInfo(dateKey) {
+function utcDateFromKey(dateKey) {
   const match = String(dateKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
-
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
   const date = new Date(Date.UTC(year, month - 1, day));
   if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 ||
       date.getUTCDate() !== day) return null;
+  return date;
+}
+
+export function isoWeekInfo(dateKey) {
+  const date = utcDateFromKey(dateKey);
+  if (!date) return null;
 
   // ISO: Montag = 0, Sonntag = 6. Das ISO-Wochenjahr gehoert zum
   // Donnerstag der Woche; dadurch wird der Jahreswechsel korrekt behandelt.
@@ -120,6 +125,106 @@ export function computeStats(dm, capital) {
   const cap = capital || 0;
   const rendite = cap > 0 ? (totalPnl / cap) * 100 : null;
   return { totalPnl, totalTax, wins, losses, totalTrades, avgDay, avgTrade, maxStreak, winrate, capital: cap, rendite };
+}
+
+// ------------------------------------------------------------
+// Baut die Equity-Kurve aus geschlossenen Trades pro Handelstag auf.
+// Drawdown ist der Abstand zum bis dahin hoechsten Tagesendstand. Absolute
+// Werte funktionieren immer; Prozentwerte brauchen bewusst ein Startkapital,
+// weil ohne Bezugswert keine ehrliche Drawdown-Quote existiert.
+// ------------------------------------------------------------
+export function computeEquityCurve(trades, initialCapital = 0) {
+  const parsedCapital = Number(initialCapital);
+  const capital = Number.isFinite(parsedCapital) && parsedCapital > 0 ? parsedCapital : 0;
+  const dailyPnl = {};
+
+  (trades || []).forEach(trade => {
+    const date = String(trade && trade.date || '').slice(0, 10);
+    const pnl = Number(trade && trade.pnl);
+    if (!utcDateFromKey(date) || !Number.isFinite(pnl)) return;
+    dailyPnl[date] = (dailyPnl[date] || 0) + pnl;
+  });
+
+  const dates = Object.keys(dailyPnl).sort((a, b) => a.localeCompare(b));
+  const roundMoney = value => +value.toFixed(2);
+  const dayDistance = (from, to) => {
+    const a = utcDateFromKey(from);
+    const b = utcDateFromKey(to);
+    return a && b ? Math.round((b.getTime() - a.getTime()) / DAY_MS) : 0;
+  };
+
+  let cumulativePnl = 0;
+  let peakPnl = 0;
+  let peakDate = dates[0] || null;
+  let activeDrawdownStart = null;
+  let maxDrawdown = 0;
+  let maxDrawdownPct = capital > 0 ? 0 : null;
+  let maxDrawdownStart = null;
+  let maxDrawdownDate = null;
+  let longestDrawdownDays = 0;
+  const points = [];
+
+  dates.forEach(date => {
+    const dayPnl = roundMoney(dailyPnl[date]);
+    cumulativePnl = roundMoney(cumulativePnl + dayPnl);
+
+    if (cumulativePnl >= peakPnl) {
+      if (activeDrawdownStart) {
+        longestDrawdownDays = Math.max(longestDrawdownDays,
+          dayDistance(activeDrawdownStart, date));
+      }
+      peakPnl = cumulativePnl;
+      peakDate = date;
+      activeDrawdownStart = null;
+    } else if (!activeDrawdownStart) {
+      activeDrawdownStart = peakDate || date;
+    }
+
+    const drawdown = roundMoney(peakPnl - cumulativePnl);
+    const peakEquity = roundMoney(capital + peakPnl);
+    const drawdownPct = capital > 0 && peakEquity > 0
+      ? (drawdown / peakEquity) * 100
+      : null;
+    const drawdownDays = drawdown > 0 && activeDrawdownStart
+      ? dayDistance(activeDrawdownStart, date)
+      : 0;
+    longestDrawdownDays = Math.max(longestDrawdownDays, drawdownDays);
+
+    if (drawdown > maxDrawdown) {
+      maxDrawdown = drawdown;
+      maxDrawdownPct = drawdownPct;
+      maxDrawdownStart = activeDrawdownStart;
+      maxDrawdownDate = date;
+    }
+
+    points.push({
+      date,
+      dayPnl,
+      cumulativePnl,
+      equity: roundMoney(capital + cumulativePnl),
+      peakEquity,
+      drawdown,
+      drawdownPct,
+      drawdownDays
+    });
+  });
+
+  const last = points[points.length - 1] || null;
+  return {
+    points,
+    initialCapital: capital,
+    netPnl: roundMoney(cumulativePnl),
+    currentEquity: last ? last.equity : capital,
+    highWaterMark: roundMoney(capital + peakPnl),
+    currentDrawdown: last ? last.drawdown : 0,
+    currentDrawdownPct: last ? last.drawdownPct : (capital > 0 ? 0 : null),
+    currentDrawdownDays: last ? last.drawdownDays : 0,
+    maxDrawdown,
+    maxDrawdownPct,
+    maxDrawdownStart,
+    maxDrawdownDate,
+    longestDrawdownDays
+  };
 }
 
 // ------------------------------------------------------------

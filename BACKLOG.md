@@ -79,13 +79,20 @@ Wartbarkeit bzw. Komfort.
 
 ### Equity-Kurve und Drawdown
 
-- **Status:** Offen; naechstes groesseres Statistik-Feature.
-- **Ziel:** Kapitalentwicklung, bisheriger Hoechststand, aktueller und maximaler
-  Drawdown sowie die Erholungsdauer nachvollziehbar darstellen.
+- **Status:** Erledigt in v47.
+- **Loesung:** Der Statistik-Tab zeigt die realisierte Equity-Kurve nach
+  Handelstagen, aktuellen Stand, bisherigen Hoechststand, aktuellen und
+  maximalen Drawdown sowie aktuelle und laengste Drawdown-Dauer.
+- **Berechnung:** Mehrere Trades eines Tages werden zu einem Tagesendstand
+  zusammengefasst. Offene Positionen bleiben unberuecksichtigt; Prozentwerte
+  erscheinen nur mit gesetztem Startkapital. Betrag und Prozent des maximalen
+  Drawdowns stammen garantiert aus derselben Phase.
+- **Darstellung:** Ein responsives SVG ohne zusaetzliche Laufzeitbibliothek
+  markiert den tiefsten Drawdown und bleibt auch auf kleinen Displays lesbar.
 
 ### Wochentagsstatistik Long/Short
 
-- **Status:** Offen; hohe Prioritaet nach Equity-Kurve und Drawdown.
+- **Status:** Offen; naechstes priorisiertes Statistik-Feature.
 - **Ziel:** Long/Call und Short/Put pro Wochentag nach Anzahl, Netto-P&L,
   Durchschnitt, Median, Winrate und Profit Factor vergleichen. Aussagen gelten
   erst ab einer ausreichenden Stichprobe; Einstiegstag ist der Standard,

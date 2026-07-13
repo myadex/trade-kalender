@@ -44,6 +44,10 @@ als Test-Fixture eingecheckt werden.
 - **Kalenderwochen:** ISO 8601 bedeutet Montag bis Sonntag; am Jahreswechsel
   entscheidet der Donnerstag über das ISO-Wochenjahr. Die Berechnung bleibt in
   `views.isoWeekInfo`, nicht als zweite Datumslogik in der UI.
+- **Equity/Drawdown:** Nur realisiertes Netto-P&L pro Tagesende verwenden;
+  offene Positionen sind keine Equity-Daten. Prozentwerte nur mit positivem
+  Startkapital anzeigen. Maximalbetrag und zugehörige Quote müssen vom selben
+  Drawdown-Punkt stammen.
 - **Steuer:** immer MIT Vorzeichen rechnen (negativ = Erstattung). NIE `Math.abs(tax)` in P&L-Mathematik (nur in Anzeige-Strings erlaubt).
 - **FIFO:** Sortierung Datum+Zeit mit Buy-vor-Sell-Tiebreak bei gleichem Timestamp.
 - **UIDs:** kanonisches Format `ISIN_DATUM_SELL_SHARES` — Duplikat-Erkennung bei Re-Imports hängt daran.

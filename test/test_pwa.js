@@ -339,6 +339,46 @@ const realFifoCheck = (async () => {
     check('views: Monats-Summe = 250', msum === 250);
     check('views: computeStats Wins/Losses (2/1)', stats.wins === 2 && stats.losses === 1);
     check('views: Rendite bei 1000 Einstand = 25%', Math.abs(stats.rendite - 25) < 0.01);
+    check('views: Equity-/Drawdown-Berechnung exportiert',
+      typeof vmod.computeEquityCurve === 'function');
+    const equity = typeof vmod.computeEquityCurve === 'function'
+      ? vmod.computeEquityCurve([
+          { date: '2026-01-11', time: '10:00', pnl: -50 },
+          { date: '2026-01-02', time: '11:00', pnl: -20 },
+          { date: '2026-01-01', time: '09:00', pnl: 100 },
+          { date: '2026-01-10', time: '12:00', pnl: 200 },
+          { date: '2026-01-02', time: '10:00', pnl: -40 },
+          { date: '2026-01-05', time: '15:00', pnl: -100 }
+        ], 1000)
+      : null;
+    check('views: Equity aggregiert mehrere Trades pro Tag',
+      !!equity && equity.points.length === 5 && equity.points[1].dayPnl === -60);
+    check('views: Equity-Handwerte fuer Stand und Hoch stimmen',
+      !!equity && equity.currentEquity === 1090 && equity.highWaterMark === 1140 && equity.netPnl === 90);
+    check('views: maximaler Drawdown = 160 Euro / 14,55 Prozent',
+      !!equity && equity.maxDrawdown === 160 && Math.abs(equity.maxDrawdownPct - 14.54545) < 0.001);
+    const growingEquity = typeof vmod.computeEquityCurve === 'function'
+      ? vmod.computeEquityCurve([
+          { date: '2026-01-01', pnl: -50 },
+          { date: '2026-01-02', pnl: 950 },
+          { date: '2026-01-03', pnl: -100 }
+        ], 100)
+      : null;
+    check('views: Max-DD-Betrag und Prozent stammen aus derselben Phase',
+      !!growingEquity && growingEquity.maxDrawdown === 100 &&
+      Math.abs(growingEquity.maxDrawdownPct - 10) < 0.001);
+    check('views: aktueller Drawdown = 50 Euro seit einem Tag',
+      !!equity && equity.currentDrawdown === 50 && equity.currentDrawdownDays === 1);
+    check('views: laengste Drawdown-Phase bis Erholung = 9 Tage',
+      !!equity && equity.longestDrawdownDays === 9);
+    const noCapitalEquity = typeof vmod.computeEquityCurve === 'function'
+      ? vmod.computeEquityCurve([{ date: '2026-01-01', pnl: -25 }], 0)
+      : null;
+    check('views: Drawdown-Prozent bleibt ohne Startkapital ehrlich leer',
+      !!noCapitalEquity && noCapitalEquity.maxDrawdown === 25 && noCapitalEquity.maxDrawdownPct === null);
+    check('UI: Equity-Bereich und Renderer sind verdrahtet',
+      html.includes('id="equity-summary"') && html.includes('id="equity-chart"') &&
+      appJs.includes('function buildEquityCurve()') && appJs.includes('buildEquityCurve();'));
     // import.js: Parsing + Validierung
     const imod = await import('file://' + DIR + '/js/import.js');
     const csvOk = 'date;time;status;description;type;isin;shares;price;amount;fee;tax;currency\n' +

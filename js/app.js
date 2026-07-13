@@ -12,7 +12,10 @@ import {
   activeHiddenOpenPositions, restoreHiddenOpenPosition
 } from './fifo.js';
 import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, createData, updateData, createWriteQueue } from './storage.js';
-import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
+import {
+  aggregateWeeks, aggregateMonths, computeStats, computeEquityCurve,
+  computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline
+} from './views.js';
 import { parseScalableCsv, markDuplicates, mergeImportRows, updateImportSellRow } from './import.js';
 
 /* ============================================================
@@ -621,6 +624,107 @@ async function undoDeleteOpenPosition(eventId) {
     return;
   }
   rebuildAll();
+}
+
+/* ============================================================
+   EQUITY-KURVE + DRAWDOWN
+   ============================================================ */
+function buildEquityCurve() {
+  const result = computeEquityCurve(DATA.trades, DATA.capital);
+  const summary = $('equity-summary');
+  const chart = $('equity-chart');
+  const note = $('equity-note');
+  if (!summary || !chart || !note) return;
+
+  if (result.points.length === 0) {
+    summary.innerHTML = '';
+    chart.innerHTML = '<div class="equity-empty">Noch keine geschlossenen Trades f\u00fcr eine Equity-Kurve.</div>';
+    note.textContent = '';
+    return;
+  }
+
+  const hasCapital = result.initialCapital > 0;
+  const percentage = value => value === null
+    ? ''
+    : ' (' + value.toFixed(1).replace('.', ',') + ' %)';
+  const drawdownValue = (amount, pct) => amount > 0
+    ? '\u2212' + fmtPlain(amount) + ' \u20ac' + percentage(pct)
+    : '0,00 \u20ac' + percentage(pct);
+  const card = (label, value, cls, sub) =>
+    '<div class="equity-card"><div class="equity-card-label">' + label + '</div>' +
+    '<div class="equity-card-value ' + (cls || '') + '">' + value + '</div>' +
+    (sub ? '<div class="equity-card-sub">' + sub + '</div>' : '') + '</div>';
+
+  const currentLabel = hasCapital ? 'Aktueller Stand' : 'P&L kumuliert';
+  const highLabel = hasCapital ? 'H\u00f6chststand' : 'P&L-Hoch';
+  const currentValue = hasCapital
+    ? fmtPlain(result.currentEquity) + ' \u20ac'
+    : fmtDE(result.netPnl);
+  const highValue = hasCapital
+    ? fmtPlain(result.highWaterMark) + ' \u20ac'
+    : fmtDE(result.highWaterMark);
+  summary.innerHTML =
+    card(currentLabel, currentValue, result.netPnl >= 0 ? 'pos' : 'neg') +
+    card(highLabel, highValue, '') +
+    card('Aktueller Drawdown', drawdownValue(result.currentDrawdown, result.currentDrawdownPct),
+      result.currentDrawdown > 0 ? 'neg' : 'pos', result.currentDrawdownDays + ' Tage unter Hoch') +
+    card('Max. Drawdown', drawdownValue(result.maxDrawdown, result.maxDrawdownPct),
+      result.maxDrawdown > 0 ? 'neg' : 'pos') +
+    card('L\u00e4ngste DD-Phase', result.longestDrawdownDays + ' Tage', '', 'bis Erholung oder heute');
+
+  const width = 840;
+  const height = 240;
+  const left = 46;
+  const right = 14;
+  const top = 14;
+  const bottom = 32;
+  const values = result.points.map(point => point.equity).concat([result.initialCapital]);
+  let minValue = Math.min(...values);
+  let maxValue = Math.max(...values);
+  const margin = Math.max((maxValue - minValue) * 0.08, 1);
+  minValue -= margin;
+  maxValue += margin;
+  const xFor = index => result.points.length === 1
+    ? (left + width - right) / 2
+    : left + (index / (result.points.length - 1)) * (width - left - right);
+  const yFor = value => top + ((maxValue - value) / (maxValue - minValue)) * (height - top - bottom);
+  const linePoints = result.points.map((point, index) =>
+    xFor(index).toFixed(1) + ',' + yFor(point.equity).toFixed(1)).join(' ');
+  const firstX = xFor(0).toFixed(1);
+  const lastX = xFor(result.points.length - 1).toFixed(1);
+  const chartBottom = height - bottom;
+  const areaPoints = firstX + ',' + chartBottom + ' ' + linePoints + ' ' + lastX + ',' + chartBottom;
+
+  let grid = '';
+  for (let i = 0; i <= 4; i++) {
+    const value = maxValue - ((maxValue - minValue) * i / 4);
+    const y = yFor(value).toFixed(1);
+    grid += '<line class="equity-grid-line" x1="' + left + '" y1="' + y + '" x2="' + (width - right) + '" y2="' + y + '"></line>' +
+      '<text class="equity-axis-label" x="' + (left - 6) + '" y="' + (+y + 3) + '" text-anchor="end">' + escapeHtml(fmtK(value)) + '</text>';
+  }
+
+  const maxPointIndex = result.maxDrawdownDate
+    ? result.points.findIndex(point => point.date === result.maxDrawdownDate)
+    : -1;
+  const marker = maxPointIndex >= 0 && result.maxDrawdown > 0
+    ? '<circle class="equity-dd-marker" cx="' + xFor(maxPointIndex).toFixed(1) + '" cy="' +
+      yFor(result.points[maxPointIndex].equity).toFixed(1) + '" r="4"><title>Max. Drawdown am ' +
+      escapeHtml(result.maxDrawdownDate) + ': ' + escapeHtml(fmtPlain(result.maxDrawdown)) + ' \u20ac</title></circle>'
+    : '';
+  const shortDate = value => value.slice(8, 10) + '.' + value.slice(5, 7) + '.' + value.slice(2, 4);
+
+  chart.innerHTML = '<svg class="equity-svg" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Equity-Kurve nach Handelstag">' +
+    '<defs><linearGradient id="equity-area-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--green)" stop-opacity=".22"></stop><stop offset="100%" stop-color="var(--green)" stop-opacity=".02"></stop></linearGradient></defs>' +
+    grid +
+    '<line class="equity-baseline" x1="' + left + '" y1="' + yFor(result.initialCapital).toFixed(1) + '" x2="' + (width - right) + '" y2="' + yFor(result.initialCapital).toFixed(1) + '"></line>' +
+    '<polygon class="equity-area" points="' + areaPoints + '"></polygon>' +
+    '<polyline class="equity-line" points="' + linePoints + '"></polyline>' + marker +
+    '<text class="equity-date-label" x="' + firstX + '" y="' + (height - 8) + '" text-anchor="start">' + shortDate(result.points[0].date) + '</text>' +
+    '<text class="equity-date-label" x="' + lastX + '" y="' + (height - 8) + '" text-anchor="end">' + shortDate(result.points[result.points.length - 1].date) + '</text>' +
+    '</svg>';
+
+  note.textContent = 'Tagesendst\u00e4nde aus realisiertem Netto-P&L; offene Positionen sind nicht enthalten.' +
+    (hasCapital ? '' : ' F\u00fcr Depotwerte und prozentuale Drawdowns zuerst den Einstand im Kopfbereich setzen.');
 }
 
 /* ============================================================
@@ -1352,6 +1456,7 @@ async function setCapital() {
   DATA.capital = val;
   if (!(await persist()).ok) return;
   rebuildStats();
+  buildEquityCurve();
 }
 
 function rebuildAll() {
@@ -1360,6 +1465,7 @@ function rebuildAll() {
   buildWeekly();
   buildMonthly();
   buildOpenPositions();
+  buildEquityCurve();
   buildTimeStats();
 }
 

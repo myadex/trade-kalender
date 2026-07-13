@@ -5,7 +5,12 @@
 // ============================================================
 import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml } from './helpers.js';
-import { dayMap, deriveOpenPositions, fifoMatch, replayImportLedger, closePositionPnl, tradePnl } from './fifo.js';
+import {
+  dayMap, deriveOpenPositions, fifoMatch, replayImportLedger,
+  closePositionPnl, tradePnl, withOpenLotIds,
+  createHiddenOpenPositionEvent, visibleOpenLots,
+  activeHiddenOpenPositions, restoreHiddenOpenPosition
+} from './fifo.js';
 import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, createData, updateData, createWriteQueue } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
 import { parseScalableCsv, markDuplicates, mergeImportRows, updateImportSellRow } from './import.js';
@@ -17,7 +22,7 @@ let tokenClient = null;
 let accessToken = null;
 let driveFileId = null;          // id of trade-kalender.json in Drive
 let driveEtag = null;            // geladene Serverversion fuer atomare If-Match-Updates
-const emptyData = () => ({ trades: [], openLots: [], capital: 0, importRows: [], importBaseOpenLots: null });
+const emptyData = () => ({ trades: [], openLots: [], capital: 0, importRows: [], importBaseOpenLots: null, hiddenOpenPositions: [] });
 let DATA = emptyData();
 let pendingImport = [];
 let pendingOpenLots = [];
@@ -154,7 +159,9 @@ function tradesByDate(date) { return DATA.trades.filter(t => t.date === date); }
 // Dünne Wrapper reichen die globale DATA durch, damit der restliche Code
 // unverändert dayMapDATA()/openPositionsDATA() nutzen kann.
 function dayMapDATA() { return dayMap(DATA.trades); }
-function openPositionsDATA() { return deriveOpenPositions(DATA.openLots); }
+function hiddenOpenPositionsDATA() { return Array.isArray(DATA.hiddenOpenPositions) ? DATA.hiddenOpenPositions : []; }
+function visibleOpenLotsDATA() { return visibleOpenLots(DATA.openLots, hiddenOpenPositionsDATA()); }
+function openPositionsDATA() { return deriveOpenPositions(visibleOpenLotsDATA()); }
 
 // Alte Daten haben keine Rohzeilen. Der Snapshot offener Lots zu Beginn der
 // Ledger-Einfuehrung bleibt deshalb unveraendert die Basis; nur neue Importe werden
@@ -510,6 +517,7 @@ async function confirmClosePos() {
 function buildOpenPositions() {
   const wrap = $('open-pos-wrap');
   wrap.innerHTML = '';
+  buildHiddenOpenPositions();
   const positions = openPositionsDATA();
   if (positions.length === 0) {
     wrap.innerHTML = '<div style="color:var(--muted);font-size:.82rem;padding:1rem 0">Keine offenen Positionen.</div>';
@@ -530,7 +538,7 @@ function buildOpenPositions() {
       '</div>' +
       '<div class="op-btns">' +
       '<button class="btn-close-pos" data-isin="' + escapeHtml(p.isin) + '">Schlie\u00dfen</button>' +
-      '<button class="btn-del-pos" data-isin="' + escapeHtml(p.isin) + '" title="Position l\u00f6schen (ohne P&L-Buchung)">\u2715</button>' +
+      '<button class="btn-del-pos" data-isin="' + escapeHtml(p.isin) + '" title="Position aus dem Tracking entfernen (ohne P&L-Buchung)">\u2715</button>' +
       '</div>';
     card.querySelector('.btn-close-pos').onclick = () => openClosePosModal(p.isin);
     card.querySelector('.btn-del-pos').onclick = () => deleteOpenPosition(p.isin);
@@ -538,25 +546,82 @@ function buildOpenPositions() {
   });
 }
 
-// Löscht eine offene Position komplett (alle Lots der ISIN) — OHNE
-// P&L-Buchung und ohne Steuer. Für Rest-Lots, Import-Artefakte oder
-// Positionen, die nicht getrackt werden sollen. Mit Sicherheitsabfrage.
+function buildHiddenOpenPositions() {
+  const wrap = $('hidden-pos-wrap');
+  wrap.innerHTML = '';
+  const events = activeHiddenOpenPositions(DATA.openLots, hiddenOpenPositionsDATA());
+  if (events.length === 0) return;
+
+  const heading = document.createElement('h3');
+  heading.className = 'hidden-pos-title';
+  heading.textContent = 'Entfernte Positionen';
+  wrap.appendChild(heading);
+  events.forEach(event => {
+    const row = document.createElement('div');
+    row.className = 'hidden-pos-row';
+    row.innerHTML = '<div><div class="hidden-pos-desc">' + escapeHtml(event.desc || event.isin) + '</div>' +
+      '<div class="hidden-pos-meta">' + escapeHtml(event.isin) + ' \u00b7 ' +
+      Number(event.shares || 0).toLocaleString('de-DE') + ' St\u00fcck \u00b7 Einstand ' +
+      fmtPlain(Number(event.cost || 0), 2) + ' \u20ac</div></div>' +
+      '<button class="btn restore-hidden-pos">Wieder anzeigen</button>';
+    row.querySelector('.restore-hidden-pos').onclick = () => undoDeleteOpenPosition(event.id);
+    wrap.appendChild(row);
+  });
+}
+
+// Entfernt nur die aktuell sichtbaren Lots der ISIN aus dem Tracking. Die
+// Brokerhistorie bleibt vollstaendig, damit FIFO und spaetere Verkaeufe korrekt
+// bleiben; der versionierte Ausschluss kann jederzeit rueckgaengig werden.
 async function deleteOpenPosition(isin) {
+  let canonicalLots;
   if (hasImportLedger()) {
-    alert('Offene Positionen ohne P&L-Buchung lassen sich nach dem Ledger-Start nicht l\u00f6schen. Bitte die Position schlie\u00dfen oder die zugrundeliegende CSV korrigieren.');
-    return;
+    try {
+      canonicalLots = replayStoredImports().openLots;
+    } catch (e) {
+      alert('Position konnte nicht entfernt werden: ' + e.message);
+      return;
+    }
+  } else {
+    canonicalLots = withOpenLotIds(DATA.openLots);
   }
-  const lots = DATA.openLots.filter(l => l.isin === isin);
+  const lots = visibleOpenLots(canonicalLots, hiddenOpenPositionsDATA()).filter(lot => lot.isin === isin);
   if (lots.length === 0) return;
   const shares = lots.reduce((s, l) => s + l.shares, 0);
   const cost = lots.reduce((s, l) => s + Math.abs(l.amount), 0);
-  const desc = lots[0].description || isin;
-  if (!confirm('Offene Position l\u00f6schen?\n\n' + desc + '\n' + isin + '\n' +
+  const desc = lots[0].desc || lots[0].description || isin;
+  if (!confirm('Offene Position aus dem Tracking entfernen?\n\n' + desc + '\n' + isin + '\n' +
     shares.toLocaleString('de-DE') + ' St\u00fcck, Einstand ' + fmtPlain(cost, 2) + ' \u20ac\n\n' +
-    'Die Position wird OHNE P&L-Buchung entfernt (kein Gewinn/Verlust, keine Steuer). ' +
-    'Kann nicht r\u00fcckg\u00e4ngig gemacht werden.')) return;
-  DATA.openLots = DATA.openLots.filter(l => l.isin !== isin);
-  if (!(await persist()).ok) return;
+    'Brokerhistorie, P&L und Steuer bleiben unver\u00e4ndert. Die Position kann unter "Entfernte Positionen" wieder angezeigt werden.')) return;
+
+  const hidden = hiddenOpenPositionsDATA();
+  const hiddenAt = Date.now();
+  const eventId = 'hidden-open-' + hiddenAt + '-' + hidden.length;
+  const created = createHiddenOpenPositionEvent(lots, isin, eventId, hiddenAt);
+  if (created.error) { alert('Position konnte nicht entfernt werden: ' + created.error); return; }
+  const previousData = DATA;
+  DATA = Object.assign({}, DATA, {
+    openLots: canonicalLots,
+    hiddenOpenPositions: hidden.concat(created.event)
+  });
+  const saveResult = await persist();
+  if (!saveResult.ok) {
+    if (!saveResult.conflict) DATA = previousData;
+    return;
+  }
+  rebuildAll();
+}
+
+async function undoDeleteOpenPosition(eventId) {
+  const hidden = hiddenOpenPositionsDATA();
+  const restored = restoreHiddenOpenPosition(hidden, eventId);
+  if (restored.length === hidden.length) return;
+  const previousData = DATA;
+  DATA = Object.assign({}, DATA, { hiddenOpenPositions: restored });
+  const saveResult = await persist();
+  if (!saveResult.ok) {
+    if (!saveResult.conflict) DATA = previousData;
+    return;
+  }
   rebuildAll();
 }
 
@@ -1237,7 +1302,8 @@ async function handleJsonRestore(file) {
       openLots: Array.isArray(parsed.openLots) ? parsed.openLots : [],
       capital: typeof parsed.capital === 'number' ? parsed.capital : 0,
       importRows: Array.isArray(parsed.importRows) ? parsed.importRows : [],
-      importBaseOpenLots: Array.isArray(parsed.importBaseOpenLots) ? parsed.importBaseOpenLots : null
+      importBaseOpenLots: Array.isArray(parsed.importBaseOpenLots) ? parsed.importBaseOpenLots : null,
+      hiddenOpenPositions: Array.isArray(parsed.hiddenOpenPositions) ? parsed.hiddenOpenPositions : []
     };
     if (!(await persist()).ok) return;
     rebuildAll();

@@ -82,6 +82,10 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .op-nums{display:flex;gap:1.25rem;flex-shrink:0;}
 .op-num-lbl{font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
 .op-num-val{font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:500;margin-top:.1rem;}
+.hidden-pos-title{font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:1.4rem 0 .55rem;}
+.hidden-pos-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.65rem .8rem;border:1px dashed var(--border);border-radius:6px;margin-bottom:.45rem;background:var(--paper);}
+.hidden-pos-desc{font-size:.78rem;font-weight:600;color:var(--muted);}
+.hidden-pos-meta{font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);margin-top:.15rem;}
 
 /* DETAIL PANEL */
 .detail-overlay{display:none;position:fixed;inset:0;background:rgba(26,24,20,.35);z-index:100;align-items:flex-end;justify-content:center;}
@@ -386,7 +390,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </table>
   </div>
 
-  <div id="tab-open" class="section"><div id="open-pos-wrap"></div></div>
+  <div id="tab-open" class="section"><div id="open-pos-wrap"></div><div id="hidden-pos-wrap"></div></div>
 
 <div id="tab-timestats" class="section">
   <div class="ts-head">

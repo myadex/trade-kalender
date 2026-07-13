@@ -223,6 +223,9 @@ check('rendite computed from capital', appJs.includes('(totalPnl / cap) * 100'))
 check('capital card in HTML', html.includes('id="s-capital"'));
 check('rendite card in HTML', html.includes('id="s-rendite"'));
 check('all DATA inits include capital', (appJs.match(/DATA = \{ trades: \[\], openLots: \[\]/g) || []).every ? !appJs.match(/DATA = \{ trades: \[\], openLots: \[\] \}/) : true);
+check('DATA und JSON-Restore unterstuetzen entfernte offene Positionen',
+  appJs.includes('hiddenOpenPositions: []') &&
+  appJs.includes('Array.isArray(parsed.hiddenOpenPositions)'));
 
 console.log('\n=== 6. CALCULATION LOGIC vs GOLDEN ===');
 // Load app.js core funcs into a sandbox and replay the golden dataset through the same
@@ -363,6 +366,50 @@ const realFifoCheck = (async () => {
       check('Import-Ledger: Replay berechnet Einstand und P&L nach Bearbeitung neu', false);
       check('Import-Ledger: ungueltige Verkaufsdaten werden abgelehnt', false);
       check('Import-Ledger: doppelte Roh-ID wird beim Bearbeiten abgelehnt', false);
+    }
+
+    const hideFnsReady =
+      typeof fmod.createHiddenOpenPositionEvent === 'function' &&
+      typeof fmod.visibleOpenLots === 'function' &&
+      typeof fmod.restoreHiddenOpenPosition === 'function' &&
+      typeof fmod.activeHiddenOpenPositions === 'function';
+    check('Offene Position entfernen: pure Ereignisfunktionen exportiert', hideFnsReady);
+    if (hideFnsReady) {
+      const originalLots = [
+        { openLotId: 'lot-alt', isin: 'HIDDEN', shares: 5, amount: 500, date: '2026-07-01', time: '09:00:00', desc: 'DAX Call' }
+      ];
+      const hiddenResult = fmod.createHiddenOpenPositionEvent(originalLots, 'HIDDEN', 'hide-1', 123456);
+      check('Offene Position entfernen: Ereignis ist versioniert und mutiert Lots nicht',
+        !hiddenResult.error && hiddenResult.event.version === 1 &&
+        hiddenResult.event.lotIds.length === 1 && hiddenResult.event.lotIds[0] === 'lot-alt' &&
+        originalLots.length === 1 && originalLots[0].openLotId === 'lot-alt');
+      const lotsAfterNewBuy = originalLots.concat([
+        { openLotId: 'lot-neu', isin: 'HIDDEN', shares: 2, amount: 240, date: '2026-07-03', time: '09:00:00', desc: 'DAX Call' }
+      ]);
+      const visibleAfterNewBuy = fmod.visibleOpenLots(lotsAfterNewBuy, [hiddenResult.event]);
+      check('Offene Position entfernen: spaeterer Kauf derselben ISIN bleibt sichtbar',
+        visibleAfterNewBuy.length === 1 && visibleAfterNewBuy[0].openLotId === 'lot-neu');
+      const restoredEvents = fmod.restoreHiddenOpenPosition([hiddenResult.event], 'hide-1');
+      check('Offene Position entfernen: Rueckgaengig stellt alte Lots wieder her',
+        restoredEvents.length === 0 && fmod.visibleOpenLots(lotsAfterNewBuy, restoredEvents).length === 2);
+      check('Offene Position entfernen: geschlossene Lots erzeugen keinen veralteten UI-Eintrag',
+        fmod.activeHiddenOpenPositions(originalLots, [hiddenResult.event]).length === 1 &&
+        fmod.activeHiddenOpenPositions([], [hiddenResult.event]).length === 0);
+
+      const identityRows = imod.withSourceRowIds([
+        { type: 'Buy', status: 'Executed', isin: 'LOT-ID', shares: 10, amount: -1000, date: '2026-07-01', time: '09:00:00', description: 'DAX Call', tax: 0 },
+        { type: 'Sell', status: 'Executed', isin: 'LOT-ID', shares: 4, amount: 480, date: '2026-07-02', time: '10:00:00', description: 'DAX Call', tax: 20 }
+      ]);
+      const identityReplay = fmod.replayImportLedger(identityRows, []);
+      check('Offene Position entfernen: Lot-ID bleibt nach partiellem FIFO-Verkauf stabil',
+        identityReplay.errors.length === 0 && identityReplay.openLots.length === 1 &&
+        identityReplay.openLots[0].openLotId === identityRows[0].sourceRowId);
+    } else {
+      check('Offene Position entfernen: Ereignis ist versioniert und mutiert Lots nicht', false);
+      check('Offene Position entfernen: spaeterer Kauf derselben ISIN bleibt sichtbar', false);
+      check('Offene Position entfernen: Rueckgaengig stellt alte Lots wieder her', false);
+      check('Offene Position entfernen: geschlossene Lots erzeugen keinen veralteten UI-Eintrag', false);
+      check('Offene Position entfernen: Lot-ID bleibt nach partiellem FIFO-Verkauf stabil', false);
     }
     const hmod = await import('file://' + DIR + '/js/helpers.js');
     check('helpers: escapeHtml neutralisiert HTML aus Importdaten',
@@ -603,8 +650,14 @@ check('Ledger erfasst manuelles Schliessen als Rohverkauf',
   appJs.includes('if (hasImportLedger())') &&
   appJs.includes("type: 'Sell', status: 'Executed'") &&
   appJs.includes('mergeImportRows(DATA.importRows'));
-check('Ledger blockiert Loeschen offener Positionen ohne Rohereignis',
-  /function deleteOpenPosition[\s\S]{0,300}if \(hasImportLedger\(\)\)/.test(appJs));
+check('Ledger entfernt offene Positionen ueber versioniertes Ereignis',
+  appJs.includes('createHiddenOpenPositionEvent') &&
+  appJs.includes('hiddenOpenPositions') &&
+  !appJs.includes('lassen sich nach dem Ledger-Start nicht l\\u00f6schen'));
+check('Entfernte Positionen koennen dauerhaft wiederhergestellt werden',
+  html.includes('id="hidden-pos-wrap"') &&
+  appJs.includes('restoreHiddenOpenPosition') &&
+  appJs.includes('async function undoDeleteOpenPosition'));
 check('App serialisiert Drive-Speichervorgaenge mit Snapshot',
   appJs.includes('const enqueuePersist = createWriteQueue()') &&
   appJs.includes('const snapshot = JSON.parse(JSON.stringify(DATA))'));
@@ -624,9 +677,11 @@ check('leere Datei abgefangen', appJs.includes('Keine Datenzeilen'));
 check('fehlende Spalten gemeldet', appJs.includes('Spalten fehlen im Export'));
 check('Dateityp-Check (.csv)', appJs.includes('.csv$/i.test'));
 check('deleteOpenPosition vorhanden', appJs.includes('async function deleteOpenPosition'));
-check('deleteOpenPosition: Sicherheitsabfrage', appJs.includes("confirm('Offene Position l"));
-check('deleteOpenPosition: filtert nur Ziel-ISIN', appJs.includes('DATA.openLots.filter(l => l.isin !== isin)'));
-check('deleteOpenPosition: speichert nach Loeschen', /deleteOpenPosition[\s\S]{0,900}await persist\(\)/.test(appJs));
+check('deleteOpenPosition: Sicherheitsabfrage', appJs.includes("confirm('Offene Position aus dem Tracking entfernen?"));
+check('deleteOpenPosition: veraendert keine Broker-Rohzeilen',
+  /function deleteOpenPosition[\s\S]{0,1800}createHiddenOpenPositionEvent/.test(appJs) &&
+  !/function deleteOpenPosition[\s\S]{0,1800}DATA\.importRows\s*=/.test(appJs));
+check('deleteOpenPosition: speichert nach Entfernen', /deleteOpenPosition[\s\S]{0,1800}await persist\(\)/.test(appJs));
 check('Loeschen-Button an Positions-Karte', appJs.includes('btn-del-pos') && appJs.includes('deleteOpenPosition(p.isin)'));
 check('fifo: Verkaufszeit wird gespeichert', appJs.includes("time: String(row.time || '')"));
 check('Export-CSV enthaelt Zeit-Spalte', appJs.includes('UID;Datum;Zeit;ISIN') && appJs.includes("t.time || ''"));

@@ -29,9 +29,20 @@ Broker-Export enth\u00e4lt keine manuellen Korrekturen und ist deshalb nicht die
 ma\u00dfgebliche Quelle f\u00fcr den gesamten Datenbestand. Der normale CSV-Import
 erg\u00e4nzt weiterhin nur neue Brokerzeilen, ohne Legacy-Daten zu ersetzen.
 
-Das Entfernen einer offenen Position ohne P&L-Buchung ist bei aktivem Ledger
-bewusst gesperrt: Es gibt daf\u00fcr kein reproduzierbares Brokerereignis und die
-Position w\u00fcrde beim n\u00e4chsten Replay sonst wieder erscheinen.
+## Offene Positionen entfernen ab v44
+
+"Position entfernen" l\u00f6scht keine Brokerzeile. Die App speichert stattdessen
+einen versionierten Ausschluss f\u00fcr die stabilen IDs der aktuell offenen Lots.
+Dadurch bleiben Brokerhistorie, FIFO, P&L und Steuer unver\u00e4ndert und die
+Position bleibt auch nach einem Import-Ledger-Replay aus der normalen Ansicht
+entfernt.
+
+Sp\u00e4tere K\u00e4ufe derselben ISIN erhalten neue Lot-IDs und bleiben sichtbar. Alle
+aktiven Ausschl\u00fcsse stehen unter **"Entfernte Positionen"** und k\u00f6nnen dort mit
+**"Wieder anzeigen"** dauerhaft r\u00fcckg\u00e4ngig gemacht werden. Nach einem echten
+Verkauf erzeugen geschlossene Lots dort keinen veralteten Eintrag. Das Feld
+`hiddenOpenPositions` ist optional, damit bestehende Drive-JSON-Dateien und alte
+Sicherungen weiterhin ohne Migration geladen werden.
 
 ## Drive-Sicherheit ab v37
 

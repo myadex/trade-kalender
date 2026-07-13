@@ -1,4 +1,4 @@
-const CACHE = 'trade-kalender-v43';
+const CACHE = 'trade-kalender-v44';
 const ASSETS = [
   './',
   './index.html',

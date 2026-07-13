@@ -23,6 +23,76 @@ export function dayMap(trades) {
   return m;
 }
 
+// Eine offene Position ist nur eine Sicht auf einzelne Buy-Lots. Die stabile
+// Lot-ID bindet einen Ausschluss an genau diese Lots, damit spaetere Kaeufe
+// derselben ISIN nicht versehentlich ebenfalls verschwinden.
+export function openLotId(lot) {
+  if (lot && lot.openLotId) return String(lot.openLotId);
+  if (lot && lot.sourceRowId) return String(lot.sourceRowId);
+  const numberKey = (value, decimals) => (parseFloat(value) || 0).toFixed(decimals);
+  return JSON.stringify([
+    String(lot && lot.isin || ''),
+    normalizeXlsxDate(lot && lot.date || ''),
+    String(lot && lot.time || ''),
+    numberKey(lot && lot.shares, 6),
+    numberKey(lot && lot.amount, 2),
+    String(lot && (lot.desc || lot.description) || '')
+  ]);
+}
+
+export function withOpenLotIds(openLots) {
+  return (openLots || []).map(lot => Object.assign({}, lot, {
+    openLotId: openLotId(lot)
+  }));
+}
+
+// Erzeugt nur den versionierten Ausschlussvermerk; Brokerzeilen und Lots
+// bleiben unveraendert. eventId und hiddenAt kommen als Parameter, damit die
+// Fachfunktion ohne Uhr- oder Zufallszugriff deterministisch testbar bleibt.
+export function createHiddenOpenPositionEvent(openLots, isin, eventId, hiddenAt) {
+  const lots = withOpenLotIds(openLots).filter(lot => lot.isin === isin);
+  if (lots.length === 0) return { error: 'Die offene Position wurde nicht gefunden.' };
+  if (!eventId) return { error: 'Der Ausschlussvermerk hat keine ID.' };
+
+  const lotIds = Array.from(new Set(lots.map(lot => lot.openLotId)));
+  const shares = lots.reduce((sum, lot) => sum + (parseFloat(lot.shares) || 0), 0);
+  const cost = lots.reduce((sum, lot) => sum + Math.abs(parseFloat(lot.amount) || 0), 0);
+  return {
+    event: {
+      version: 1,
+      id: String(eventId),
+      hiddenAt: Number.isFinite(Number(hiddenAt)) ? Number(hiddenAt) : 0,
+      isin: String(isin),
+      desc: String(lots[0].desc || lots[0].description || isin),
+      lotIds,
+      shares: +shares.toFixed(6),
+      cost: +cost.toFixed(2)
+    }
+  };
+}
+
+// Unbekannte zukuenftige Ereignisversionen werden bewusst ignoriert. So kann
+// ein alter Client keine Daten nach Regeln ausblenden, die er nicht versteht.
+export function visibleOpenLots(openLots, hiddenOpenPositions) {
+  const hiddenIds = new Set();
+  (hiddenOpenPositions || []).forEach(event => {
+    if (!event || event.version !== 1 || !Array.isArray(event.lotIds)) return;
+    event.lotIds.forEach(id => hiddenIds.add(String(id)));
+  });
+  return withOpenLotIds(openLots).filter(lot => !hiddenIds.has(lot.openLotId));
+}
+
+export function activeHiddenOpenPositions(openLots, hiddenOpenPositions) {
+  const openIds = new Set(withOpenLotIds(openLots).map(lot => lot.openLotId));
+  return (hiddenOpenPositions || []).filter(event =>
+    event && event.version === 1 && event.id && Array.isArray(event.lotIds) &&
+    event.lotIds.some(id => openIds.has(String(id))));
+}
+
+export function restoreHiddenOpenPosition(hiddenOpenPositions, eventId) {
+  return (hiddenOpenPositions || []).filter(event => String(event && event.id) !== String(eventId));
+}
+
 // ------------------------------------------------------------
 // Leitet aus offenen Buy-Lots die zusammengefassten offenen
 // Positionen ab (gruppiert pro ISIN, Durchschnittspreis etc.)
@@ -106,9 +176,9 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
 
   // Buy-Pools mit bestehenden offenen Lots starten (für Teilschließungen über Importe)
   const buyPools = {};
-  (existingOpenLots || []).forEach(lot => {
+  withOpenLotIds(existingOpenLots).forEach(lot => {
     if (!buyPools[lot.isin]) buyPools[lot.isin] = [];
-    buyPools[lot.isin].push({ shares: lot.shares, amount: lot.amount, date: lot.date, time: lot.time || '', desc: lot.desc, isin: lot.isin });
+    buyPools[lot.isin].push({ shares: lot.shares, amount: lot.amount, date: lot.date, time: lot.time || '', desc: lot.desc, isin: lot.isin, openLotId: lot.openLotId });
   });
 
   const closed = [];
@@ -123,7 +193,9 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
 
     if (row.type === 'Buy' && shares > 0) {
       if (!buyPools[isin]) buyPools[isin] = [];
-      buyPools[isin].push({ shares, amount: Math.abs(amount), date: dateStr, time: String(row.time || ''), desc: row.description, isin });
+      const lot = { shares, amount: Math.abs(amount), date: dateStr, time: String(row.time || ''), desc: row.description, isin };
+      lot.openLotId = row.openLotId || row.sourceRowId || openLotId(lot);
+      buyPools[isin].push(lot);
     } else if (row.type === 'Sell' && shares > 0) {
       const pool = buyPools[isin] || [];
       const availableShares = pool.reduce((sum, lot) => sum + lot.shares, 0);

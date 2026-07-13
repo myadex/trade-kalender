@@ -53,11 +53,13 @@ Wartbarkeit bzw. Komfort.
 
 ### Position ohne P&L dauerhaft aus dem Tracking ausblenden
 
-- **Status:** Offen.
-- **Heute:** Die Aktion ist bei aktivem Ledger gesperrt, damit ein Replay keine
-  geloschte Position wieder erscheinen laesst.
-- **Ziel:** Ein explizites, versioniertes Ausblend-Ereignis mit Rueckgaengig-
-  Aktion einfuehren.
+- **Status:** Erledigt in v44.
+- **Loesung:** "Position entfernen" speichert ein versioniertes Ereignis fuer
+  die stabilen IDs der aktuell offenen Lots. Brokerzeilen, P&L und Steuer werden
+  nicht veraendert; der Ausschluss bleibt auch nach einem Ledger-Replay aktiv.
+- **Verhalten:** Neue Kaeufe derselben ISIN besitzen andere Lot-IDs und bleiben
+  sichtbar. Unter "Entfernte Positionen" kann jeder aktive Ausschluss dauerhaft
+  rueckgaengig gemacht werden; geschlossene Lots erzeugen keinen veralteten Eintrag.
 
 ### Import-Migration in der UI erklaeren
 

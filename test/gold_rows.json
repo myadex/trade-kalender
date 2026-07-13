@@ -1,0 +1,192 @@
+[
+  {
+    "type": "Sell",
+    "isin": "SYNTH-TIE-E",
+    "shares": 1,
+    "amount": 110,
+    "tax": 5,
+    "date": "2099-05-01",
+    "time": "09:00:00",
+    "description": "Synthetisch: Zeitgleich E"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-FIFO-A",
+    "shares": 2,
+    "amount": 200,
+    "tax": -25,
+    "date": "2099-01-05",
+    "time": "11:00:00",
+    "description": "Synthetisch: FIFO A"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-DECIMAL-C",
+    "shares": 1.5,
+    "amount": -1234.56,
+    "tax": 0,
+    "date": "2099-03-01",
+    "time": "08:15:00",
+    "description": "Synthetisch: Dezimal C"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-MULTILOT-D",
+    "shares": 80,
+    "amount": 2500,
+    "tax": 200,
+    "date": "2099-04-04",
+    "time": "16:00:00",
+    "description": "Synthetisch: Mehrere Lots D"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-FIFO-B",
+    "shares": 6,
+    "amount": -1500,
+    "tax": 0,
+    "date": "2099-02-01",
+    "time": "10:00:00",
+    "description": "Synthetisch: FIFO B"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-DECIMAL-C",
+    "shares": 1,
+    "amount": 700,
+    "tax": -30,
+    "date": "2099-03-03",
+    "time": "14:00:00",
+    "description": "Synthetisch: Dezimal C"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-FIFO-A",
+    "shares": 10,
+    "amount": -1000,
+    "tax": 0,
+    "date": "2099-01-02",
+    "time": "09:00:00",
+    "description": "Synthetisch: FIFO A"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-FIFO-B",
+    "shares": 2.5,
+    "amount": 500,
+    "tax": -60,
+    "date": "2099-02-02",
+    "time": "15:30:00",
+    "description": "Synthetisch: FIFO B"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-MULTILOT-D",
+    "shares": 100,
+    "amount": -2000,
+    "tax": 0,
+    "date": "2099-04-01",
+    "time": "09:00:00",
+    "description": "Synthetisch: Mehrere Lots D"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-TIE-E",
+    "shares": 1,
+    "amount": -100,
+    "tax": 0,
+    "date": "2099-05-01",
+    "time": "09:00:00",
+    "description": "Synthetisch: Zeitgleich E"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-FIFO-A",
+    "shares": 12,
+    "amount": 1800,
+    "tax": 120,
+    "date": "2099-01-04",
+    "time": "10:00:00",
+    "description": "Synthetisch: FIFO A"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-BREAKEVEN-F",
+    "shares": 3,
+    "amount": -900,
+    "tax": 0,
+    "date": "2099-06-01",
+    "time": "12:00:00",
+    "description": "Synthetisch: Neutral F"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-MULTILOT-D",
+    "shares": 40,
+    "amount": 1000,
+    "tax": 100,
+    "date": "2099-04-02",
+    "time": "12:00:00",
+    "description": "Synthetisch: Mehrere Lots D"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-FIFO-B",
+    "shares": 4,
+    "amount": -800,
+    "tax": 0,
+    "date": "2099-02-01",
+    "time": "09:59:00",
+    "description": "Synthetisch: FIFO B"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-DECIMAL-C",
+    "shares": 0.5,
+    "amount": 500,
+    "tax": 50,
+    "date": "2099-03-02",
+    "time": "09:45:00",
+    "description": "Synthetisch: Dezimal C"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-MULTILOT-D",
+    "shares": 50,
+    "amount": -1250,
+    "tax": 0,
+    "date": "2099-04-03",
+    "time": "10:30:00",
+    "description": "Synthetisch: Mehrere Lots D"
+  },
+  {
+    "type": "Buy",
+    "isin": "SYNTH-FIFO-A",
+    "shares": 5,
+    "amount": -750,
+    "tax": 0,
+    "date": "2099-01-03",
+    "time": "09:30:00",
+    "description": "Synthetisch: FIFO A"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-FIFO-B",
+    "shares": 5,
+    "amount": 1375,
+    "tax": 100,
+    "date": "2099-02-01",
+    "time": "10:00:00",
+    "description": "Synthetisch: FIFO B"
+  },
+  {
+    "type": "Sell",
+    "isin": "SYNTH-BREAKEVEN-F",
+    "shares": 3,
+    "amount": 900,
+    "tax": 0,
+    "date": "2099-06-02",
+    "time": "12:00:00",
+    "description": "Synthetisch: Neutral F"
+  }
+]

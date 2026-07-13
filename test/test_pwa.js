@@ -233,6 +233,15 @@ console.log('\n=== 6. CALCULATION LOGIC vs GOLDEN ===');
 const golden = JSON.parse(fs.readFileSync(__dirname + '/golden.json', 'utf8'));
 // Reconstruct FIFO in JS exactly as parseXlsx does, fed from test2-derived rows.
 const goldRows = JSON.parse(fs.readFileSync(__dirname + '/gold_rows.json', 'utf8'));
+// Die Referenzdaten liegen im öffentlichen Repository. Eindeutige Marker und
+// Zukunftsdaten verhindern, dass erneut ein persönlicher Broker-Export als
+// bequeme Test-Fixture eingecheckt wird.
+check('Golden-Fixture enthaelt nur synthetische ISINs',
+  goldRows.length > 0 && goldRows.every(row => String(row.isin || '').startsWith('SYNTH-')));
+check('Golden-Fixture enthaelt nur synthetische Beschreibungen',
+  goldRows.every(row => String(row.description || '').startsWith('Synthetisch:')));
+check('Golden-Fixture enthaelt nur synthetische Zukunftsdaten',
+  goldRows.every(row => String(row.date || '').startsWith('2099-')));
 goldRows.sort((a, b) => {
   const ta = a.date + a.time + (a.type === 'Buy' ? '0' : '1');
   const tb = b.date + b.time + (b.type === 'Buy' ? '0' : '1');
@@ -265,12 +274,17 @@ check('tax = ' + golden.tax + ' (got ' + taxSum + ')', Math.abs(taxSum - golden.
 const realFifoCheck = (async () => {
   try {
     const mod = await import('file://' + DIR + '/js/fifo.js');
-    const { closed } = mod.fifoMatch(goldRows, [], true);
+    const { closed, openLots } = mod.fifoMatch(goldRows, [], true);
     const rPnl = +closed.reduce((s, t) => s + t.pnl, 0).toFixed(2);
     const rTax = +closed.reduce((s, t) => s + t.tax, 0).toFixed(2);
     check('ECHTE fifoMatch: Trades = ' + golden.trades, closed.length === golden.trades);
     check('ECHTE fifoMatch: P&L = ' + golden.pnl, Math.abs(rPnl - golden.pnl) < 0.5);
     check('ECHTE fifoMatch: Steuer = ' + golden.tax, Math.abs(rTax - golden.tax) < 0.5);
+    check('ECHTE fifoMatch: offene Lots = ' + golden.openLots,
+      openLots.length === golden.openLots);
+    const rOpenCost = +openLots.reduce((s, lot) => s + lot.amount, 0).toFixed(2);
+    check('ECHTE fifoMatch: offener Einstand = ' + golden.openCost,
+      Math.abs(rOpenCost - golden.openCost) < 0.01);
     // views.js: Aggregation muss die Gesamtsumme erhalten
     const vmod = await import('file://' + DIR + '/js/views.js');
     const fmod = await import('file://' + DIR + '/js/fifo.js');

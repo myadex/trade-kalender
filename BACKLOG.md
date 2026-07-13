@@ -9,13 +9,19 @@ Wartbarkeit bzw. Komfort.
 
 ### Git-Historie von Finanzdaten bereinigen
 
-- **Status:** Entscheidung offen.
-- **Warum:** `trade-kalender.json` ist fuer neue Commits aus dem Index entfernt,
-  kann aber in bereits veroeffentlichten Commits noch vorhanden sein.
-- **Naechster Schritt:** Historie mit einem geeigneten Git-Werkzeug neu schreiben
-  und anschliessend den Remote per Force-Push aktualisieren.
-- **Entscheidung noetig:** Explizite Freigabe fuer den destruktiven Rewrite und
-  Abstimmung mit allen Klonen des Repositories.
+- **Status:** Git-Historie in v45 bereinigt; serverseitige GitHub-Bereinigung
+  noch offen.
+- **Loesung:** Die Git-Historie wurde neu geschrieben. Der historische
+  `trade-kalender.json`-Snapshot, die echte Broker-Test-Fixture und die daraus
+  abgeleiteten Kennzahlen sind aus allen normalen Branch-Referenzen entfernt.
+- **Sicherung:** Die eingecheckte Golden-Fixture ist vollstaendig synthetisch.
+  Tests erzwingen kuenftig synthetische IDs, Beschreibungen und Zukunftsdaten;
+  `trade-kalender.json` bleibt ignoriert und ausserhalb des Git-Index.
+- **Hinweis:** Alte Klone duerfen nicht mehr auf `main` pushen, weil sie die
+  verworfene Historie erneut veroeffentlichen koennten.
+- **Restschritt:** GitHub liefert den alten, nicht mehr referenzierten Commit
+  weiterhin direkt per SHA. GitHub Support muss die gecachten Ansichten und
+  verwaisten Objekte serverseitig entfernen.
 
 ### Drive-Konflikte zwischen Tabs und Geraeten erkennen
 

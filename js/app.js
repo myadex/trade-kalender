@@ -8,8 +8,7 @@ import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml } from 
 import { dayMap, deriveOpenPositions, fifoMatch, replayImportLedger, closePositionPnl, tradePnl } from './fifo.js';
 import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, createData, updateData, createWriteQueue } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
-import { parseScalableCsv, markDuplicates, mergeImportRows } from './import.js';
-import { buildFullRebuild } from './migration.js';
+import { parseScalableCsv, markDuplicates, mergeImportRows, updateImportSellRow } from './import.js';
 
 /* ============================================================
    STATE
@@ -24,7 +23,6 @@ let pendingImport = [];
 let pendingOpenLots = [];
 let pendingImportRows = null;
 let pendingImportBaseOpenLots = null;
-let pendingFullRebuild = null;
 const enqueuePersist = createWriteQueue();
 let currentDetailDate = null;
 // Aktuell angezeigter Monat im Kalender (Jahr + Monat 0-11). Standard: aktueller Monat.
@@ -147,21 +145,6 @@ function persist() {
   });
 }
 
-// Ein Komplett-Neuaufbau ersetzt den Drive-Bestand. Die lokale JSON-Sicherung
-// entsteht vor dem Speichern, damit der vorherige Zustand auch ohne Drive-
-// Versionsverwaltung direkt ueber "JSON wiederherstellen" verfuegbar bleibt.
-function downloadMigrationBackup() {
-  const blob = new Blob([JSON.stringify(DATA, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'trade-kalender-backup-' + toLocalDateStr(new Date()) + '.json';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
 /* ============================================================
    DERIVED VIEWS
    ============================================================ */
@@ -174,7 +157,7 @@ function dayMapDATA() { return dayMap(DATA.trades); }
 function openPositionsDATA() { return deriveOpenPositions(DATA.openLots); }
 
 // Alte Daten haben keine Rohzeilen. Der Snapshot offener Lots zu Beginn der
-// Migration bleibt deshalb unveraendert die Basis; nur neue Importe werden
+// Ledger-Einfuehrung bleibt deshalb unveraendert die Basis; nur neue Importe werden
 // vollstaendig aus ihren Brokerzeilen abgeleitet.
 function hasImportLedger() { return Array.isArray(DATA.importBaseOpenLots); }
 function cloneLots(lots) { return (lots || []).map(lot => Object.assign({}, lot)); }
@@ -486,7 +469,7 @@ async function confirmClosePos() {
   const totalCost = lots.reduce((s, l) => s + l.amount, 0);
   const desc = lots[0].desc;
   if (hasImportLedger()) {
-    // Nach der Migration muss auch ein manueller Schluss im Roh-Ledger landen.
+    // Nach der Ledger-Einfuehrung muss auch ein manueller Schluss im Roh-Ledger landen.
     // Sonst wuerde der naechste Replay den bereits geschlossenen Restbestand
     // wieder als offen ableiten.
     const nextRows = mergeImportRows(DATA.importRows, [{
@@ -973,10 +956,8 @@ async function saveTrade() {
 function openEditModal(uid) {
   const t = DATA.trades.find(x => x.uid === uid);
   if (!t) { alert('Trade nicht gefunden.'); return; }
-  if (t.source === 'import') {
-    alert('Importierte Trades werden aus ihren Rohzeilen abgeleitet. Bitte den Verkauf l\u00f6schen und die korrigierte CSV erneut importieren.');
-    return;
-  }
+  const isImported = t.source === 'import';
+  if (isImported && !t.sourceRowId) { alert('Import-Quelle fehlt \u2014 Trade kann nicht sicher bearbeitet werden.'); return; }
   $('e-uid').value = uid;
   $('e-date').value = t.date;
   $('e-desc').value = t.desc;
@@ -985,17 +966,28 @@ function openEditModal(uid) {
   $('e-buy').value = t.buy;
   $('e-sell').value = t.sell;
   $('e-tax').value = t.tax;
+  // Bei Importen gehoert der Einstand zu den Buy-Rohzeilen und der Broker ist
+  // durch die Quelle festgelegt. Beides darf der Sell-Editor nicht veraendern.
+  $('e-buy').readOnly = isImported;
+  $('e-broker').disabled = isImported;
+  $('e-import-note').style.display = isImported ? 'block' : 'none';
+  $('edit-overlay').dataset.imported = isImported ? 'true' : 'false';
   updateEditPreview();
   $('edit-overlay').classList.add('open');
 }
 function closeEditModal() { $('edit-overlay').classList.remove('open'); }
 
 function updateEditPreview() {
+  const el = $('edit-pnl-preview');
+  if ($('edit-overlay').dataset.imported === 'true') {
+    el.textContent = 'P&L wird beim Speichern per FIFO neu berechnet.';
+    el.className = 'pnl-preview';
+    return;
+  }
   const buy = parseFloat($('e-buy').value) || 0;
   const sell = parseFloat($('e-sell').value) || 0;
   const tax = parseFloat($('e-tax').value) || 0;
   const pnl = sell - buy - tax;
-  const el = $('edit-pnl-preview');
   el.textContent = 'P&L: ' + fmtDE(pnl);
   el.className = 'pnl-preview ' + (pnl >= 0 ? 'pos' : 'neg');
 }
@@ -1004,15 +996,50 @@ async function saveEdit() {
   const uid = $('e-uid').value;
   const idx = DATA.trades.findIndex(x => x.uid === uid);
   if (idx === -1) { alert('Trade nicht gefunden.'); return; }
+  const trade = DATA.trades[idx];
   const buy = parseFloat($('e-buy').value) || 0;
   const sell = parseFloat($('e-sell').value) || 0;
   const tax = parseFloat($('e-tax').value) || 0;
   const desc = $('e-desc').value.trim();
   const broker = $('e-broker').value;
   const shares = parseFloat($('e-shares').value) || 0;
+  const date = $('e-date').value;
+
+  if (trade.source === 'import') {
+    const updated = updateImportSellRow(DATA.importRows, trade.sourceRowId, {
+      date, description: desc, shares, amount: sell, tax
+    });
+    if (updated.error) { alert('Bearbeiten abgebrochen: ' + updated.error); return; }
+
+    let replay;
+    try {
+      replay = replayStoredImports(updated.rows);
+    } catch (e) {
+      alert('Bearbeiten abgebrochen: ' + e.message);
+      return;
+    }
+
+    const previousData = DATA;
+    DATA = Object.assign({}, DATA, {
+      importRows: updated.rows,
+      trades: legacyTrades().concat(replay.trades),
+      openLots: replay.openLots
+    });
+    const saveResult = await persist();
+    if (!saveResult.ok) {
+      // Bei einem Drive-Konflikt hat persist bereits den neuesten Serverstand
+      // geladen. Nur bei anderen Fehlern ist der lokale Vorzustand korrekt.
+      if (!saveResult.conflict) DATA = previousData;
+      return;
+    }
+    closeEditModal();
+    rebuildAll();
+    setTimeout(() => showDetail(date), 50);
+    return;
+  }
+
   if (!desc || !buy || !sell) { alert('Bitte Produkt, Kauf- und Verkaufsbetrag ausf\u00fcllen.'); return; }
   const pnl = +(sell - buy - tax).toFixed(2);
-  const date = $('e-date').value;
   DATA.trades[idx] = Object.assign({}, DATA.trades[idx], { date, desc, broker, shares, buy: +buy.toFixed(2), sell: +sell.toFixed(2), tax: +tax.toFixed(2), pnl });
   if (!(await persist()).ok) return;
   closeEditModal();
@@ -1024,8 +1051,7 @@ async function saveEdit() {
    CSV IMPORT (FIFO, Buy-before-Sell tiebreak, UID dedup)
    ============================================================ */
 function openImportModal() {
-  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null; pendingFullRebuild = null;
-  $('import-rebuild-mode').checked = false;
+  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null;
   $('import-tbody').innerHTML = '';
   $('import-preview').style.display = 'none';
   $('import-summary').style.display = 'none';
@@ -1071,66 +1097,11 @@ function importError(msg) {
   if (btn) btn.style.display = 'none';
 }
 
-function parseFullRebuild(filtered) {
-  const rebuilt = buildFullRebuild(filtered, DATA.capital);
-  if (rebuilt.error) {
-    const first = rebuilt.error;
-    importError(
-      'Neuaufbau abgebrochen: Verkauf ' + first.requestedShares + ' St\u00fcck (' + first.isin +
-      ') am ' + first.date + ' hat nur ' + first.availableShares + ' offene St\u00fcck.'
-    );
-    return;
-  }
-
-  pendingFullRebuild = rebuilt.data;
-  pendingImportRows = rebuilt.data.importRows;
-  pendingImportBaseOpenLots = rebuilt.data.importBaseOpenLots;
-  pendingOpenLots = rebuilt.data.openLots;
-  const { marked, newCount } = markDuplicates(rebuilt.data.trades, new Set());
-  pendingImport = marked;
-
-  const tbody = $('import-tbody');
-  tbody.innerHTML = '';
-  pendingImport.slice(0, 40).forEach(t => {
-    const col = t.pnl >= 0 ? 'var(--green)' : 'var(--red)';
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + escapeHtml(t.date) + '</td>' +
-      '<td style="font-size:.65rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(t.desc) + '</td>' +
-      '<td class="r">' + t.shares + '</td>' +
-      '<td class="r">' + fmtPlain(t.buy, 0) + '</td>' +
-      '<td class="r">' + fmtPlain(t.sell, 0) + '</td>' +
-      '<td class="r" style="color:' + col + '">' + fmtDE(t.pnl) + '</td>' +
-      '<td>Neu</td>';
-    tbody.appendChild(tr);
-  });
-  if (pendingImport.length > 40) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="7" style="color:var(--muted);font-size:.65rem;padding:.3rem .5rem">\u2026 und ' + (pendingImport.length - 40) + ' weitere</td>';
-    tbody.appendChild(tr);
-  }
-
-  $('import-preview').style.display = 'block';
-  $('drop-zone').style.display = 'none';
-  const sumEl = $('import-summary');
-  sumEl.textContent = 'Vollst\u00e4ndiger Neuaufbau: ' + newCount + ' Trades und ' + rebuilt.data.openLots.length +
-    ' offene Lots. Bestehende Daten werden nach Best\u00e4tigung ersetzt; vorher wird eine lokale JSON-Sicherung erstellt.';
-  sumEl.className = 'import-summary warn';
-  sumEl.style.display = 'block';
-  const btn = $('import-confirm-btn');
-  btn.style.display = 'inline-block';
-  btn.textContent = 'Sicherung erstellen und Daten ersetzen';
-}
-
 function parseImport(text) {
   // Parsen + Validieren passiert in import.js (pure). Hier nur Fehleranzeige + Rendering.
   const result = parseScalableCsv(text);
   if (result.error) { importError(result.error); return; }
   const filtered = result.rows;
-  pendingFullRebuild = null;
-  if ($('import-rebuild-mode').checked) {
-    parseFullRebuild(filtered);
-    return;
-  }
   const importBaseOpenLots = hasImportLedger() ? cloneLots(DATA.importBaseOpenLots) : cloneLots(DATA.openLots);
   const importRows = mergeImportRows(DATA.importRows, filtered);
   const newImportRowCount = importRows.length - DATA.importRows.length;
@@ -1203,26 +1174,6 @@ function parseImport(text) {
 
 async function confirmImport() {
   if (!pendingImportRows || !pendingImportBaseOpenLots) return;
-  if (pendingFullRebuild) {
-    const n = pendingFullRebuild.trades.length;
-    if (!confirm(n + ' Trades aus dem Broker-Export \u00fcbernehmen und alle bisherigen Daten in Google Drive ersetzen? Zuvor wird eine lokale JSON-Sicherung heruntergeladen.')) return;
-    const previousData = DATA;
-    downloadMigrationBackup();
-    DATA = pendingFullRebuild;
-    const saveResult = await persist();
-    if (!saveResult.ok) {
-      if (!saveResult.conflict) {
-        DATA = previousData;
-        rebuildAll();
-        alert('Neuaufbau wurde nicht in Google Drive gespeichert. Der vorherige Stand ist wieder aktiv; die JSON-Sicherung wurde heruntergeladen.');
-      }
-      return;
-    }
-    closeImportModal();
-    rebuildAll();
-    alert('Neuaufbau abgeschlossen. Die vorherigen Daten liegen in der heruntergeladenen JSON-Sicherung.');
-    return;
-  }
   const importedTrades = pendingImport.map(t => {
     const o = Object.assign({}, t);
     delete o.isDup;

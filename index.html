@@ -164,6 +164,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .form-group label{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:.25rem;}
 .form-group input,.form-group select{width:100%;padding:.45rem .6rem;border:1px solid var(--border);border-radius:6px;font-family:'Chakra Petch',sans-serif;font-size:.82rem;background:white;color:var(--ink);outline:none;}
 .form-group input:focus,.form-group select:focus{border-color:var(--ink);}
+.form-group input:read-only,.form-group select:disabled{background:var(--paper);color:var(--muted);cursor:not-allowed;}
 .pnl-preview{font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:500;text-align:center;padding:.5rem;border-radius:6px;margin:.6rem 0;}
 .pnl-preview.pos{background:var(--green-bg);color:var(--green);}.pnl-preview.neg{background:var(--red-bg);color:var(--red);}
 .modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.8rem;}
@@ -177,8 +178,6 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .import-preview tr.dup td{opacity:.35;text-decoration:line-through;}
 .import-summary{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);margin:.5rem 0;}
 .import-summary.warn{color:var(--amber);}
-.import-rebuild-option{display:block;margin:.7rem 0;font-size:.74rem;line-height:1.45;color:var(--muted);cursor:pointer;}
-.import-rebuild-option input{margin-right:.45rem;vertical-align:middle;}
 
 /* Desktop defaults: mobile-only elements hidden (overridden inside media query) */
 #bottom-bar { display: none; }
@@ -456,12 +455,13 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <div class="modal-overlay" id="edit-overlay" onclick="if(event.target===this)closeEditModal()">
   <div class="modal">
     <h3>Trade bearbeiten</h3>
+    <div id="e-import-note" style="display:none;color:var(--muted);font-size:.7rem;line-height:1.45;margin-bottom:.8rem">Dieser Trade wird aus einer Broker-Verkaufszeile abgeleitet. Einstand und P&amp;L werden nach dem Speichern per FIFO neu berechnet.</div>
     <input type="hidden" id="e-uid">
     <div class="form-row full"><div class="form-group"><label>Datum</label><input type="date" id="e-date"></div></div>
     <div class="form-row full"><div class="form-group"><label>Produkt</label><input type="text" id="e-desc"></div></div>
     <div class="form-row">
       <div class="form-group"><label>Broker</label><select id="e-broker"><option value="scalable">Scalable Capital</option><option value="tr">Trade Republic</option></select></div>
-      <div class="form-group"><label>St&uuml;ckzahl</label><input type="number" id="e-shares"></div>
+      <div class="form-group"><label>St&uuml;ckzahl</label><input type="number" id="e-shares" step="0.000001"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Kaufbetrag &euro;</label><input type="number" id="e-buy" step="0.01" oninput="updateEditPreview()"></div>
@@ -508,10 +508,6 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       <p>CSV hier reinziehen oder klicken</p>
       <p style="margin-top:.4rem;font-size:.58rem">Scalable Capital Export &middot; Buy/Sell &middot; Executed</p>
     </div>
-    <label class="import-rebuild-option">
-      <input type="checkbox" id="import-rebuild-mode">
-      Vollst&auml;ndig aus diesem Broker-Export neu aufbauen. Ersetzt alle bisherigen Trades und offenen Positionen; vor dem Speichern wird eine lokale JSON-Sicherung erstellt.
-    </label>
     <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFileSelect(this.files[0])">
     <div class="import-preview" id="import-preview" style="display:none">
       <table><thead><tr><th>Datum</th><th>Produkt</th><th>St&uuml;ck</th><th class="r">Kauf</th><th class="r">Verkauf</th><th class="r">P&amp;L</th><th>Status</th></tr></thead>

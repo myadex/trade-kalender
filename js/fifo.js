@@ -179,7 +179,7 @@ export function fifoMatch(rows, existingOpenLots, applyKnockoutFilter = false) {
   return { closed, openLots, errors };
 }
 
-// Spielt alle ab Migration gespeicherten Brokerzeilen gegen den unveraenderten
+// Spielt alle seit Einfuehrung des Ledgers gespeicherten Brokerzeilen gegen den unveraenderten
 // Legacy-Bestand ab. Trades und offene Lots sind damit abgeleitete Daten und
 // nach dem Loeschen einer Importzeile jederzeit reproduzierbar.
 export function replayImportLedger(importRows, importBaseOpenLots) {

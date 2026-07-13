@@ -38,16 +38,19 @@ const backlogPath = DIR + '/BACKLOG.md';
 const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8') : '';
 check('Projekt-Backlog mit offenen Punkten vorhanden',
   backlog.includes('# App-Backlog') && backlog.includes('## Prioritaet 1'));
-const migrationPath = DIR + '/js/migration.js';
-const hasMigrationModule = fs.existsSync(migrationPath);
-check('Vollstaendiger CSV-Neuaufbau ist als Fachmodul vorhanden', hasMigrationModule);
+check('Verworfener CSV-Komplettneuaufbau ist nicht mehr ausfuehrbar',
+  backlog.includes('### Legacy-Daten vollstaendig neu aufbauen') &&
+  backlog.includes('**Status:** Verworfen') &&
+  !fs.existsSync(DIR + '/js/migration.js') &&
+  !html.includes('id="import-rebuild-mode"') &&
+  !appJs.includes('buildFullRebuild'));
 if (hasRootServiceWorker) {
 try { acorn.parse(swJs, { ecmaVersion: 2020 }); check('sw.js parses', true); }
 catch (e) { check('sw.js parses (' + e.message + ')', false); }
 const offlineAssets = [
   './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
-  './js/import.js', './js/migration.js', './js/storage.js', './js/views.js'
+  './js/import.js', './js/storage.js', './js/views.js'
 ];
 check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
 check('PWA: Navigation hat einen Offline-Fallback auf index.html',
@@ -316,27 +319,50 @@ const realFifoCheck = (async () => {
       check('Import-Ledger: geloeschter Verkauf stellt offenes Lot wieder her',
         afterDelete.errors.length === 0 && afterDelete.trades.length === 0 &&
         afterDelete.openLots.length === 1 && afterDelete.openLots[0].shares === 10);
+
+      const editFnReady = typeof imod.updateImportSellRow === 'function';
+      check('Import-Ledger: Rohverkauf kann pure bearbeitet werden', editFnReady);
+      if (editFnReady) {
+        const edited = imod.updateImportSellRow(ledgerRows, ledgerRows[1].sourceRowId, {
+          date: '2026-07-02', description: 'DAX Put', shares: 10, amount: 1300, tax: 60
+        });
+        const editedReplay = edited.rows ? fmod.replayImportLedger(edited.rows, []) : { trades: [], errors: [{}] };
+        check('Import-Ledger: Bearbeitung ersetzt Rohzeile ohne Eingabe zu mutieren',
+          !edited.error && edited.rows.length === 2 &&
+          edited.sourceRowId !== ledgerRows[1].sourceRowId &&
+          ledgerRows[1].date === '2026-07-01' && ledgerRows[1].amount === 1200);
+        check('Import-Ledger: Replay berechnet Einstand und P&L nach Bearbeitung neu',
+          editedReplay.errors.length === 0 && editedReplay.trades.length === 1 &&
+          editedReplay.trades[0].date === '2026-07-02' &&
+          editedReplay.trades[0].buy === 1000 && editedReplay.trades[0].pnl === 240 &&
+          editedReplay.trades[0].sourceRowId === edited.sourceRowId);
+        const invalid = imod.updateImportSellRow(ledgerRows, ledgerRows[1].sourceRowId, {
+          date: '2026-07-02', description: 'DAX Put', shares: 0, amount: 1300, tax: 60
+        });
+        check('Import-Ledger: ungueltige Verkaufsdaten werden abgelehnt', !!invalid.error);
+        const collisionRows = imod.withSourceRowIds([
+          { type: 'Sell', status: 'Executed', isin: 'COLLISION', shares: 1, amount: 100, date: '2026-07-01', time: '10:00:00', description: 'Erster Verkauf', tax: 10 },
+          { type: 'Sell', status: 'Executed', isin: 'COLLISION', shares: 2, amount: 200, date: '2026-07-02', time: '10:00:00', description: 'Zweiter Verkauf', tax: 20 }
+        ]);
+        const collision = imod.updateImportSellRow(collisionRows, collisionRows[0].sourceRowId, {
+          date: '2026-07-02', description: 'Zweiter Verkauf', shares: 2, amount: 200, tax: 20
+        });
+        check('Import-Ledger: doppelte Roh-ID wird beim Bearbeiten abgelehnt', !!collision.error);
+      } else {
+        check('Import-Ledger: Bearbeitung ersetzt Rohzeile ohne Eingabe zu mutieren', false);
+        check('Import-Ledger: Replay berechnet Einstand und P&L nach Bearbeitung neu', false);
+        check('Import-Ledger: ungueltige Verkaufsdaten werden abgelehnt', false);
+        check('Import-Ledger: doppelte Roh-ID wird beim Bearbeiten abgelehnt', false);
+      }
     } else {
       check('Import-Ledger: gleiche Rohzeile wird nur einmal gespeichert', false);
       check('Import-Ledger: Replay markiert abgeleiteten Trade und Quelle', false);
       check('Import-Ledger: geloeschter Verkauf stellt offenes Lot wieder her', false);
-    }
-    if (hasMigrationModule) {
-      const mmod = await import('file://' + migrationPath);
-      const migrationRows = [
-        { type: 'Buy', status: 'Executed', isin: 'MIGRATION', shares: 10, amount: -1000, date: '2026-07-01', time: '09:00:00', description: 'DAX Call', tax: 0 },
-        { type: 'Sell', status: 'Executed', isin: 'MIGRATION', shares: 10, amount: 1200, date: '2026-07-01', time: '10:00:00', description: 'DAX Call', tax: 50 }
-      ];
-      const rebuilt = mmod.buildFullRebuild([migrationRows[0], migrationRows[0], migrationRows[1]], 1234);
-      check('Migration: CSV ersetzt Legacy durch dedupliziertes Roh-Ledger',
-        !rebuilt.error && rebuilt.data.importRows.length === 2 &&
-        rebuilt.data.trades.length === 1 && rebuilt.data.trades[0].source === 'import' &&
-        rebuilt.data.importBaseOpenLots.length === 0);
-      check('Migration: Kapitalwert bleibt bei CSV-Neuaufbau erhalten',
-        !rebuilt.error && rebuilt.data.capital === 1234);
-    } else {
-      check('Migration: CSV ersetzt Legacy durch dedupliziertes Roh-Ledger', false);
-      check('Migration: Kapitalwert bleibt bei CSV-Neuaufbau erhalten', false);
+      check('Import-Ledger: Rohverkauf kann pure bearbeitet werden', false);
+      check('Import-Ledger: Bearbeitung ersetzt Rohzeile ohne Eingabe zu mutieren', false);
+      check('Import-Ledger: Replay berechnet Einstand und P&L nach Bearbeitung neu', false);
+      check('Import-Ledger: ungueltige Verkaufsdaten werden abgelehnt', false);
+      check('Import-Ledger: doppelte Roh-ID wird beim Bearbeiten abgelehnt', false);
     }
     const hmod = await import('file://' + DIR + '/js/helpers.js');
     check('helpers: escapeHtml neutralisiert HTML aus Importdaten',
@@ -562,6 +588,14 @@ check('App persistiert Import-Ledger getrennt von Legacy-Trades',
   appJs.includes('importRows') &&
   appJs.includes('importBaseOpenLots') &&
   appJs.includes('replayImportLedger'));
+check('UI bearbeitet importierte Trades ueber Rohverkauf und Ledger-Replay',
+  appJs.includes('updateImportSellRow') &&
+  appJs.includes('replayStoredImports(updated.rows)') &&
+  !appJs.includes('Bitte den Verkauf l\\u00f6schen und die korrigierte CSV erneut importieren'));
+check('UI haelt den FIFO-Einstand importierter Trades schreibgeschuetzt',
+  html.includes('id="e-import-note"') &&
+  appJs.includes("$('e-buy').readOnly = isImported") &&
+  appJs.includes("$('e-broker').disabled = isImported"));
 check('Import-Ledger speichert auch reine Buy-Zeilen ohne Verkauf',
   appJs.includes('const newImportRowCount =') &&
   appJs.includes('if (newImportRowCount > 0)'));
@@ -574,14 +608,6 @@ check('Ledger blockiert Loeschen offener Positionen ohne Rohereignis',
 check('App serialisiert Drive-Speichervorgaenge mit Snapshot',
   appJs.includes('const enqueuePersist = createWriteQueue()') &&
   appJs.includes('const snapshot = JSON.parse(JSON.stringify(DATA))'));
-check('UI bietet einen bestaetigten CSV-Neuaufbau mit lokaler Sicherung',
-  html.includes('id="import-rebuild-mode"') &&
-  appJs.includes('buildFullRebuild') &&
-  appJs.includes('downloadMigrationBackup'));
-check('CSV-Neuaufbau stellt bei Drive-Fehler den vorherigen Zustand wieder her',
-  appJs.includes('const previousData = DATA') &&
-  appJs.includes('const saveResult = await persist()') &&
-  appJs.includes('DATA = previousData'));
 check('App verwaltet Drive-ETag und aktualisiert es nach jedem Speichern',
   appJs.includes('let driveEtag = null') &&
   appJs.includes('downloadVersionedData') &&

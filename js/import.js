@@ -1,10 +1,10 @@
 // ============================================================
-// import.js — XLSX-Parsing und -Validierung (pure, kein DOM)
+// import.js — Broker-Parsing und Ledger-Bearbeitung (pure, kein DOM)
 // ============================================================
 // Nimmt einen ArrayBuffer + die XLSX-Bibliothek (wird übergeben, damit
 // dieses Modul nicht von globalem XLSX abhängt und testbar bleibt).
 // Gibt entweder { error: '...' } oder { rows: [...gefilterte Zeilen] } zurück.
-// Das eigentliche FIFO-Matching und das DOM-Rendering passieren in app.js.
+// Das FIFO-Matching passiert in fifo.js, das DOM-Rendering in app.js.
 
 import { normalizeXlsxDate } from './helpers.js';
 
@@ -60,6 +60,57 @@ export function mergeImportRows(existingRows, incomingRows) {
     merged.push(row);
   });
   return merged;
+}
+
+// Import-Trades sind nur eine abgeleitete Sicht. Deshalb wird beim Bearbeiten
+// die zugehoerige Sell-Rohzeile ersetzt und ihre technische ID neu erzeugt;
+// Einstand, P&L und offene Lots berechnet anschliessend allein der FIFO-Replay.
+export function updateImportSellRow(importRows, currentSourceRowId, changes) {
+  const rows = withSourceRowIds(importRows);
+  const index = rows.findIndex(row => row.sourceRowId === currentSourceRowId);
+  if (index === -1) return { error: 'Die zugehoerige Import-Zeile wurde nicht gefunden.' };
+
+  const current = rows[index];
+  if (current.type !== 'Sell') return { error: 'Nur Verkaufszeilen koennen als Trade bearbeitet werden.' };
+
+  const date = String(changes && changes.date || '').trim();
+  const description = String(changes && changes.description || '').trim();
+  const shares = Number(changes && changes.shares);
+  const amount = Number(changes && changes.amount);
+  const tax = Number(changes && changes.tax);
+  const dateParts = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  let validDate = false;
+  if (dateParts) {
+    const year = Number(dateParts[1]);
+    const month = Number(dateParts[2]);
+    const day = Number(dateParts[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    validDate = parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+  }
+  if (!validDate || !description || !Number.isFinite(shares) || shares <= 0 ||
+      !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(tax)) {
+    return { error: 'Bitte Datum, Produkt, Stueckzahl, Verkaufsbetrag und Steuer gueltig ausfuellen.' };
+  }
+
+  const updated = Object.assign({}, current, {
+    date,
+    description,
+    shares: +shares.toFixed(6),
+    amount: +amount.toFixed(2),
+    tax: +tax.toFixed(2)
+  });
+  delete updated.sourceRowId;
+  updated.sourceRowId = sourceRowId(updated);
+
+  // Zwei identische Roh-IDs wuerden beim naechsten CSV-Import zusammenfallen.
+  // Die Kollision wird deshalb vor dem Speichern sichtbar abgelehnt.
+  if (rows.some((row, rowIndex) => rowIndex !== index && row.sourceRowId === updated.sourceRowId)) {
+    return { error: 'Diese Verkaufszeile ist bereits im Import-Ledger vorhanden.' };
+  }
+
+  const nextRows = rows.map((row, rowIndex) => rowIndex === index ? updated : row);
+  return { rows: nextRows, sourceRowId: updated.sourceRowId };
 }
 
 // ------------------------------------------------------------

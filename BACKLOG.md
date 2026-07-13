@@ -31,24 +31,25 @@ Wartbarkeit bzw. Komfort.
 
 ### Legacy-Daten vollstaendig neu aufbauen
 
-- **Status:** Bereit zur Ausfuehrung in Drive.
-- **Erledigt:** Ein vollstaendiger Scalable-Capital-Export wurde ohne FIFO-
-  Fehler gegen den neuen Neuaufbau geprueft. Die App kann den Legacy-Bestand
-  nun nach einer zweiten Bestaetigung durch ein Roh-Ledger ersetzen und legt
-  vorher eine lokale JSON-Sicherung an.
-- **Restschritt:** In der angemeldeten App den CSV-Import oeffnen, die Option
-  "Vollstaendig aus diesem Broker-Export neu aufbauen" aktivieren und die
-  Vorschau bestaetigen. Anschliessend Drive-Daten erneut laden und pruefen.
+- **Status:** Verworfen in v43.
+- **Entscheidung:** Der Broker-Export ist keine vollstaendige Quelle fuer
+  manuelle Korrekturen. Ein Neuaufbau wuerde deshalb fachlich gueltige Legacy-
+  Daten ersetzen, insbesondere die manuellen Anpassungen aus Januar und Februar.
+- **Sicherung:** Der ausfuehrbare Komplett-Neuaufbau wurde aus UI, App-Modul und
+  Offline-Cache entfernt. Inkrementelle CSV-Imports bleiben unveraendert aktiv.
 
 ## Prioritaet 2
 
 ### Importierte Trades im Ledger bearbeiten
 
-- **Status:** Offen.
-- **Heute:** Importierte Trades werden sicher durch Loeschen und korrigierten
-  CSV-Reimport behandelt.
-- **Ziel:** Editieren soll die zugehoerige Roh-Verkaufszeile aendern, danach den
-  Ledger erneut abspielen und den abgeleiteten Einstand schreibgeschuetzt halten.
+- **Status:** Erledigt in v43.
+- **Loesung:** Der Editor aendert bei importierten Trades die zugehoerige Sell-
+  Rohzeile, erzeugt deren Quell-ID neu und spielt anschliessend das gesamte
+  Import-Ledger erneut ab. Einstand, offene Lots und P&L bleiben dadurch reine
+  FIFO-Ableitungen.
+- **Sicherung:** Kaufbetrag und Broker sind fuer Import-Trades schreibgeschuetzt.
+  Ungueltige Rohdaten, ID-Kollisionen und FIFO-Ueberverkaeufe werden vor dem
+  Speichern abgelehnt.
 
 ### Position ohne P&L dauerhaft aus dem Tracking ausblenden
 

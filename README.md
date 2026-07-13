@@ -7,22 +7,27 @@ CSV-Import speichert die Drive-JSON zus\u00e4tzlich die unver\u00e4nderten
 `importRows` und den einmaligen `importBaseOpenLots`-Snapshot. Daraus werden
 neue Import-Trades und offene Lots bei jedem Replay reproduzierbar abgeleitet.
 
-Der erste Ledger-Import darf deshalb nur neue Brokerzeilen enthalten. Einen
-vollst\u00e4ndigen historischen Neuaufbau erfordert weiterhin den originalen CSV-
-Export. Importierte Trades werden gel\u00f6scht und durch Replay korrigiert; f\u00fcr
-inhaltliche Korrekturen wird die korrigierte CSV erneut importiert.
+Der erste Ledger-Import darf deshalb nur neue Brokerzeilen enthalten. Der
+normale CSV-Import erg\u00e4nzt ausschlie\u00dflich noch unbekannte Brokerzeilen.
 
-## Vollst\u00e4ndiger CSV-Neuaufbau ab v41
+## Importierte Trades bearbeiten ab v43
 
-Im CSV-Import kann die Option **"Vollst\u00e4ndig aus diesem Broker-Export neu
-aufbauen"** aktiviert werden. Sie ist ausschlie\u00dflich f\u00fcr einen l\u00fcckenlosen,
-ma\u00dfgeblichen Broker-Export gedacht und ersetzt alle Legacy-Trades sowie offene
-Lots durch das reproduzierbare Roh-Ledger. Der manuell gepflegte Kapitalwert
-bleibt erhalten.
+Der Bearbeiten-Button eines importierten Trades \u00e4ndert dessen gespeicherte
+Broker-Verkaufszeile. Danach wird das gesamte Import-Ledger neu abgespielt, sodass
+Einstand, P&L und offene Lots weiterhin aus FIFO entstehen. Datum, Produkt,
+St\u00fcckzahl, Verkaufsbetrag und Steuer sind editierbar. Kaufbetrag und Broker
+bleiben schreibgesch\u00fctzt, weil sie nicht Teil der Verkaufszeile sind.
 
-Vor dem Ersetzen erzeugt die App eine lokale JSON-Sicherung des aktuellen
-Stands. Erst danach wird die neue Datei in Google Drive gespeichert.
-Die Sicherung kann bei Bedarf mit "JSON wiederherstellen" eingespielt werden.
+Ung\u00fcltige Eingaben, doppelte Rohzeilen und Verk\u00e4ufe ohne ausreichende offene
+Lots werden vor dem Speichern abgelehnt. Legacy- und manuell angelegte Trades
+verwenden weiterhin den direkten Editor.
+
+## Kein vollst\u00e4ndiger CSV-Neuaufbau
+
+Der zeitweise erprobte Komplett-Neuaufbau wurde in v43 bewusst entfernt. Ein
+Broker-Export enth\u00e4lt keine manuellen Korrekturen und ist deshalb nicht die
+ma\u00dfgebliche Quelle f\u00fcr den gesamten Datenbestand. Der normale CSV-Import
+erg\u00e4nzt weiterhin nur neue Brokerzeilen, ohne Legacy-Daten zu ersetzen.
 
 Das Entfernen einer offenen Position ohne P&L-Buchung ist bei aktivem Ledger
 bewusst gesperrt: Es gibt daf\u00fcr kein reproduzierbares Brokerereignis und die

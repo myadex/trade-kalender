@@ -6,7 +6,7 @@
 import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml } from './helpers.js';
 import { dayMap, deriveOpenPositions, fifoMatch, replayImportLedger, closePositionPnl, tradePnl } from './fifo.js';
-import { findDataFile, downloadData, createData, updateData, createWriteQueue } from './storage.js';
+import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, createData, updateData, createWriteQueue } from './storage.js';
 import { aggregateWeeks, aggregateMonths, computeStats, computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline } from './views.js';
 import { parseScalableCsv, markDuplicates, mergeImportRows } from './import.js';
 import { buildFullRebuild } from './migration.js';
@@ -17,6 +17,7 @@ import { buildFullRebuild } from './migration.js';
 let tokenClient = null;
 let accessToken = null;
 let driveFileId = null;          // id of trade-kalender.json in Drive
+let driveEtag = null;            // geladene Serverversion fuer atomare If-Match-Updates
 const emptyData = () => ({ trades: [], openLots: [], capital: 0, importRows: [], importBaseOpenLots: null });
 let DATA = emptyData();
 let pendingImport = [];
@@ -60,6 +61,7 @@ function signOut() {
   }
   accessToken = null;
   driveFileId = null;
+  driveEtag = null;
   DATA = emptyData();
   $('app-main').style.display = 'none';
   $('login-screen').style.display = 'flex';
@@ -93,16 +95,22 @@ async function loadFromDrive() {
     // Noch keine Datei vorhanden — leere anlegen
     DATA = emptyData();
     driveFileId = await createData(accessToken, DATA);
+    const created = await downloadVersionedData(accessToken, driveFileId);
+    DATA = created.data;
+    driveEtag = created.etag;
     return;
   }
-  DATA = await downloadData(accessToken, driveFileId);
+  const loaded = await downloadVersionedData(accessToken, driveFileId);
+  DATA = loaded.data;
+  driveEtag = loaded.etag;
 }
 
 async function saveToDrive(isCreate, data = DATA) {
   if (!driveFileId || isCreate) {
     driveFileId = await createData(accessToken, data);
+    driveEtag = await getDataEtag(accessToken, driveFileId);
   } else {
-    await updateData(accessToken, driveFileId, data);
+    driveEtag = await updateData(accessToken, driveFileId, data, driveEtag);
   }
 }
 
@@ -116,10 +124,25 @@ function persist() {
     try {
       await saveToDrive(false, snapshot);
       setStatus('');
-      return true;
+      return { ok: true, conflict: false };
     } catch (e) {
+      if (e instanceof DriveConflictError) {
+        try {
+          // Der lokale Stand basiert auf einer alten Serverversion. Er darf
+          // nicht erneut gespeichert werden; stattdessen wird die aktuelle
+          // Drive-Datei zur neuen Arbeitsgrundlage.
+          await loadFromDrive();
+          rebuildAll();
+          setStatus('Drive-Konflikt: Neuester Stand wurde geladen.', true);
+          alert('Daten wurden in einem anderen Tab oder Ger\u00e4t ge\u00e4ndert. Deine letzte Aktion wurde nicht gespeichert; der neueste Drive-Stand ist jetzt geladen. Bitte pr\u00fcfen und die Aktion bei Bedarf wiederholen.');
+        } catch (reloadError) {
+          setStatus('Drive-Konflikt; Neuladen fehlgeschlagen: ' + reloadError.message, true);
+          alert('Drive-Konflikt erkannt. Der neueste Stand konnte nicht geladen werden; bitte Seite neu laden.');
+        }
+        return { ok: false, conflict: true };
+      }
       setStatus('Speichern fehlgeschlagen: ' + e.message, true);
-      return false;
+      return { ok: false, conflict: false };
     }
   });
 }
@@ -481,7 +504,7 @@ async function confirmClosePos() {
     DATA.importRows = nextRows;
     DATA.trades = legacyTrades().concat(replay.trades);
     DATA.openLots = replay.openLots;
-    await persist();
+    if (!(await persist()).ok) return;
     closeClosePosModal();
     rebuildAll();
     return;
@@ -496,7 +519,7 @@ async function confirmClosePos() {
   });
   // remove all lots of this isin from openLots
   DATA.openLots = DATA.openLots.filter(l => l.isin !== closingIsin);
-  await persist();
+  if (!(await persist()).ok) return;
   closeClosePosModal();
   rebuildAll();
 }
@@ -550,7 +573,7 @@ async function deleteOpenPosition(isin) {
     'Die Position wird OHNE P&L-Buchung entfernt (kein Gewinn/Verlust, keine Steuer). ' +
     'Kann nicht r\u00fcckg\u00e4ngig gemacht werden.')) return;
   DATA.openLots = DATA.openLots.filter(l => l.isin !== isin);
-  await persist();
+  if (!(await persist()).ok) return;
   rebuildAll();
 }
 
@@ -895,7 +918,7 @@ async function deleteTrade(uid, date) {
     DATA.trades = DATA.trades.filter(t => t.uid !== uid);
     recomputeOpenLots();
   }
-  await persist();
+  if (!(await persist()).ok) return;
   rebuildAll();
   const rem = tradesByDate(date);
   if (rem.length > 0) showDetail(date); else closeDetail();
@@ -941,7 +964,7 @@ async function saveTrade() {
   const base = 'manual_' + date + '_' + sell.toFixed(2) + '_' + shares.toFixed(3);
   const uid = DATA.trades.some(t => t.uid === base) ? base + '_' + Date.now() : base;
   DATA.trades.push({ uid, date, isin: '', desc, broker, shares, buy: +buy.toFixed(2), sell: +sell.toFixed(2), tax: +tax.toFixed(2), pnl });
-  await persist();
+  if (!(await persist()).ok) return;
   closeAddModal();
   rebuildAll();
   setTimeout(() => showDetail(date), 50);
@@ -991,7 +1014,7 @@ async function saveEdit() {
   const pnl = +(sell - buy - tax).toFixed(2);
   const date = $('e-date').value;
   DATA.trades[idx] = Object.assign({}, DATA.trades[idx], { date, desc, broker, shares, buy: +buy.toFixed(2), sell: +sell.toFixed(2), tax: +tax.toFixed(2), pnl });
-  await persist();
+  if (!(await persist()).ok) return;
   closeEditModal();
   rebuildAll();
   setTimeout(() => showDetail(date), 50);
@@ -1186,11 +1209,13 @@ async function confirmImport() {
     const previousData = DATA;
     downloadMigrationBackup();
     DATA = pendingFullRebuild;
-    const saved = await persist();
-    if (!saved) {
-      DATA = previousData;
-      rebuildAll();
-      alert('Neuaufbau wurde nicht in Google Drive gespeichert. Der vorherige Stand ist wieder aktiv; die JSON-Sicherung wurde heruntergeladen.');
+    const saveResult = await persist();
+    if (!saveResult.ok) {
+      if (!saveResult.conflict) {
+        DATA = previousData;
+        rebuildAll();
+        alert('Neuaufbau wurde nicht in Google Drive gespeichert. Der vorherige Stand ist wieder aktiv; die JSON-Sicherung wurde heruntergeladen.');
+      }
       return;
     }
     closeImportModal();
@@ -1207,7 +1232,7 @@ async function confirmImport() {
   DATA.importBaseOpenLots = pendingImportBaseOpenLots;
   DATA.trades = legacyTrades().concat(importedTrades);
   DATA.openLots = pendingOpenLots;
-  await persist();
+  if (!(await persist()).ok) return;
   closeImportModal();
   rebuildAll();
 }
@@ -1229,7 +1254,7 @@ function recomputeOpenLots() {
 async function resetAllData() {
   if (!confirm('Wirklich ALLE Trades l\u00f6schen? Die Datei in Google Drive wird geleert (alles auf 0). Kann nicht r\u00fcckg\u00e4ngig gemacht werden.')) return;
   DATA = emptyData();
-  await persist();
+  if (!(await persist()).ok) return;
   rebuildAll();
   alert('Alle Daten gel\u00f6scht. Du kannst jetzt neu importieren.');
 }
@@ -1263,7 +1288,7 @@ async function handleJsonRestore(file) {
       importRows: Array.isArray(parsed.importRows) ? parsed.importRows : [],
       importBaseOpenLots: Array.isArray(parsed.importBaseOpenLots) ? parsed.importBaseOpenLots : null
     };
-    await persist();
+    if (!(await persist()).ok) return;
     rebuildAll();
     alert(n + ' Trades erfolgreich wiederhergestellt und in Drive gespeichert.');
   };
@@ -1310,7 +1335,7 @@ async function setCapital() {
   const val = parseFloat(String(input).replace(/\\./g, '').replace(',', '.')) || 0;
   if (val < 0) { alert('Bitte einen positiven Betrag eingeben.'); return; }
   DATA.capital = val;
-  await persist();
+  if (!(await persist()).ok) return;
   rebuildStats();
 }
 

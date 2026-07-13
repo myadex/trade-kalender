@@ -19,12 +19,15 @@ Wartbarkeit bzw. Komfort.
 
 ### Drive-Konflikte zwischen Tabs und Geraeten erkennen
 
-- **Status:** Offen.
-- **Warum:** Die lokale Schreibqueue schuetzt einen Browser-Tab, aber nicht zwei
-  Tabs oder zwei Geraete. Dort gilt weiterhin "last write wins".
-- **Naechster Schritt:** ETag beim Laden speichern und Updates mit `If-Match`
-  absichern; bei Konflikt die Daten nicht ueberschreiben, sondern neu laden und
-  den Nutzer informieren.
+- **Status:** Erledigt in v42.
+- **Loesung:** Die App laedt eine starke Drive-Versionskennung vor dem
+  Dateninhalt und aktualisiert die Datei atomar mit `If-Match`. HTTP 412 wird
+  als Konflikt behandelt: Der Schreibvorgang bleibt verworfen, der neueste
+  Drive-Stand wird geladen und der Nutzer wird zum Wiederholen seiner Aktion
+  aufgefordert.
+- **Entscheidung:** Der ETag-Vertrag der offiziellen Drive API v2 wird gezielt
+  fuer Versionsabruf und Update verwendet, weil v3 nur eine monotone `version`,
+  aber keinen dokumentierten atomaren Compare-and-Set-Vertrag anbietet.
 
 ### Legacy-Daten vollstaendig neu aufbauen
 
@@ -116,3 +119,5 @@ Wartbarkeit bzw. Komfort.
 - Neue Importe werden als Roh-Ledger gespeichert und sind reproduzierbar.
 - Drive-Fehler, korrupte JSON und parallele Schreibvorgaenge innerhalb eines
   Tabs sind abgesichert.
+- Gleichzeitige Drive-Aenderungen aus mehreren Tabs oder Geraeten werden vor
+  dem Ueberschreiben atomar erkannt.

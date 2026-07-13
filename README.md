@@ -35,6 +35,22 @@ Eine ung\u00fcltige Drive-JSON wird nicht als leerer Bestand interpretiert. Loka
 Schreibauftr\u00e4ge werden mit einem eigenen Daten-Snapshot nacheinander gespeichert,
 damit schnelle aufeinanderfolgende Aktionen sich nicht gegenseitig \u00fcberschreiben.
 
+## Drive-Konfliktschutz ab v42
+
+Jeder geladene Drive-Stand wird mit einer starken Versionskennung verkn\u00fcpft.
+Beim Speichern sendet die App diese Kennung als `If-Match`; hat ein anderer Tab
+oder ein anderes Ger\u00e4t die Datei inzwischen ge\u00e4ndert, lehnt Drive den
+Schreibvorgang atomar mit HTTP 412 ab. Die App \u00fcberschreibt dann nichts, l\u00e4dt
+den neuesten Drive-Stand und fordert dazu auf, die verworfene Aktion bei Bedarf
+zu wiederholen.
+
+Die Drive API v3 bleibt f\u00fcr Suche, Erstellung und Download zust\u00e4ndig. Da ihre
+Dateirepr\u00e4sentation kein `etag`-Feld anbietet, nutzt nur der Versionsabruf und
+der bedingte Update den weiterhin offiziellen v2-Dateivertrag. Diese begrenzte
+Kombination wurde einem nicht atomaren Vorabvergleich der v3-`version`
+vorgezogen, weil zwischen Vergleich und Schreiben sonst weiterhin ein
+Race-Condition-Fenster best\u00fcnde.
+
 ## Datenschutz
 
 `trade-kalender.json` ist ein lokaler, personenbezogener Laufzeit-Snapshot und

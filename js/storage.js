@@ -7,6 +7,17 @@
 
 import { DATA_FILENAME } from './config.js';
 
+// Ein 412 ist kein normaler Netzwerkfehler: Drive hat den Schreibvorgang
+// atomar abgelehnt, weil seit dem letzten Laden eine neuere Dateiversion
+// entstanden ist. Der eigene Fehlertyp erlaubt app.js eine gezielte Reaktion.
+export class DriveConflictError extends Error {
+  constructor() {
+    super('Die Drive-Datei wurde zwischenzeitlich geaendert.');
+    this.name = 'DriveConflictError';
+    this.status = 412;
+  }
+}
+
 // Serialisiert Schreibauftraege innerhalb eines Tabs. Nach einem Fehler bleibt
 // die Queue nutzbar, damit ein spaeterer Speicherversuch nicht mit dem ersten
 // fehlgeschlagenen Promise verkettet haengen bleibt.
@@ -40,6 +51,9 @@ export async function driveFetch(accessToken, url, opts = {}) {
   if (!r.ok) {
     if (r.status === 401) {
       throw new Error('Sitzung abgelaufen \u2014 bitte neu anmelden.');
+    }
+    if (r.status === 412) {
+      throw new DriveConflictError();
     }
     const detail = await driveErrorMessage(r);
     throw new Error('Google Drive Fehler (' + r.status + ')' + (detail ? ': ' + detail : ''));
@@ -81,6 +95,31 @@ export async function downloadData(accessToken, fileId) {
   }
 }
 
+// Drive API v3 stellt kein ETag-Feld mehr bereit. Die weiterhin offizielle
+// v2-Dateirepräsentation liefert fuer Blob-Dateien ein starkes ETag, das der
+// v2-Update-Endpunkt mit If-Match serverseitig atomar prueft.
+export async function getDataEtag(accessToken, fileId) {
+  const r = await driveFetch(
+    accessToken,
+    'https://www.googleapis.com/drive/v2/files/' + fileId + '?fields=etag'
+  );
+  const j = await r.json();
+  if (!j.etag || String(j.etag).startsWith('W/')) {
+    throw new Error('Google Drive hat keine starke Versionskennung geliefert; Speichern bleibt aus Sicherheitsgruenden gesperrt.');
+  }
+  return String(j.etag);
+}
+
+// Das ETag wird absichtlich VOR dem Inhalt geladen. Aendert sich die Datei
+// zwischen beiden Requests, ist das ETag aelter als der geladene Inhalt und
+// der naechste Schreibversuch endet sicher mit 412 statt fremde Daten zu
+// ueberschreiben. Die umgekehrte Reihenfolge waere datenverlustgefaehrlich.
+export async function downloadVersionedData(accessToken, fileId) {
+  const etag = await getDataEtag(accessToken, fileId);
+  const data = await downloadData(accessToken, fileId);
+  return { data, etag };
+}
+
 // ------------------------------------------------------------
 // Erstellt eine neue Datendatei in Drive (multipart). Gibt die neue ID zurück.
 // ------------------------------------------------------------
@@ -108,11 +147,19 @@ export async function createData(accessToken, data) {
 // ------------------------------------------------------------
 // Aktualisiert eine bestehende Datendatei (media update).
 // ------------------------------------------------------------
-export async function updateData(accessToken, fileId, data) {
+export async function updateData(accessToken, fileId, data, etag) {
+  if (!etag || String(etag).startsWith('W/')) {
+    throw new Error('Drive-Versionskennung fehlt; ungeschuetztes Speichern wurde verhindert.');
+  }
   const content = JSON.stringify(data, null, 2);
-  await driveFetch(accessToken, 'https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+  const r = await driveFetch(accessToken, 'https://www.googleapis.com/upload/drive/v2/files/' + fileId + '?uploadType=media&fields=etag', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'If-Match': String(etag) },
     body: content
   });
+  const j = await r.json();
+  if (!j.etag || String(j.etag).startsWith('W/')) {
+    throw new Error('Google Drive hat nach dem Speichern keine neue Versionskennung geliefert; bitte Daten neu laden.');
+  }
+  return String(j.etag);
 }

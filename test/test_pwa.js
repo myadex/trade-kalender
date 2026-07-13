@@ -77,6 +77,7 @@ console.log('\n=== 1b. IMPORT/EXPORT-KONSISTENZ (Modul-Vertraege) ===');
       if (node.type === 'ExportNamedDeclaration') {
         if (node.declaration) {
           if (node.declaration.type === 'FunctionDeclaration') exp.add(node.declaration.id.name);
+          if (node.declaration.type === 'ClassDeclaration') exp.add(node.declaration.id.name);
           if (node.declaration.type === 'VariableDeclaration') {
             for (const d of node.declaration.declarations) {
               if (d.id.type === 'Identifier') exp.add(d.id.name);
@@ -369,6 +370,56 @@ const realFifoCheck = (async () => {
       catch (e) { corruptDataError = e.message; }
       check('storage: kaputte Drive-JSON wird nicht als leere Daten akzeptiert', corruptDataError.includes('ung\u00fcltig'));
 
+      const versionApiReady =
+        typeof smod.getDataEtag === 'function' &&
+        typeof smod.downloadVersionedData === 'function' &&
+        typeof smod.updateData === 'function' &&
+        typeof smod.DriveConflictError === 'function';
+      check('storage: Drive-Konfliktvertrag ist exportiert', versionApiReady);
+      if (versionApiReady) {
+        const versionCalls = [];
+        global.fetch = async (url, opts = {}) => {
+          versionCalls.push({ url, opts });
+          if (url.includes('/drive/v2/files/')) {
+            return new Response(JSON.stringify({ etag: '"etag-1"' }), { status: 200 });
+          }
+          return new Response(JSON.stringify({ trades: [], openLots: [], capital: 7 }), { status: 200 });
+        };
+        const loaded = await smod.downloadVersionedData('test-token', 'file-id');
+        check('storage: ETag wird vor dem Dateninhalt geladen',
+          loaded.etag === '"etag-1"' && loaded.data.capital === 7 &&
+          versionCalls.length === 2 && versionCalls[0].url.includes('/drive/v2/files/') &&
+          versionCalls[1].url.includes('/drive/v3/files/'));
+
+        request = null;
+        global.fetch = async (url, opts = {}) => {
+          request = { url, opts };
+          return new Response(JSON.stringify({ etag: '"etag-2"' }), { status: 200 });
+        };
+        const nextEtag = await smod.updateData('test-token', 'file-id', { trades: [] }, '"etag-1"');
+        check('storage: Update nutzt v2 mit atomarem If-Match und liefert neues ETag',
+          nextEtag === '"etag-2"' && request.url.includes('/upload/drive/v2/files/') &&
+          request.opts.method === 'PUT' && request.opts.headers['If-Match'] === '"etag-1"');
+
+        global.fetch = async () => new Response(JSON.stringify({ error: { message: 'Precondition failed' } }), { status: 412 });
+        let conflictError = null;
+        try { await smod.updateData('test-token', 'file-id', { trades: [] }, '"veraltet"'); }
+        catch (e) { conflictError = e; }
+        check('storage: HTTP 412 wird als DriveConflictError erkannt',
+          conflictError instanceof smod.DriveConflictError && conflictError.status === 412);
+
+        global.fetch = async () => new Response('{}', { status: 200 });
+        let missingEtagError = '';
+        try { await smod.getDataEtag('test-token', 'file-id'); }
+        catch (e) { missingEtagError = e.message; }
+        check('storage: fehlendes ETag verhindert ungeschuetztes Speichern', missingEtagError.includes('Versionskennung'));
+      } else {
+        check('storage: ETag wird vor dem Dateninhalt geladen', false);
+        check('storage: Update nutzt v2 mit atomarem If-Match und liefert neues ETag', false);
+        check('storage: HTTP 412 wird als DriveConflictError erkannt', false);
+        check('storage: fehlendes ETag verhindert ungeschuetztes Speichern', false);
+      }
+
       const enqueue = smod.createWriteQueue();
       const order = [];
       const first = enqueue(async () => {
@@ -529,8 +580,16 @@ check('UI bietet einen bestaetigten CSV-Neuaufbau mit lokaler Sicherung',
   appJs.includes('downloadMigrationBackup'));
 check('CSV-Neuaufbau stellt bei Drive-Fehler den vorherigen Zustand wieder her',
   appJs.includes('const previousData = DATA') &&
-  appJs.includes('const saved = await persist()') &&
+  appJs.includes('const saveResult = await persist()') &&
   appJs.includes('DATA = previousData'));
+check('App verwaltet Drive-ETag und aktualisiert es nach jedem Speichern',
+  appJs.includes('let driveEtag = null') &&
+  appJs.includes('downloadVersionedData') &&
+  appJs.includes('driveEtag = await updateData'));
+check('App laedt bei Drive-Konflikt den neuesten Stand und informiert den Nutzer',
+  appJs.includes('e instanceof DriveConflictError') &&
+  appJs.includes('Daten wurden in einem anderen Tab oder Ger') &&
+  /DriveConflictError[\s\S]{0,700}await loadFromDrive\(\)/.test(appJs));
 check('import.js: parseScalableCsv vorhanden', appJs.includes('export function parseScalableCsv'));
 check('import.js: deutsche Zahlen-Parser', appJs.includes('export function parseGermanNumber'));
 check('import.js: Pflichtspalten-Pruefung', appJs.includes("const REQUIRED_COLUMNS = ['type', 'status', 'isin'"));

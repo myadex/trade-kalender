@@ -6,26 +6,79 @@
 // Ergebnisse in die Tabellen/Karten schreiben). So bleibt die
 // Logik testbar ohne Browser.
 
-import { toLocalDateStr } from './helpers.js';
+// ------------------------------------------------------------
+// Bestimmt die ISO-Kalenderwoche eines YYYY-MM-DD-Schluessels. Die Rechnung
+// nutzt ausschliesslich UTC-Komponenten als neutrale Kalenderarithmetik. So
+// kann weder die lokale Zeitzone noch die Sommerzeit einen Tag verschieben.
+// ------------------------------------------------------------
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function utcDateKey(date) {
+  return String(date.getUTCFullYear()).padStart(4, '0') + '-' +
+    String(date.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(date.getUTCDate()).padStart(2, '0');
+}
+
+function displayDate(date) {
+  return String(date.getUTCDate()).padStart(2, '0') + '.' +
+    String(date.getUTCMonth() + 1).padStart(2, '0') + '.' +
+    String(date.getUTCFullYear()).padStart(4, '0');
+}
+
+export function isoWeekInfo(dateKey) {
+  const match = String(dateKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day) return null;
+
+  // ISO: Montag = 0, Sonntag = 6. Das ISO-Wochenjahr gehoert zum
+  // Donnerstag der Woche; dadurch wird der Jahreswechsel korrekt behandelt.
+  const weekday = (date.getUTCDay() + 6) % 7;
+  const monday = new Date(date.getTime() - weekday * DAY_MS);
+  const sunday = new Date(monday.getTime() + 6 * DAY_MS);
+  const thursday = new Date(monday.getTime() + 3 * DAY_MS);
+  const isoYear = thursday.getUTCFullYear();
+
+  const januaryFourth = new Date(Date.UTC(isoYear, 0, 4));
+  const januaryFourthWeekday = (januaryFourth.getUTCDay() + 6) % 7;
+  const firstMonday = new Date(januaryFourth.getTime() - januaryFourthWeekday * DAY_MS);
+  const isoWeek = Math.round((monday.getTime() - firstMonday.getTime()) / (7 * DAY_MS)) + 1;
+  const from = utcDateKey(monday);
+  const to = utcDateKey(sunday);
+
+  return {
+    isoWeek,
+    isoYear,
+    from,
+    to,
+    label: 'KW ' + String(isoWeek).padStart(2, '0') + ' \u00b7 ' +
+      displayDate(monday) + '\u2013' + displayDate(sunday)
+  };
+}
 
 // ------------------------------------------------------------
-// Aggregiert die Tages-Map zu Wochen (Mo-So-Wochen, Schlüssel = Montag).
-// Gibt ein sortiertes Array [{ week, monday, pnl, rev, n }] zurück.
+// Aggregiert die Tages-Map zu ISO-Wochen (Montag bis Sonntag). Der bisherige
+// week-Schluessel bleibt als Wochen-Montag erhalten; neue Ansichten bekommen
+// zusaetzlich ISO-Jahr, KW-Nummer, Zeitraum und das fertige Anzeigelabel.
+// Neueste Kalenderwoche zuerst.
 // ------------------------------------------------------------
 export function aggregateWeeks(dm) {
   const weeks = {};
   Object.entries(dm).forEach(([k, v]) => {
-    const date = new Date(k);
-    const mon = new Date(date);
-    mon.setDate(date.getDate() - (date.getDay() === 0 ? 6 : date.getDay() - 1));
-    const wk = toLocalDateStr(mon);
-    if (!weeks[wk]) weeks[wk] = { pnl: 0, rev: 0, n: 0 };
-    weeks[wk].pnl += v.pnl;
-    weeks[wk].rev += v.rev;
-    weeks[wk].n += v.n;
+    const info = isoWeekInfo(k);
+    if (!info) return;
+    if (!weeks[info.from]) weeks[info.from] = Object.assign({ pnl: 0, rev: 0, n: 0 }, info);
+    weeks[info.from].pnl += v.pnl;
+    weeks[info.from].rev += v.rev;
+    weeks[info.from].n += v.n;
   });
   return Object.entries(weeks)
-    .sort((a, b) => a[0].localeCompare(b[0]))
+    .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([week, v]) => ({ week, ...v }));
 }
 

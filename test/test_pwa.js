@@ -298,6 +298,44 @@ const realFifoCheck = (async () => {
     const msum = +vmod.aggregateMonths(dmv).reduce((s, m) => s + m.pnl, 0).toFixed(2);
     const stats = vmod.computeStats(dmv, 1000);
     check('views: Wochen-Summe = 250', wsum === 250);
+    check('views: ISO-Kalenderwochen-Helfer exportiert', typeof vmod.isoWeekInfo === 'function');
+    const isoNewYear = typeof vmod.isoWeekInfo === 'function'
+      ? vmod.isoWeekInfo('2025-12-29')
+      : null;
+    const expectedIsoWeekLabel = 'KW 01 \u00b7 29.12.2025\u201304.01.2026';
+    check('views: 29.12.2025 ist KW 01 des ISO-Jahres 2026',
+      !!isoNewYear && isoNewYear.isoWeek === 1 && isoNewYear.isoYear === 2026);
+    check('views: ISO-KW-Label umfasst Montag bis Sonntag ueber Jahreswechsel',
+      !!isoNewYear && isoNewYear.label === expectedIsoWeekLabel);
+    // Ein lokales new Date('YYYY-MM-DD') faellt westlich von UTC auf den
+    // Vortag. Zwei getrennte Node-Prozesse beweisen, dass die ISO-Rechnung
+    // unabhaengig von der Laufzeit-Zeitzone bleibt.
+    const viewsUrl = 'file://' + DIR.replace(/\\/g, '/') + '/js/views.js';
+    const tzScript = 'import { isoWeekInfo } from ' + JSON.stringify(viewsUrl) +
+      '; process.stdout.write(isoWeekInfo("2025-12-29").label);';
+    let berlinLabel = '', losAngelesLabel = '';
+    try {
+      berlinLabel = execFileSync(process.execPath,
+        ['--input-type=module', '--eval', tzScript],
+        { cwd: DIR, env: Object.assign({}, process.env, { TZ: 'Europe/Berlin' }), encoding: 'utf8' });
+      losAngelesLabel = execFileSync(process.execPath,
+        ['--input-type=module', '--eval', tzScript],
+        { cwd: DIR, env: Object.assign({}, process.env, { TZ: 'America/Los_Angeles' }), encoding: 'utf8' });
+    } catch (_) { /* Der folgende Check meldet den fehlgeschlagenen Prozess. */ }
+    check('views: ISO-KW bleibt in Berlin und Los Angeles identisch',
+      berlinLabel === expectedIsoWeekLabel && losAngelesLabel === expectedIsoWeekLabel);
+    const isoWeeks = vmod.aggregateWeeks({
+      '2025-12-29': { pnl: 100, rev: 500, n: 1 },
+      '2026-01-04': { pnl: -25, rev: 200, n: 1 },
+      '2026-01-05': { pnl: 50, rev: 300, n: 1 }
+    });
+    check('views: Jahreswechsel-Tage landen gemeinsam in ISO-KW 01',
+      isoWeeks.length === 2 && isoWeeks[1].pnl === 75 && isoWeeks[1].n === 2);
+    check('views: neueste ISO-Kalenderwoche steht zuerst',
+      isoWeeks.length === 2 && isoWeeks[0].isoWeek === 2 && isoWeeks[0].isoYear === 2026);
+    check('UI: Wochen-Label kommt vollstaendig aus der puren Aggregation',
+      appJs.includes('sorted.forEach(({ label, pnl, rev, n })') &&
+      !appJs.includes('new Date(week)'));
     check('views: Monats-Summe = 250', msum === 250);
     check('views: computeStats Wins/Losses (2/1)', stats.wins === 2 && stats.losses === 1);
     check('views: Rendite bei 1000 Einstand = 25%', Math.abs(stats.rendite - 25) < 0.01);

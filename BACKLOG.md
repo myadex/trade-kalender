@@ -67,6 +67,36 @@ Wartbarkeit bzw. Komfort.
   sichtbar. Unter "Entfernte Positionen" kann jeder aktive Ausschluss dauerhaft
   rueckgaengig gemacht werden; geschlossene Lots erzeugen keinen veralteten Eintrag.
 
+### Wochen-Tab nach ISO-Kalenderwochen
+
+- **Status:** Erledigt in v46.
+- **Loesung:** Wochen laufen nach ISO 8601 von Montag bis Sonntag und tragen
+  Kalenderwochennummer, ISO-Wochenjahr sowie den vollstaendigen Zeitraum, zum
+  Beispiel `KW 01 · 29.12.2025–04.01.2026`.
+- **Sicherung:** Der Jahreswechsel, die gemeinsame Aggregation von Montag und
+  Sonntag sowie die Sortierung mit der neuesten KW zuerst sind permanent
+  getestet. Die UI erhaelt ihr fertiges Label aus der puren Fachlogik.
+
+### Equity-Kurve und Drawdown
+
+- **Status:** Offen; naechstes groesseres Statistik-Feature.
+- **Ziel:** Kapitalentwicklung, bisheriger Hoechststand, aktueller und maximaler
+  Drawdown sowie die Erholungsdauer nachvollziehbar darstellen.
+
+### Wochentagsstatistik Long/Short
+
+- **Status:** Offen; hohe Prioritaet nach Equity-Kurve und Drawdown.
+- **Ziel:** Long/Call und Short/Put pro Wochentag nach Anzahl, Netto-P&L,
+  Durchschnitt, Median, Winrate und Profit Factor vergleichen. Aussagen gelten
+  erst ab einer ausreichenden Stichprobe; Einstiegstag ist der Standard,
+  Ausstiegstag bleibt umschaltbar.
+
+### Trades suchen und filtern
+
+- **Status:** Offen; hohe Prioritaet nach den Statistik-Features.
+- **Ziel:** Zeitraum, Richtung, Produkt, Ergebnis und Haltedauer kombinierbar
+  filtern, ohne die gespeicherten Trades zu veraendern.
+
 ### Import-Migration in der UI erklaeren
 
 - **Status:** Offen.
@@ -81,6 +111,19 @@ Wartbarkeit bzw. Komfort.
   als Formel interpretiert werden.
 - **Ziel:** Gefaehrliche Zellpraefixe im Export neutralisieren und mit einem
   Regressionstest absichern.
+
+### Import-Kontrollbericht
+
+- **Status:** Offen; kleinere Prioritaet.
+- **Ziel:** Nach jedem Import neue Zeilen, Duplikate, geschlossene Trades,
+  offene Positionen, Ablehnungen sowie die Aenderung von P&L und Steuer
+  verstaendlich zusammenfassen.
+
+### Wochen- und Monatsreview
+
+- **Status:** Offen; kleinere Prioritaet.
+- **Ziel:** Regelmaessige Zusammenfassung der staerksten und schwaechsten
+  Muster, Verlustursachen und auffaelligen Handelsphasen.
 
 ## Prioritaet 3
 
@@ -117,6 +160,22 @@ Wartbarkeit bzw. Komfort.
 - **Status:** Offen.
 - **Ziel:** Fokusfuehrung in Dialogen, Escape-Taste, eindeutige Labels,
   Tastaturnavigation und Kontraste systematisch verbessern.
+
+### Trading-Journal und Regel-Tracking
+
+- **Status:** Warteliste.
+- **Ziel:** Setups, Gruende, Fehler und eigene Handelsregeln pro Trade erfassen,
+  wenn die automatisch ableitbaren Statistiken ausgebaut sind.
+
+### Backup-Verlauf
+
+- **Status:** Warteliste mit niedriger Prioritaet.
+- **Ziel:** Wiederherstellbare Staende vor groesseren Importen verwalten.
+
+### Dashboard konfigurierbar machen
+
+- **Status:** Warteliste mit niedriger Prioritaet.
+- **Ziel:** Kennzahlenkarten ausblenden und individuell anordnen.
 
 ## Erledigte Grundlagen
 

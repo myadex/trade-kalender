@@ -41,6 +41,9 @@ als Test-Fixture eingecheckt werden.
 ## Bekannte Fallen (alle testgesperrt — nicht wieder einführen)
 
 - **Datum:** NIE `toISOString()` zur Datumsspeicherung (UTC-Verschiebung). XLSX-Dates = UTC-Mitternacht → `normalizeXlsxDate` (UTC-Komponenten). CSV-Datum bleibt String, kein Date-Objekt.
+- **Kalenderwochen:** ISO 8601 bedeutet Montag bis Sonntag; am Jahreswechsel
+  entscheidet der Donnerstag über das ISO-Wochenjahr. Die Berechnung bleibt in
+  `views.isoWeekInfo`, nicht als zweite Datumslogik in der UI.
 - **Steuer:** immer MIT Vorzeichen rechnen (negativ = Erstattung). NIE `Math.abs(tax)` in P&L-Mathematik (nur in Anzeige-Strings erlaubt).
 - **FIFO:** Sortierung Datum+Zeit mit Buy-vor-Sell-Tiebreak bei gleichem Timestamp.
 - **UIDs:** kanonisches Format `ISIN_DATUM_SELL_SHARES` — Duplikat-Erkennung bei Re-Imports hängt daran.

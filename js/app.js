@@ -376,12 +376,10 @@ function buildWeekly() {
   const tbody = $('weekly-tbody');
   tbody.innerHTML = '';
   if (sorted.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);padding:1rem">Keine Daten.</td></tr>'; return; }
-  sorted.forEach(({ week, pnl, rev, n }) => {
-    const end = new Date(week); end.setDate(end.getDate() + 4);
-    const lbl = week.slice(8) + '.' + week.slice(5, 7) + '.\u2013' + String(end.getDate()).padStart(2, '0') + '.' + String(end.getMonth() + 1).padStart(2, '0') + '.';
+  sorted.forEach(({ label, pnl, rev, n }) => {
     const pct = Math.round((Math.abs(pnl) / maxAbs) * 100);
     const cls = pnl >= 0 ? 'pos' : 'neg';
-    tbody.innerHTML += '<tr><td>' + escapeHtml(lbl) + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td><td><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div></td></tr>';
+    tbody.innerHTML += '<tr><td>' + escapeHtml(label) + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td><td><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div></td></tr>';
   });
 }
 

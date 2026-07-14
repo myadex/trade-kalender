@@ -32,6 +32,19 @@ export const escapeHtml = value => String(value ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
+// Tabellenprogramme werten Zelltexte mit =, +, - oder @ als Formeln aus;
+// fuehrender Leerraum und Steuerzeichen duerfen diesen Schutz nicht umgehen.
+// Echte Number-Werte bleiben numerisch. CSV-Sonderzeichen werden danach nach
+// RFC-4180-Art gequotet, damit ein Produkttext nie neue Spalten oder Zeilen baut.
+export function csvCell(value) {
+  const isFiniteNumber = typeof value === 'number' && Number.isFinite(value);
+  let text = value === null || value === undefined ? '' : String(value);
+  const startsLikeFormula = /^\s*[=+\-@]/.test(text) || /^[\t\r\n]/.test(text);
+  if (!isFiniteNumber && startsLikeFormula) text = "'" + text;
+  if (/[;"\t\r\n]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
+  return text;
+}
+
 // Wandelt ein Date in einen lokalen 'YYYY-MM-DD'-String um.
 // WICHTIG: NICHT toISOString() verwenden — das rechnet in UTC um und
 // verschiebt Mitternachts-Zeiten um einen Tag zurück (Zeitzonen-Bug).

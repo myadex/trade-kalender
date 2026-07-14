@@ -4,7 +4,7 @@
 // app.js — Haupt-Einstiegspunkt (verbindet alle Module)
 // ============================================================
 import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
-import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml } from './helpers.js';
+import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml, csvCell } from './helpers.js';
 import {
   dayMap, deriveOpenPositions, fifoMatch, replayImportLedger,
   closePositionPnl, tradePnl, withOpenLotIds,
@@ -19,7 +19,7 @@ import {
 } from './views.js';
 import {
   parseScalableCsv, markDuplicates, mergeImportRows, updateImportSellRow,
-  diagnoseFirstLedgerImport
+  diagnoseFirstLedgerImport, buildImportReport
 } from './import.js';
 
 /* ============================================================
@@ -35,6 +35,7 @@ let pendingImport = [];
 let pendingOpenLots = [];
 let pendingImportRows = null;
 let pendingImportBaseOpenLots = null;
+let pendingImportReport = null;
 const enqueuePersist = createWriteQueue();
 let currentDetailDate = null;
 // Aktuell angezeigter Monat im Kalender (Jahr + Monat 0-11). Standard: aktueller Monat.
@@ -1351,11 +1352,12 @@ async function saveEdit() {
    CSV IMPORT (FIFO, Buy-before-Sell tiebreak, UID dedup)
    ============================================================ */
 function openImportModal() {
-  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null;
+  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null; pendingImportReport = null;
   closeImportMigration();
   $('import-tbody').innerHTML = '';
   $('import-preview').style.display = 'none';
   $('import-summary').style.display = 'none';
+  $('import-report').style.display = 'none';
   $('import-confirm-btn').style.display = 'none';
   $('drop-zone').style.display = 'block';
   $('csv-input').value = '';
@@ -1394,6 +1396,7 @@ function handleFileSelect(file) {
 }
 
 function importError(msg) {
+  pendingImportReport = null;
   const sumEl = $('import-summary');
   if (sumEl) {
     sumEl.textContent = msg;
@@ -1404,6 +1407,8 @@ function importError(msg) {
   if (dz) dz.style.display = 'block';
   const prev = $('import-preview');
   if (prev) prev.style.display = 'none';
+  const report = $('import-report');
+  if (report) report.style.display = 'none';
   const btn = $('import-confirm-btn');
   if (btn) btn.style.display = 'none';
 }
@@ -1411,11 +1416,12 @@ function importError(msg) {
 function showImportMigration(migration) {
   // Eine alte Vorschau darf hinter dem Dialog nicht versehentlich bestaetigt
   // werden. Der Dialog erklaert nur den sicheren Zuschnitt und veraendert DATA nie.
-  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null;
+  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null; pendingImportReport = null;
   $('import-preview').style.display = 'none';
   $('import-confirm-btn').style.display = 'none';
   $('drop-zone').style.display = 'block';
   $('import-summary').style.display = 'none';
+  $('import-report').style.display = 'none';
 
   const tradeLabel = migration.legacyTradeCount === 1 ? 'geschlossener Trade' : 'geschlossene Trades';
   const lotLabel = migration.baseOpenLotCount === 1 ? 'offenes Lot' : 'offene Lots';
@@ -1451,6 +1457,40 @@ function showImportMigration(migration) {
     : 'Vergleiche die Datei mit deiner App und behalte nur Brokerzeilen, die dort noch nicht erfasst sind.';
   $('migration-same-day-note').style.display = migration.cutoff ? 'block' : 'none';
   $('import-migration-overlay').classList.add('open');
+}
+
+function renderImportReport(report, saved) {
+  if (!report) return;
+  const hasChanges = report.newBrokerRows > 0;
+  const signedCount = value => (value > 0 ? '+' : '') + value;
+  const state = saved ? 'Import gespeichert' : (hasChanges ? 'Vorschau vor dem Speichern' : 'Keine neuen Brokerzeilen');
+  const badge = saved ? 'Gespeichert' : (hasChanges ? 'Vorschau' : 'Unver\u00e4ndert');
+
+  $('import-report-state').textContent = state;
+  $('import-report-badge').textContent = badge;
+  $('import-report-rows').textContent = report.newBrokerRows + ' neu';
+  $('import-report-rows-meta').textContent = report.duplicateBrokerRows + ' Duplikate \u00b7 ' +
+    report.acceptedRows + ' von ' + report.sourceRows + ' angenommen';
+  $('import-report-rejected').textContent = report.rejectedRows + ' ignoriert';
+  $('import-report-rejected-meta').textContent = 'Nicht ausgef\u00fchrt oder kein Buy/Sell';
+  $('import-report-trades').textContent = report.newClosedTrades + ' neu geschlossen';
+  $('import-report-trades-meta').textContent = report.duplicateClosedTrades + ' bereits vorhanden';
+  $('import-report-open').textContent = report.openPositionsAfter + ' Positionen';
+  $('import-report-open-meta').textContent = 'Vorher ' + report.openPositionsBefore +
+    ' \u00b7 \u00c4nderung ' + signedCount(report.openPositionsDelta);
+  $('import-report-pnl').textContent = fmtDE(report.pnlAfter);
+  $('import-report-pnl-meta').textContent = 'Vorher ' + fmtDE(report.pnlBefore) +
+    ' \u00b7 \u00c4nderung ' + fmtDE(report.pnlDelta);
+  $('import-report-tax').textContent = fmtDE(report.taxAfter);
+  $('import-report-tax-meta').textContent = 'Vorher ' + fmtDE(report.taxBefore) +
+    ' \u00b7 \u00c4nderung ' + fmtDE(report.taxDelta);
+  $('import-report-note').textContent = saved
+    ? 'Der dargestellte Stand wurde in Google Drive gespeichert.'
+    : (hasChanges
+      ? 'Noch nicht gespeichert. Bitte Bericht pr\u00fcfen und den Import best\u00e4tigen.'
+      : 'Es gibt nichts zu speichern; alle angenommenen Brokerzeilen sind bereits bekannt.');
+  $('import-report').classList.toggle('saved', saved);
+  $('import-report').style.display = 'block';
 }
 
 function parseImport(text) {
@@ -1494,8 +1534,18 @@ function parseImport(text) {
   pendingImportRows = importRows;
   pendingImportBaseOpenLots = importBaseOpenLots;
 
-  const { marked, newCount, dupCount } = markDuplicates(closed, new Set(DATA.trades.map(t => t.uid)));
+  const { marked, newCount } = markDuplicates(closed, new Set(DATA.trades.map(t => t.uid)));
   pendingImport = marked;
+  pendingImportReport = buildImportReport({
+    incomingRows: filtered,
+    rejectedRows: result.meta ? result.meta.rejectedRows : 0,
+    previousImportRows: DATA.importRows,
+    candidateTrades: closed,
+    previousTrades: DATA.trades,
+    nextTrades: legacyTrades().concat(closed),
+    previousOpenLots: visibleOpenLots(DATA.openLots, hiddenOpenPositionsDATA()),
+    nextOpenLots: visibleOpenLots(openLots, hiddenOpenPositionsDATA())
+  });
 
   const tbody = $('import-tbody');
   tbody.innerHTML = '';
@@ -1521,12 +1571,8 @@ function parseImport(text) {
 
   $('import-preview').style.display = 'block';
   $('drop-zone').style.display = 'none';
-  const sumEl = $('import-summary');
-  sumEl.textContent = newCount + ' neue Trades' +
-    (dupCount ? ', ' + dupCount + ' bereits vorhanden' : '') +
-    (newImportRowCount > 0 && newCount === 0 ? ', ' + newImportRowCount + ' neue Brokerzeile(n) f\u00fcr offene Positionen' : '') + '.';
-  sumEl.className = 'import-summary' + (newImportRowCount === 0 ? ' warn' : '');
-  sumEl.style.display = 'block';
+  $('import-summary').style.display = 'none';
+  renderImportReport(pendingImportReport, false);
   if (newImportRowCount > 0) {
     const btn = $('import-confirm-btn');
     btn.style.display = 'inline-block';
@@ -1548,8 +1594,10 @@ async function confirmImport() {
   DATA.trades = legacyTrades().concat(importedTrades);
   DATA.openLots = pendingOpenLots;
   if (!(await persist()).ok) return;
-  closeImportModal();
   rebuildAll();
+  $('import-preview').style.display = 'none';
+  $('import-confirm-btn').style.display = 'none';
+  renderImportReport(pendingImportReport, true);
 }
 
 /* ============================================================
@@ -1614,7 +1662,8 @@ async function handleJsonRestore(file) {
 function exportCSV() {
   const rows = ['UID;Datum;Zeit;ISIN;Produkt;Broker;Kauf;Verkauf;Steuer;P&L'];
   DATA.trades.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
-    rows.push([t.uid || '', t.date, t.time || '', t.isin || '', t.desc, t.broker || '', t.buy, t.sell, t.tax, t.pnl].join(';'));
+    rows.push([t.uid || '', t.date, t.time || '', t.isin || '', t.desc, t.broker || '', t.buy, t.sell, t.tax, t.pnl]
+      .map(csvCell).join(';'));
   });
   const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);

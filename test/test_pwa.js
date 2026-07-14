@@ -390,6 +390,14 @@ const realFifoCheck = (async () => {
     check('import: CSV shares Tausenderpunkt', csvRes.rows && csvRes.rows[0].shares === 1209);
     check('import: CSV negative Steuer erhalten', imod.parseGermanNumber('-482,35') === -482.35);
     check('import: CSV Datum bleibt String', csvRes.rows && csvRes.rows[0].date === '2026-06-29');
+    const csvWithRejected = csvOk + '\n' +
+      '2026-06-30;12:00:00;Cancelled;"DAX";Buy;DE000X;1;1,00;-1,00;0,00;0,00;EUR\n' +
+      '2026-06-30;13:00:00;Executed;"Dividende";Dividend;DE000X;0;0,00;10,00;0,00;0,00;EUR';
+    const csvRejectedRes = imod.parseScalableCsv(csvWithRejected);
+    check('import: Parser meldet angenommene und abgelehnte Brokerzeilen',
+      csvRejectedRes.meta && csvRejectedRes.meta.sourceRows === 4 &&
+      csvRejectedRes.meta.acceptedRows === 2 && csvRejectedRes.meta.rejectedRows === 2 &&
+      csvRejectedRes.meta.rejectedStatusRows === 1 && csvRejectedRes.meta.rejectedTypeRows === 1);
     check('import: CSV leer -> error', !!imod.parseScalableCsv('').error);
     check('import: CSV fehlende Spalten -> error', !!imod.parseScalableCsv('foo;bar\n1;2').error);
     const md = imod.markDuplicates([{ uid: 'a' }, { uid: 'b' }], new Set(['b']));
@@ -442,6 +450,52 @@ const realFifoCheck = (async () => {
       check('Import-Migration: Diagnose meldet Bestandsumfang und mutiert keine Eingaben', false);
       check('Import-Migration: reine neue Brokerzeilen bleiben erlaubt', false);
       check('Import-Migration: alte Kaufzeile einer offenen Position wird ebenfalls blockiert', false);
+    }
+    const reportFnReady = typeof imod.buildImportReport === 'function';
+    check('Import-Kontrollbericht: pure Berechnung exportiert', reportFnReady);
+    if (reportFnReady) {
+      const previousRow = { type: 'Buy', status: 'Executed', isin: 'OLD', shares: 1, amount: -100, date: '2026-07-01' };
+      const newBuy = { type: 'Buy', status: 'Executed', isin: 'NEW', shares: 2, amount: -200, date: '2026-07-02' };
+      const newSell = { type: 'Sell', status: 'Executed', isin: 'NEW', shares: 2, amount: 170, tax: -10, date: '2026-07-03' };
+      const reportInput = {
+        incomingRows: [previousRow, newBuy, newSell, newSell],
+        rejectedRows: 3,
+        previousImportRows: [previousRow],
+        candidateTrades: [{ uid: 'existing' }, { uid: 'new' }],
+        previousTrades: [{ uid: 'existing', pnl: 100, tax: 20 }],
+        nextTrades: [
+          { uid: 'existing', pnl: 100, tax: 20 },
+          { uid: 'new', pnl: -40, tax: -10 }
+        ],
+        previousOpenLots: [
+          { isin: 'A', shares: 1 }, { isin: 'A', shares: 2 }, { isin: 'B', shares: 1 }
+        ],
+        nextOpenLots: [{ isin: 'B', shares: 1 }]
+      };
+      const reportBefore = JSON.stringify(reportInput);
+      const report = imod.buildImportReport(reportInput);
+      check('Import-Kontrollbericht: neue Zeilen und Duplikate inklusive Dateiduplikat stimmen',
+        report.sourceRows === 7 && report.acceptedRows === 4 && report.rejectedRows === 3 &&
+        report.newBrokerRows === 2 && report.duplicateBrokerRows === 2);
+      check('Import-Kontrollbericht: geschlossene Trades und offene Positionen stimmen',
+        report.newClosedTrades === 1 && report.duplicateClosedTrades === 1 &&
+        report.openPositionsBefore === 2 && report.openPositionsAfter === 1 &&
+        report.openPositionsDelta === -1);
+      check('Import-Kontrollbericht: P&L- und Steueraenderung stimmen auf den Cent',
+        report.pnlBefore === 100 && report.pnlAfter === 60 && report.pnlDelta === -40 &&
+        report.taxBefore === 20 && report.taxAfter === 10 && report.taxDelta === -10);
+      check('Import-Kontrollbericht: Berechnung mutiert keine Eingaben',
+        JSON.stringify(reportInput) === reportBefore);
+      const emptyReport = imod.buildImportReport();
+      check('Import-Kontrollbericht: leere Eingabe liefert ehrliche Nullwerte',
+        emptyReport.sourceRows === 0 && emptyReport.newBrokerRows === 0 &&
+        emptyReport.openPositionsAfter === 0 && emptyReport.pnlDelta === 0);
+    } else {
+      check('Import-Kontrollbericht: neue Zeilen und Duplikate inklusive Dateiduplikat stimmen', false);
+      check('Import-Kontrollbericht: geschlossene Trades und offene Positionen stimmen', false);
+      check('Import-Kontrollbericht: P&L- und Steueraenderung stimmen auf den Cent', false);
+      check('Import-Kontrollbericht: Berechnung mutiert keine Eingaben', false);
+      check('Import-Kontrollbericht: leere Eingabe liefert ehrliche Nullwerte', false);
     }
     const ledgerFnsReady =
       typeof imod.withSourceRowIds === 'function' &&
@@ -556,6 +610,27 @@ const realFifoCheck = (async () => {
     check('helpers: escapeHtml neutralisiert HTML aus Importdaten',
       typeof hmod.escapeHtml === 'function' &&
       hmod.escapeHtml('<img src=x onerror="alert(1)">&\'') === '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;&amp;&#39;');
+    const csvCellReady = typeof hmod.csvCell === 'function';
+    check('CSV-Export: pure Zellabsicherung exportiert', csvCellReady);
+    check('CSV-Export: Formel-Praefixe werden als Text neutralisiert',
+      csvCellReady &&
+      hmod.csvCell('=HYPERLINK("https://example.test")') === '"\'=HYPERLINK(""https://example.test"")"' &&
+      hmod.csvCell('+SUM(A1:A2)') === '\'+SUM(A1:A2)' &&
+      hmod.csvCell('-2+3') === '\'-2+3' &&
+      hmod.csvCell('@IMPORTDATA("https://example.test")') === '"\'@IMPORTDATA(""https://example.test"")"');
+    check('CSV-Export: Formeln nach Leerraum und Steuerzeichen werden ebenfalls neutralisiert',
+      csvCellReady &&
+      hmod.csvCell('  =1+1') === '\'  =1+1' &&
+      hmod.csvCell('\tProdukt') === '"\'\tProdukt"' &&
+      hmod.csvCell('\n=1+1') === '"\'\n=1+1"');
+    check('CSV-Export: Zahlen und harmlose Texte bleiben auswertbar',
+      csvCellReady && hmod.csvCell(-125.5) === '-125.5' &&
+      hmod.csvCell(0) === '0' && hmod.csvCell('DAX Turbo') === 'DAX Turbo' &&
+      hmod.csvCell(null) === '');
+    check('CSV-Export: Semikolon, Anfuehrungszeichen und Zeilenumbruch bleiben in genau einer Zelle',
+      csvCellReady &&
+      hmod.csvCell('DAX; "Turbo"') === '"DAX; ""Turbo"""' &&
+      hmod.csvCell('Zeile 1\nZeile 2') === '"Zeile 1\nZeile 2"');
     const sjsDate = new Date(Date.UTC(2026, 5, 29));
     check('helpers: normalizeXlsxDate SheetJS-Date = 2026-06-29', hmod.normalizeXlsxDate(sjsDate) === '2026-06-29');
     check('helpers: normalizeXlsxDate deutsch 29.06.2026', hmod.normalizeXlsxDate('29.06.2026') === '2026-06-29');
@@ -874,6 +949,17 @@ check('Import-Migration: UI nutzt die pure Diagnose und bietet keinen unsicheren
   !html.includes('import-migration-force'));
 check('Import-Migration: Stichtagspruefung laeuft vor dem FIFO-Replay',
   /const migrationByDate[\s\S]{0,1000}replayImportLedger\(importRows/.test(appJs));
+check('Import-Kontrollbericht: UI zeigt alle geforderten Kennzahlen',
+  html.includes('id="import-report"') && html.includes('id="import-report-rows"') &&
+  html.includes('id="import-report-rejected"') && html.includes('id="import-report-trades"') &&
+  html.includes('id="import-report-open"') && html.includes('id="import-report-pnl"') &&
+  html.includes('id="import-report-tax"'));
+check('Import-Kontrollbericht: Vorschau nutzt pure Berechnung und sichtbare offene Lots',
+  appJs.includes('buildImportReport({') && appJs.includes('visibleOpenLots(DATA.openLots') &&
+  appJs.includes('renderImportReport(pendingImportReport, false)'));
+check('Import-Kontrollbericht: bleibt nach erfolgreichem Speichern sichtbar',
+  /function confirmImport[\s\S]{0,1200}renderImportReport\(pendingImportReport, true\)/.test(appJs) &&
+  !/function confirmImport[\s\S]{0,1200}closeImportModal\(\)/.test(appJs));
 check('App persistiert Import-Ledger getrennt von Legacy-Trades',
   appJs.includes('importRows') &&
   appJs.includes('importBaseOpenLots') &&
@@ -928,6 +1014,9 @@ check('deleteOpenPosition: speichert nach Entfernen', /deleteOpenPosition[\s\S]{
 check('Loeschen-Button an Positions-Karte', appJs.includes('btn-del-pos') && appJs.includes('deleteOpenPosition(p.isin)'));
 check('fifo: Verkaufszeit wird gespeichert', appJs.includes("time: String(row.time || '')"));
 check('Export-CSV enthaelt Zeit-Spalte', appJs.includes('UID;Datum;Zeit;ISIN') && appJs.includes("t.time || ''"));
+check('Export-CSV sichert jede Datenzelle zentral gegen Formeln und Strukturbruch ab',
+  appJs.includes('csvCell') && appJs.includes('.map(csvCell).join(\';\')') &&
+  !appJs.includes("t.pnl].join(';')"));
 check('Long/Short-Zeile in Phasen-Karte', appJs.includes('ts-dir-row') && appJs.includes("dirLine(b.long, 'Long')"));
 check('Long/Short-Zeile im Stunden-Profil', appJs.includes('ts-hour-dir') && appJs.includes("dirPart(b.long, 'Long')"));
 check('Einstieg/Ausstieg-Umschalter vorhanden', html.includes('ts-mode-buy') && appJs.includes('function setTsMode'));

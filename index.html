@@ -228,6 +228,20 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .import-preview tr.dup td{opacity:.35;text-decoration:line-through;}
 .import-summary{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);margin:.5rem 0;}
 .import-summary.warn{color:var(--amber);}
+.import-modal{max-width:760px;}
+.import-report{margin:.8rem 0;padding:.85rem;border:1px solid var(--border);border-radius:10px;background:var(--bg);}
+.import-report.saved{border-color:var(--green-mid);background:var(--green-bg);}
+.import-report-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;margin-bottom:.7rem;}
+.import-report-kicker{font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:.18rem;}
+.import-report-head strong{font-size:.86rem;}
+.import-report-badge{flex:none;padding:.22rem .45rem;border:1px solid var(--amber);border-radius:999px;font-family:'JetBrains Mono',monospace;font-size:.5rem;letter-spacing:.05em;text-transform:uppercase;color:var(--amber);}
+.import-report.saved .import-report-badge{border-color:var(--green);color:var(--green);}
+.import-report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;}
+.import-report-card{padding:.58rem .62rem;border:1px solid var(--border);border-radius:8px;background:var(--paper);min-width:0;}
+.import-report-card>span{display:block;font-family:'JetBrains Mono',monospace;font-size:.49rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.22rem;}
+.import-report-card>strong{display:block;font-family:'JetBrains Mono',monospace;font-size:.7rem;line-height:1.35;color:var(--ink);overflow-wrap:anywhere;}
+.import-report-card>small{display:block;margin-top:.2rem;font-family:'JetBrains Mono',monospace;font-size:.49rem;line-height:1.4;color:var(--muted);}
+.import-report-note{margin-top:.65rem;font-size:.66rem;line-height:1.45;color:var(--muted);}
 .import-migration-overlay{z-index:210;}
 .import-migration-modal{max-width:680px;}
 .migration-kicker{font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.09em;text-transform:uppercase;color:var(--amber);margin-bottom:.35rem;}
@@ -705,7 +719,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 
 <!-- IMPORT MODAL -->
 <div class="modal-overlay" id="import-overlay" onclick="if(event.target===this)closeImportModal()">
-  <div class="modal" style="max-width:600px">
+  <div class="modal import-modal">
     <h3>CSV importieren</h3>
     <div class="drop-zone" id="drop-zone"
       ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)"
@@ -717,6 +731,21 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     <div class="import-preview" id="import-preview" style="display:none">
       <table><thead><tr><th>Datum</th><th>Produkt</th><th>St&uuml;ck</th><th class="r">Kauf</th><th class="r">Verkauf</th><th class="r">P&amp;L</th><th>Status</th></tr></thead>
       <tbody id="import-tbody"></tbody></table>
+    </div>
+    <div class="import-report" id="import-report" style="display:none" aria-live="polite">
+      <div class="import-report-head">
+        <div><div class="import-report-kicker">Import-Kontrollbericht</div><strong id="import-report-state">Vorschau</strong></div>
+        <span class="import-report-badge" id="import-report-badge">Vorschau</span>
+      </div>
+      <div class="import-report-grid">
+        <div class="import-report-card"><span>Brokerzeilen</span><strong id="import-report-rows">&mdash;</strong><small id="import-report-rows-meta">&mdash;</small></div>
+        <div class="import-report-card"><span>Ablehnungen</span><strong id="import-report-rejected">&mdash;</strong><small id="import-report-rejected-meta">&mdash;</small></div>
+        <div class="import-report-card"><span>Geschlossene Trades</span><strong id="import-report-trades">&mdash;</strong><small id="import-report-trades-meta">&mdash;</small></div>
+        <div class="import-report-card"><span>Offene Positionen</span><strong id="import-report-open">&mdash;</strong><small id="import-report-open-meta">&mdash;</small></div>
+        <div class="import-report-card"><span>Netto-P&amp;L gesamt</span><strong id="import-report-pnl">&mdash;</strong><small id="import-report-pnl-meta">&mdash;</small></div>
+        <div class="import-report-card"><span>Steuer gesamt</span><strong id="import-report-tax">&mdash;</strong><small id="import-report-tax-meta">&mdash;</small></div>
+      </div>
+      <p class="import-report-note" id="import-report-note"></p>
     </div>
     <div class="import-summary" id="import-summary" style="display:none"></div>
     <div class="modal-actions">

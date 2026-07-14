@@ -125,6 +125,76 @@ export function diagnoseFirstLedgerImport(legacyTrades, baseOpenLots, incomingRo
   };
 }
 
+// Fasst die Wirkung eines Imports vor und nach dem Ledger-Replay zusammen.
+// Die UI bekommt nur fertige Kennzahlen; insbesondere werden Dateiduplikate
+// gegen die bereits bekannten UND die zuvor gelesenen Zeilen gezaehlt.
+export function buildImportReport(options = {}) {
+  const incomingRows = Array.isArray(options.incomingRows) ? options.incomingRows : [];
+  const previousImportRows = Array.isArray(options.previousImportRows) ? options.previousImportRows : [];
+  const candidateTrades = Array.isArray(options.candidateTrades) ? options.candidateTrades : [];
+  const previousTrades = Array.isArray(options.previousTrades) ? options.previousTrades : [];
+  const nextTrades = Array.isArray(options.nextTrades) ? options.nextTrades : [];
+  const previousOpenLots = Array.isArray(options.previousOpenLots) ? options.previousOpenLots : [];
+  const nextOpenLots = Array.isArray(options.nextOpenLots) ? options.nextOpenLots : [];
+  const rejectedRows = Number.isFinite(Number(options.rejectedRows))
+    ? Math.max(0, Math.trunc(Number(options.rejectedRows)))
+    : 0;
+
+  const knownRows = new Set(withSourceRowIds(previousImportRows).map(row => row.sourceRowId));
+  let newBrokerRows = 0;
+  let duplicateBrokerRows = 0;
+  withSourceRowIds(incomingRows).forEach(row => {
+    if (knownRows.has(row.sourceRowId)) {
+      duplicateBrokerRows++;
+      return;
+    }
+    knownRows.add(row.sourceRowId);
+    newBrokerRows++;
+  });
+
+  const previousTradeUids = new Set(previousTrades.map(trade => trade && trade.uid).filter(Boolean));
+  let newClosedTrades = 0;
+  let duplicateClosedTrades = 0;
+  candidateTrades.forEach(trade => {
+    if (trade && trade.uid && previousTradeUids.has(trade.uid)) duplicateClosedTrades++;
+    else newClosedTrades++;
+  });
+
+  const moneySum = (items, field) => +items.reduce((sum, item) => {
+    const value = Number(item && item[field]);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0).toFixed(2);
+  const positionCount = lots => new Set(lots
+    .filter(lot => lot && lot.isin && Number(lot.shares) > 0)
+    .map(lot => lot.isin)).size;
+
+  const pnlBefore = moneySum(previousTrades, 'pnl');
+  const pnlAfter = moneySum(nextTrades, 'pnl');
+  const taxBefore = moneySum(previousTrades, 'tax');
+  const taxAfter = moneySum(nextTrades, 'tax');
+  const openPositionsBefore = positionCount(previousOpenLots);
+  const openPositionsAfter = positionCount(nextOpenLots);
+
+  return {
+    sourceRows: incomingRows.length + rejectedRows,
+    acceptedRows: incomingRows.length,
+    rejectedRows,
+    newBrokerRows,
+    duplicateBrokerRows,
+    newClosedTrades,
+    duplicateClosedTrades,
+    openPositionsBefore,
+    openPositionsAfter,
+    openPositionsDelta: openPositionsAfter - openPositionsBefore,
+    pnlBefore,
+    pnlAfter,
+    pnlDelta: +(pnlAfter - pnlBefore).toFixed(2),
+    taxBefore,
+    taxAfter,
+    taxDelta: +(taxAfter - taxBefore).toFixed(2)
+  };
+}
+
 // Import-Trades sind nur eine abgeleitete Sicht. Deshalb wird beim Bearbeiten
 // die zugehoerige Sell-Rohzeile ersetzt und ihre technische ID neu erzeugt;
 // Einstand, P&L und offene Lots berechnet anschliessend allein der FIFO-Replay.
@@ -248,7 +318,7 @@ export function parseScalableCsv(text) {
     return ta.localeCompare(tb);
   });
 
-  return { rows: filtered };
+  return { rows: filtered, meta: importParseMeta(rows, filtered) };
 }
 
 // ------------------------------------------------------------
@@ -293,7 +363,22 @@ export function parseScalableXlsx(buffer, xlsxLib) {
     return ta.localeCompare(tb);
   });
 
-  return { rows: filtered };
+  return { rows: filtered, meta: importParseMeta(rows, filtered) };
+}
+
+// Ablehnungsgruende sind exklusiv, damit ihre Summe immer der Zahl der
+// ignorierten Brokerzeilen entspricht: Status zuerst, Typ nur bei Executed.
+function importParseMeta(rows, filtered) {
+  const rejectedStatusRows = rows.filter(row => row.status !== 'Executed').length;
+  const rejectedTypeRows = rows.filter(row => row.status === 'Executed' &&
+    row.type !== 'Buy' && row.type !== 'Sell').length;
+  return {
+    sourceRows: rows.length,
+    acceptedRows: filtered.length,
+    rejectedRows: rows.length - filtered.length,
+    rejectedStatusRows,
+    rejectedTypeRows
+  };
 }
 
 // ------------------------------------------------------------

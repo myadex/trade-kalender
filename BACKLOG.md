@@ -143,18 +143,34 @@ Wartbarkeit bzw. Komfort.
 
 ### CSV-Export gegen Tabellenformeln absichern
 
-- **Status:** Offen.
-- **Warum:** Produkttexte koennen beim Oeffnen einer CSV in Tabellenprogrammen
-  als Formel interpretiert werden.
-- **Ziel:** Gefaehrliche Zellpraefixe im Export neutralisieren und mit einem
-  Regressionstest absichern.
+- **Status:** Erledigt in v52.
+- **Loesung:** Jede exportierte Datenzelle laeuft durch eine pure zentrale
+  Absicherung. Textwerte mit `=`, `+`, `-` oder `@` am Zellanfang werden durch
+  ein vorangestelltes Apostroph als Text neutralisiert; fuehrender Leerraum,
+  Tabs und Zeilenumbrueche koennen die Erkennung nicht umgehen.
+- **CSV-Struktur:** Semikolons, Anfuehrungszeichen und Steuerzeichen werden
+  korrekt gequotet und interne Anfuehrungszeichen verdoppelt. Dadurch bleiben
+  auch ungewoehnliche Produkttexte innerhalb genau einer Zelle.
+- **Zahlen:** Echte numerische Werte bleiben unveraendert, damit insbesondere
+  negative P&L- und Steuerwerte in Tabellenprogrammen weiter berechenbar sind.
 
 ### Import-Kontrollbericht
 
-- **Status:** Offen; kleinere Prioritaet.
-- **Ziel:** Nach jedem Import neue Zeilen, Duplikate, geschlossene Trades,
-  offene Positionen, Ablehnungen sowie die Aenderung von P&L und Steuer
-  verstaendlich zusammenfassen.
+- **Status:** Erledigt in v53.
+- **Loesung:** Die Import-Vorschau enthaelt einen strukturierten Kontrollbericht
+  fuer neue und doppelte Brokerzeilen, ignorierte Zeilen, neue und bereits
+  bekannte geschlossene Trades sowie den Stand sichtbarer offener Positionen.
+- **Finanzwirkung:** Netto-P&L und Steuer werden jeweils als vorheriger Stand,
+  erwarteter Stand und Aenderung auf den Cent ausgewiesen. Der Bericht basiert
+  auf dem vollstaendigen FIFO-Replay und nicht nur auf den neu angezeigten
+  Trades.
+- **Bestaetigung:** Vor dem Speichern ist der Bericht klar als Vorschau
+  markiert. Nach erfolgreichem Drive-Update bleibt er geoeffnet und wechselt
+  auf `Gespeichert`; ein Reimport ohne neue Brokerzeilen wird als unveraendert
+  ausgewiesen.
+- **Datenintegritaet:** Die Berechnung ist pure und mutiert keine Eingaben.
+  Ablehnungszahlen stammen direkt aus der Parser-Diagnose; ausgeblendete offene
+  Lots werden auch im Bericht nicht faelschlich als sichtbare Position gezaehlt.
 
 ### Wochen- und Monatsreview
 

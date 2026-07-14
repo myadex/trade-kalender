@@ -26,6 +26,16 @@ moduleFiles.forEach(f => {
   try { acorn.parse(code, { ecmaVersion: 2020, sourceType: 'module' }); check('js/' + f + ' parses', true); }
   catch (e) { check('js/' + f + ' parses (' + e.message + ')', false); }
 });
+const appControllerJs = fs.readFileSync(DIR + '/js/app.js', 'utf8');
+const navigationPath = DIR + '/js/navigation.js';
+const navigationJs = fs.existsSync(navigationPath)
+  ? fs.readFileSync(navigationPath, 'utf8')
+  : '';
+check('UI-Controller: Navigation liegt in einem eigenen Modul',
+  fs.existsSync(navigationPath) && appControllerJs.includes("from './navigation.js'") &&
+  !appControllerJs.includes('function showTab(') &&
+  !appControllerJs.includes('function setStatsView(') &&
+  !appControllerJs.includes('function mobileTab('));
 // Der Service Worker wird aus index.html mit './sw.js' registriert. Er muss
 // deshalb im Projekt-Root liegen: Unter js/ haette er nur den Scope /js/ und
 // koennte weder die App-Seite noch die PWA-Root-Route kontrollieren.
@@ -50,7 +60,7 @@ catch (e) { check('sw.js parses (' + e.message + ')', false); }
 const offlineAssets = [
   './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
-  './js/import.js', './js/storage.js', './js/views.js'
+  './js/import.js', './js/navigation.js', './js/storage.js', './js/views.js'
 ];
 check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
 check('PWA: Navigation hat einen Offline-Fallback auf index.html',
@@ -144,6 +154,25 @@ console.log('\n=== 1b. IMPORT/EXPORT-KONSISTENZ (Modul-Vertraege) ===');
     check("HTML-onload-Callback '" + cb + "' auf window exponiert",
       appJs.includes('window.' + cb + ' = ') || appJs.includes(cb + ':') && appJs.includes('Object.assign(window'));
   }
+
+  // Das Google-Script ist async und kann vor dem ES-Modul fertig sein. Der
+  // HTML-Callback muss deshalb auch mit einem noch leeren window funktionieren;
+  // eine spaetere Modulpruefung uebernimmt danach die Initialisierung.
+  const gisTag = html.match(/<script[^>]+accounts\.google\.com\/gsi\/client[^>]*>/);
+  const gisOnload = gisTag && gisTag[0].match(/onload="([^"]+)"/);
+  let earlyGisCallbackSafe = false;
+  if (gisOnload) {
+    try {
+      require('vm').runInNewContext(gisOnload[1], { window: {} });
+      earlyGisCallbackSafe = true;
+    } catch (_) {}
+  }
+  check('Google-Callback bleibt sicher, wenn das async Script vor dem ES-Modul laedt',
+    earlyGisCallbackSafe);
+  check('Google-Auth wird nach fruehem Script-Load beim Modulstart nachgeholt',
+    appJs.includes('if (window.google && window.google.accounts && window.google.accounts.oauth2)') &&
+    appJs.indexOf('window.gisLoaded = gisLoaded') <
+      appJs.indexOf('if (window.google && window.google.accounts && window.google.accounts.oauth2)'));
 })();
 
 console.log('\n=== 2. ID REFERENCES ===');
@@ -310,6 +339,55 @@ const realFifoCheck = (async () => {
     // views.js: Aggregation muss die Gesamtsumme erhalten
     const vmod = await import('file://' + DIR + '/js/views.js');
     const fmod = await import('file://' + DIR + '/js/fifo.js');
+    const navmod = fs.existsSync(navigationPath)
+      ? await import('file://' + navigationPath)
+      : null;
+    check('navigation: alle Desktop- und Mobilfunktionen exportiert',
+      !!navmod && ['showTab', 'setStatsView', 'handleStatsViewKey', 'mobileTab',
+        'toggleMobileActions', 'closeMobileActions']
+        .every(name => typeof navmod[name] === 'function'));
+
+    const navDom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true });
+    const previousWindow = global.window;
+    const previousDocument = global.document;
+    global.window = navDom.window;
+    global.document = navDom.window.document;
+    let scrollCalls = 0;
+    navDom.window.scrollTo = () => { scrollCalls++; };
+    try {
+      if (navmod) navmod.showTab('timestats');
+      check('navigation: Haupttab aktiviert Section und Standard-Statistikbereich',
+        !!navmod && navDom.window.document.getElementById('tab-timestats').classList.contains('active') &&
+        navDom.window.document.querySelector('.nav-tab.active').textContent.trim() === 'Statistik' &&
+        !navDom.window.document.getElementById('stats-view-performance').hidden);
+
+      if (navmod) navmod.setStatsView('timing');
+      check('navigation: Statistikbereich aktualisiert Sichtbarkeit und ARIA-Zustand',
+        !!navmod && !navDom.window.document.getElementById('stats-view-timing').hidden &&
+        navDom.window.document.getElementById('stats-view-performance').hidden &&
+        navDom.window.document.getElementById('stats-nav-timing').getAttribute('aria-selected') === 'true');
+
+      const timingButton = navDom.window.document.getElementById('stats-nav-timing');
+      timingButton.focus();
+      let prevented = false;
+      if (navmod) navmod.handleStatsViewKey({ key: 'ArrowRight', preventDefault: () => { prevented = true; } });
+      check('navigation: Pfeiltaste wechselt und fokussiert den naechsten Statistikbereich',
+        !!navmod && prevented &&
+        navDom.window.document.getElementById('stats-nav-behavior').classList.contains('active') &&
+        navDom.window.document.activeElement.id === 'stats-nav-behavior');
+
+      navDom.window.document.getElementById('mobile-actions').classList.add('open');
+      if (navmod) navmod.mobileTab('monthly');
+      check('navigation: mobiler Tab synchronisiert Navigation, schliesst Aktionen und scrollt hoch',
+        !!navmod &&
+        navDom.window.document.querySelector('#bottom-bar button.active').dataset.tab === 'monthly' &&
+        !navDom.window.document.getElementById('mobile-actions').classList.contains('open') &&
+        scrollCalls === 1);
+    } finally {
+      global.window = previousWindow;
+      global.document = previousDocument;
+      navDom.window.close();
+    }
     const sampleTrades = [
       { date: '2026-06-01', pnl: 100, sell: 500, tax: 35, n: 1 },
       { date: '2026-06-02', pnl: -50, sell: 200, tax: -13, n: 1 },

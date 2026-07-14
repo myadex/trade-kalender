@@ -828,7 +828,10 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 </div>
 
 <script type="module" src="js/app.js"></script>
-<script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
+<!-- Das Google-Script kann vor dem ES-Modul fertig sein. Der bedingte Aufruf
+     verhindert dann einen ReferenceError; app.js holt die Initialisierung
+     nach, sobald das Modul geladen und window.google bereits vorhanden ist. -->
+<script src="https://accounts.google.com/gsi/client" onload="window.gisLoaded && window.gisLoaded()" async defer></script>
 
 <!-- MOBILE BOTTOM TAB BAR -->
 <div id="bottom-bar">

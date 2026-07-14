@@ -191,8 +191,18 @@ Wartbarkeit bzw. Komfort.
 
 ### PWA im echten Browser offline pruefen
 
-- **Status:** Offen.
-- **Heute:** Asset-Liste und Offline-Fallback sind automatisiert geprueft.
+- **Status:** Teilweise im echten Browser geprueft; vollstaendiger
+  Offline-Reload bleibt offen.
+- **Verifiziert:** Manifest, Service-Worker-Registrierung, App-Shell-Cache und
+  Navigations-Fallback sind im Browser vorhanden. Google-Anmeldung und
+  Drive-Synchronisierung bleiben bewusst onlineabhaengig.
+- **Browsergrenze:** Der verwendete In-App-Browser bietet keinen echten
+  Netzwerk-Offline-Schalter; ein Reload ohne Netz konnte deshalb noch nicht
+  simuliert werden.
+- **Nebenfund in v56 behoben:** Das asynchrone Google-Script konnte beim Reload
+  vor dem ES-Modul fertig sein und `gisLoaded is not defined` ausloesen. Der
+  HTML-Callback ist jetzt fruehstart-sicher; die vorhandene Modulpruefung holt
+  die Auth-Initialisierung weiterhin nach.
 - **Ziel:** Installieren, offline navigieren, Service-Worker-Update und erneute
   Online-Synchronisierung in einem echten Browser testen.
 
@@ -217,10 +227,18 @@ Wartbarkeit bzw. Komfort.
 
 ### UI-Controller weiter aufteilen
 
-- **Status:** Offen.
+- **Status:** In Arbeit; erste Etappe in v57 abgeschlossen.
 - **Warum:** `js/app.js` enthaelt weiterhin State, Rendering und Event-Logik.
 - **Ziel:** Tabs und Dialoge in kleine Render-Module auslagern; pure Logik bleibt
   in den bestehenden Fachmodulen.
+- **Etappe 1:** Haupttabs, Statistik-Untertabs, Tastatursteuerung und mobile
+  Navigation liegen jetzt in `js/navigation.js`. Das Modul kennt weder
+  Finanzdaten noch Drive, Import oder Berechnungslogik.
+- **Sicherung:** Echte DOM-Tests pruefen Desktop-Wechsel, ARIA-Zustaende,
+  Pfeiltastenfokus, mobile Tabs, Action-Sheet und Scroll-Verhalten. Das neue
+  Modul ist Teil des Service-Worker-App-Shell-Caches.
+- **Rest:** Dialoge und deren Rendering werden in weiteren kleinen Etappen
+  ausgelagert; `app.js` bleibt bis dahin der zentrale Daten- und I/O-Controller.
 
 ### Bedienbarkeit und Barrierefreiheit pruefen
 

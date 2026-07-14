@@ -6,6 +6,10 @@
 import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml, csvCell } from './helpers.js';
 import {
+  showTab, setStatsView, handleStatsViewKey,
+  mobileTab, toggleMobileActions, closeMobileActions
+} from './navigation.js';
+import {
   dayMap, deriveOpenPositions, fifoMatch, replayImportLedger,
   closePositionPnl, tradePnl, withOpenLotIds,
   createHiddenOpenPositionEvent, visibleOpenLots,
@@ -185,57 +189,6 @@ function replayStoredImports(importRows = DATA.importRows, importBaseOpenLots = 
     throw new Error('Import-Ledger enth\u00e4lt einen Verkauf ohne ausreichende offene Lots.');
   }
   return replay;
-}
-
-/* ============================================================
-   TABS
-   ============================================================ */
-function showTab(id) {
-  const order = ['calendar', 'weekly', 'monthly', 'open', 'timestats'];
-  document.querySelectorAll('.nav-tab').forEach((t, i) => t.classList.toggle('active', order[i] === id));
-  document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + id));
-  if (id === 'timestats') setStatsView(statsView);
-}
-
-// Der Statistik-Tab enthaelt mehrere eigenstaendige Fragestellungen. Es wird
-// bewusst nur ein Bereich eingeblendet, damit die Seite auf Mobilgeraeten nicht
-// wieder zu einer langen Liste anwächst. Der Zustand bleibt beim Haupttab-Wechsel
-// in dieser App-Sitzung erhalten.
-let statsView = 'performance';
-function setStatsView(view) {
-  const allowed = ['performance', 'timing', 'behavior'];
-  const selected = allowed.includes(view) ? view : 'performance';
-  statsView = selected;
-  document.querySelectorAll('.stats-view').forEach(panel => {
-    const active = panel.id === 'stats-view-' + selected;
-    panel.hidden = !active;
-    panel.classList.toggle('active', active);
-  });
-  document.querySelectorAll('.stats-view-nav-btn').forEach(button => {
-    const active = button.id === 'stats-nav-' + selected;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-selected', active ? 'true' : 'false');
-    button.setAttribute('tabindex', active ? '0' : '-1');
-  });
-}
-
-function handleStatsViewKey(event) {
-  const supported = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
-  if (!supported.includes(event.key)) return;
-  const buttons = Array.from(document.querySelectorAll('.stats-view-nav-btn'));
-  if (buttons.length === 0) return;
-
-  event.preventDefault();
-  let index = buttons.indexOf(document.activeElement);
-  if (index < 0) index = Math.max(0, buttons.findIndex(button => button.classList.contains('active')));
-  if (event.key === 'Home') index = 0;
-  else if (event.key === 'End') index = buttons.length - 1;
-  else if (event.key === 'ArrowRight') index = (index + 1) % buttons.length;
-  else index = (index - 1 + buttons.length) % buttons.length;
-
-  const nextButton = buttons[index];
-  setStatsView(nextButton.id.slice('stats-nav-'.length));
-  nextButton.focus();
 }
 
 /* ============================================================
@@ -1758,22 +1711,6 @@ function exportCSV() {
 /* ============================================================
    REBUILD
    ============================================================ */
-function mobileTab(id) {
-  showTab(id);
-  document.querySelectorAll('#bottom-bar button[data-tab]').forEach(b => {
-    b.classList.toggle('active', b.getAttribute('data-tab') === id);
-  });
-  closeMobileActions();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function toggleMobileActions() {
-  $('mobile-actions').classList.toggle('open');
-}
-function closeMobileActions() {
-  $('mobile-actions').classList.remove('open');
-}
-
 async function setCapital() {
   const cur = DATA.capital || 0;
   const input = prompt('Einstand / Startkapital in Euro eingeben:', cur > 0 ? String(cur) : '');

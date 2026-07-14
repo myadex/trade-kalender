@@ -1,0 +1,31 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v6
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      # npm ci verwendet ausschliesslich das eingecheckte Lockfile. Dadurch
+      # testet CI denselben reproduzierbaren Abhaengigkeitsstand wie lokal.
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      - name: Vollstaendige Testsuite ausfuehren
+        run: npm test

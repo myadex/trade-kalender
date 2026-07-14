@@ -1,4 +1,12 @@
 {
+  "name": "trade-kalender",
+  "private": true,
+  "scripts": {
+    "test": "node test/test_pwa.js"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "dependencies": {
     "acorn": "^8.17.0",
     "jsdom": "^29.1.1"

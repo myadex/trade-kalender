@@ -74,6 +74,24 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .month-bar-lbl{font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);margin-top:.3rem;}
 .month-bar-val{font-family:'JetBrains Mono',monospace;font-size:.58rem;margin-top:.1rem;}
 
+/* PERIODENREVIEW */
+.period-review{margin-bottom:1.35rem;padding:1rem;border:1px solid var(--border);border-radius:12px;background:var(--paper);}
+.period-review-head{display:flex;align-items:flex-end;justify-content:space-between;gap:.8rem;margin-bottom:.8rem;}
+.period-review-title{font-family:'Chakra Petch',sans-serif;font-size:1.15rem;font-weight:600;letter-spacing:.03em;}
+.period-review-sub{font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);line-height:1.4;margin-top:.15rem;}
+.period-review-select{min-width:230px;border:1px solid var(--border);border-radius:7px;padding:.48rem .65rem;background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:.62rem;}
+.period-review-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.55rem;}
+.period-review-card{min-width:0;border:1px solid var(--border);border-radius:9px;padding:.7rem;background:var(--bg);}
+.period-review-card-label{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
+.period-review-card-value{font-family:'JetBrains Mono',monospace;font-size:.92rem;font-weight:600;margin-top:.3rem;overflow-wrap:anywhere;}
+.period-review-card-value.pos{color:var(--green);}.period-review-card-value.neg{color:var(--red);}
+.period-review-card-meta{font-family:'JetBrains Mono',monospace;font-size:.51rem;color:var(--muted);line-height:1.5;margin-top:.3rem;}
+.period-review-card-meta strong{color:var(--ink);font-weight:500;}
+.period-review-note{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);line-height:1.45;margin-top:.65rem;}
+.period-review-empty{grid-column:1/-1;padding:1rem;text-align:center;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.6rem;}
+@media(max-width:900px){.period-review-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:520px){.period-review{padding:.75rem;}.period-review-head{align-items:stretch;flex-direction:column;}.period-review-select{width:100%;min-width:0;}.period-review-grid{grid-template-columns:1fr;}}
+
 /* OPEN POSITIONS */
 .open-pos-card{background:var(--paper);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:10px;flex-wrap:wrap;}
 .op-name{font-size:.85rem;font-weight:500;}
@@ -478,6 +496,17 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <div id="tab-calendar" class="section active"><div id="cal-container"></div></div>
 
   <div id="tab-weekly" class="section">
+    <section id="weekly-review" class="period-review" aria-labelledby="weekly-review-title">
+      <div class="period-review-head">
+        <div>
+          <h2 id="weekly-review-title" class="period-review-title">Wochenreview</h2>
+          <p class="period-review-sub">Ergebnis, belastbare Muster und Verlustursachen auf einen Blick.</p>
+        </div>
+        <select id="weekly-review-select" class="period-review-select" aria-label="Woche f&uuml;r Review ausw&auml;hlen"></select>
+      </div>
+      <div id="weekly-review-grid" class="period-review-grid"></div>
+      <p id="weekly-review-note" class="period-review-note"></p>
+    </section>
     <table class="weekly-table">
       <thead><tr><th>Woche</th><th class="r">P&amp;L</th><th class="r">Umsatz</th><th class="r">Trades</th><th>Verlauf</th></tr></thead>
       <tbody id="weekly-tbody"></tbody>
@@ -485,6 +514,17 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   </div>
 
   <div id="tab-monthly" class="section">
+    <section id="monthly-review" class="period-review" aria-labelledby="monthly-review-title">
+      <div class="period-review-head">
+        <div>
+          <h2 id="monthly-review-title" class="period-review-title">Monatsreview</h2>
+          <p class="period-review-sub">Ergebnis, belastbare Muster und Verlustursachen auf einen Blick.</p>
+        </div>
+        <select id="monthly-review-select" class="period-review-select" aria-label="Monat f&uuml;r Review ausw&auml;hlen"></select>
+      </div>
+      <div id="monthly-review-grid" class="period-review-grid"></div>
+      <p id="monthly-review-note" class="period-review-note"></p>
+    </section>
     <div id="monthly-bars-wrap" style="margin-bottom:1.5rem"></div>
     <table class="weekly-table">
       <thead><tr><th>Monat</th><th class="r">P&amp;L</th><th class="r">Umsatz</th><th class="r">Trades</th></tr></thead>

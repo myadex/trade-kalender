@@ -59,6 +59,28 @@ check('PWA: Google Auth und Drive werden nie gecacht',
   swJs.includes("url.includes('googleapis.com')") && swJs.includes("url.includes('accounts.google.com')"));
 }
 
+console.log('\n=== 1a. STANDARD-TESTLAUF UND CI ===');
+const packagePath = DIR + '/package.json';
+const lockPath = DIR + '/package-lock.json';
+const workflowPath = DIR + '/.github/workflows/test.yml';
+const packageJson = fs.existsSync(packagePath)
+  ? JSON.parse(fs.readFileSync(packagePath, 'utf8'))
+  : {};
+const workflow = fs.existsSync(workflowPath)
+  ? fs.readFileSync(workflowPath, 'utf8')
+  : '';
+check('Entwicklung: npm test ist der zentrale Testeinstieg',
+  packageJson.scripts && packageJson.scripts.test === 'node test/test_pwa.js');
+check('CI: reproduzierbare Installation ist durch Lockfile und npm ci festgelegt',
+  fs.existsSync(lockPath) && /^\s+run: npm ci\s*$/m.test(workflow));
+check('CI: Tests laufen bei Push und Pull Request',
+  /^\s{2}push:\s*$/m.test(workflow) && /^\s{2}pull_request:\s*$/m.test(workflow) &&
+  /^\s+run: npm test\s*$/m.test(workflow));
+check('CI: Workflow besitzt nur lesenden Repository-Zugriff',
+  /^permissions:\s*\r?\n\s{2}contents: read\s*$/m.test(workflow));
+check('CI: Node-Version und npm-Cache sind explizit festgelegt',
+  /node-version:\s*['"]?24['"]?/.test(workflow) && /^\s+cache: npm\s*$/m.test(workflow));
+
 console.log('\n=== 1b. IMPORT/EXPORT-KONSISTENZ (Modul-Vertraege) ===');
 // Prueft per AST: Jeder `import { X } from './mod.js'` muss in mod.js
 // ein `export` fuer X haben. Faengt den "does not provide an export"-Fehler
@@ -337,6 +359,54 @@ const realFifoCheck = (async () => {
       appJs.includes('sorted.forEach(({ label, pnl, rev, n })') &&
       !appJs.includes('new Date(week)'));
     check('views: Monats-Summe = 250', msum === 250);
+    check('views: Wochen-/Monatsreview als pure Berechnung exportiert',
+      typeof vmod.computePeriodReviews === 'function');
+    const reviewTrades = [
+      { date: '2026-07-08', buyDate: '2026-07-08', buyTime: '11:00:00', time: '12:00:00', desc: 'ServiceNow', pnl: 25, tax: 5 },
+      { date: '2026-07-13', buyDate: '2026-07-13', buyTime: '09:10:00', time: '10:00:00', desc: 'DAX Long Turbo', pnl: 100, tax: 20 },
+      { date: '2026-07-14', buyDate: '2026-07-14', buyTime: '09:20:00', time: '10:10:00', desc: 'DAX Call', pnl: 80, tax: 15 },
+      { date: '2026-07-15', buyDate: '2026-07-15', buyTime: '15:40:00', time: '16:00:00', desc: 'DAX Short Turbo', pnl: -120, tax: -30 },
+      { date: '2026-07-16', buyDate: '2026-07-15', buyTime: '15:50:00', time: '09:00:00', desc: 'DAX Put', pnl: -60, tax: -15 },
+      { date: 'kaputt', desc: 'DAX Long', pnl: 999, tax: 0 },
+      { date: '2026-07-17', desc: 'DAX Long', pnl: 'kein-betrag', tax: 0 }
+    ];
+    const reviewBefore = JSON.stringify(reviewTrades);
+    const weeklyReviews = typeof vmod.computePeriodReviews === 'function'
+      ? vmod.computePeriodReviews(reviewTrades, 'week', 2)
+      : { reviews: [], excluded: {} };
+    const latestWeekReview = weeklyReviews.reviews[0];
+    check('periodReview: ISO-Wochen sind neueste zuerst und ungueltige Daten ehrlich ausgeschlossen',
+      weeklyReviews.period === 'week' && weeklyReviews.minSample === 2 &&
+      weeklyReviews.reviews.length === 2 && latestWeekReview.key === '2026-07-13' &&
+      latestWeekReview.label === 'KW 29 \u00b7 13.07.2026\u201319.07.2026' &&
+      weeklyReviews.excluded.invalidDate === 1 && weeklyReviews.excluded.invalidPnl === 1);
+    check('periodReview: Zusammenfassung rechnet Trades, Netto-P&L, Steuer und Winrate',
+      latestWeekReview.summary.n === 4 && latestWeekReview.summary.pnl === 0 &&
+      latestWeekReview.summary.tax === -10 && latestWeekReview.summary.wins === 2 &&
+      latestWeekReview.summary.losses === 2 && latestWeekReview.summary.winrate === 50);
+    check('periodReview: staerkstes und schwaechstes Muster nutzen Durchschnitt und Mindeststichprobe',
+      latestWeekReview.strongest.label === 'Long / Call' && latestWeekReview.strongest.avg === 90 &&
+      latestWeekReview.strongest.n === 2 && latestWeekReview.weakest.label === 'Short / Put' &&
+      latestWeekReview.weakest.avg === -90 && latestWeekReview.weakest.n === 2 &&
+      weeklyReviews.reviews[1].strongest === null && weeklyReviews.reviews[1].weakest === null);
+    check('periodReview: Verlusttreiber, schlimmster Trade und Overnight-Verlust stimmen',
+      latestWeekReview.losses.pnl === -180 && latestWeekReview.losses.n === 2 &&
+      latestWeekReview.losses.worstTrade.pnl === -120 &&
+      latestWeekReview.losses.dominantDirection.key === 'short' &&
+      latestWeekReview.losses.dominantDirection.pnl === -180 &&
+      latestWeekReview.losses.dominantPhase.key === 'us' &&
+      latestWeekReview.losses.overnight.n === 1 && latestWeekReview.losses.overnight.pnl === -60);
+    check('periodReview: auffaellige Einstiegsphase wird mit Stichprobe ausgewiesen',
+      latestWeekReview.notablePhase.key === 'open' && latestWeekReview.notablePhase.avg === 90 &&
+      latestWeekReview.notablePhase.n === 2);
+    const monthlyReviews = typeof vmod.computePeriodReviews === 'function'
+      ? vmod.computePeriodReviews(reviewTrades, 'month', 2)
+      : { reviews: [] };
+    check('periodReview: Monatsreview gruppiert denselben Datenbestand nach Kalendermonat',
+      monthlyReviews.period === 'month' && monthlyReviews.reviews.length === 1 &&
+      monthlyReviews.reviews[0].key === '2026-07' && monthlyReviews.reviews[0].summary.n === 5 &&
+      monthlyReviews.reviews[0].summary.pnl === 25);
+    check('periodReview: Berechnung mutiert Trades nicht', JSON.stringify(reviewTrades) === reviewBefore);
     check('views: computeStats Wins/Losses (2/1)', stats.wins === 2 && stats.losses === 1);
     check('views: Rendite bei 1000 Einstand = 25%', Math.abs(stats.rendite - 25) < 0.01);
     check('views: Equity-/Drawdown-Berechnung exportiert',
@@ -1055,6 +1125,14 @@ check('Trade-Suche: Renderer nutzt die pure Filterlogik ohne Speichervorgang',
 check('Trade-Suche: auf Desktop und Mobil erreichbar',
   html.includes('id="btn-search"') && html.includes('id="btn-search-m"') &&
   appJs.includes('function openTradeSearch()') && appJs.includes('function closeTradeSearch()'));
+check('Periodenreview: Wochen- und Monats-Tab besitzen Auswahl und Review-Karten',
+  html.includes('id="weekly-review"') && html.includes('id="weekly-review-select"') &&
+  html.includes('id="weekly-review-grid"') && html.includes('id="monthly-review"') &&
+  html.includes('id="monthly-review-select"') && html.includes('id="monthly-review-grid"'));
+check('Periodenreview: UI nutzt unterschiedliche Mindeststichproben fuer Woche und Monat',
+  appJs.includes("computePeriodReviews(DATA.trades, 'week', 3)") &&
+  appJs.includes("computePeriodReviews(DATA.trades, 'month', 5)") &&
+  appJs.includes('function renderPeriodReview('));
 
 console.log('\n=== 6d. VERSION ===');
 {

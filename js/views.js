@@ -264,6 +264,202 @@ export function tradeDirection(desc) {
 }
 
 // ------------------------------------------------------------
+// Verdichtet geschlossene Trades zu einem Wochen- oder Monatsreview. Muster
+// werden erst ab der gewuenschten Stichprobe bewertet; einzelne Ausreisser
+// bleiben als schlimmster Trade sichtbar, werden aber nicht als Regel verkauft.
+// Die Zuordnung erfolgt bewusst nach Ausstiegsdatum, passend zu den bestehenden
+// Wochen- und Monatssummen der App.
+// ------------------------------------------------------------
+export function computePeriodReviews(trades, period = 'week', minSample = 3) {
+  const selectedPeriod = period === 'month' ? 'month' : 'week';
+  const parsedMinSample = Math.floor(Number(minSample));
+  const threshold = Number.isFinite(parsedMinSample) && parsedMinSample > 0
+    ? parsedMinSample
+    : 3;
+  const excluded = { invalidDate: 0, invalidPnl: 0 };
+  const groups = {};
+  const monthLabels = [
+    'Januar', 'Februar', 'M\u00e4rz', 'April', 'Mai', 'Juni',
+    'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+  ];
+  const roundMoney = value => +value.toFixed(2);
+
+  const monthInfo = date => {
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const first = new Date(Date.UTC(year, month, 1));
+    const last = new Date(Date.UTC(year, month + 1, 0));
+    return {
+      key: String(year).padStart(4, '0') + '-' + String(month + 1).padStart(2, '0'),
+      from: utcDateKey(first),
+      to: utcDateKey(last),
+      label: monthLabels[month] + ' ' + year
+    };
+  };
+
+  (trades || []).forEach(trade => {
+    const dateKey = String(trade && trade.date || '').slice(0, 10);
+    const date = utcDateFromKey(dateKey);
+    if (!date) { excluded.invalidDate++; return; }
+
+    const pnl = Number(trade && trade.pnl);
+    if (!Number.isFinite(pnl)) { excluded.invalidPnl++; return; }
+
+    const info = selectedPeriod === 'week' ? isoWeekInfo(dateKey) : monthInfo(date);
+    const key = selectedPeriod === 'week' ? info.from : info.key;
+    if (!groups[key]) groups[key] = { key, ...info, trades: [] };
+    groups[key].trades.push({
+      date: dateKey,
+      buyDate: String(trade && trade.buyDate || '').slice(0, 10),
+      buyTime: trade && trade.buyTime,
+      desc: trade && trade.desc,
+      pnl,
+      tax: Number.isFinite(Number(trade && trade.tax)) ? Number(trade.tax) : 0
+    });
+  });
+
+  const makeBucket = (key, label, kind) => ({
+    key, label, kind, n: 0, pnl: 0, wins: 0, losses: 0
+  });
+  const addTrade = (bucket, trade) => {
+    bucket.n++;
+    bucket.pnl += trade.pnl;
+    if (trade.pnl > 0) bucket.wins++;
+    if (trade.pnl < 0) bucket.losses++;
+  };
+  const finishBucket = bucket => {
+    if (!bucket || bucket.n === 0) return null;
+    const decided = bucket.wins + bucket.losses;
+    return {
+      key: bucket.key,
+      label: bucket.label,
+      kind: bucket.kind,
+      n: bucket.n,
+      pnl: roundMoney(bucket.pnl),
+      avg: roundMoney(bucket.pnl / bucket.n),
+      wins: bucket.wins,
+      losses: bucket.losses,
+      winrate: decided > 0 ? roundMoney((bucket.wins / decided) * 100) : 0
+    };
+  };
+  const mostNegative = buckets => buckets
+    .map(finishBucket)
+    .filter(Boolean)
+    .reduce((worst, bucket) => !worst || bucket.pnl < worst.pnl ? bucket : worst, null);
+
+  const reviews = Object.values(groups)
+    .sort((a, b) => b.key.localeCompare(a.key))
+    .map(group => {
+      const directions = {
+        long: makeBucket('long', 'Long / Call', 'direction'),
+        short: makeBucket('short', 'Short / Put', 'direction'),
+        neutral: makeBucket('neutral', 'Neutral', 'direction')
+      };
+      const phases = TIME_BLOCKS.map(block =>
+        makeBucket(block.key, block.label, 'phase'));
+      const overnight = makeBucket('overnight', 'Overnight', 'overnight');
+      const lossDirections = {
+        long: makeBucket('long', 'Long / Call', 'direction'),
+        short: makeBucket('short', 'Short / Put', 'direction'),
+        neutral: makeBucket('neutral', 'Neutral', 'direction')
+      };
+      const lossPhases = TIME_BLOCKS.map(block =>
+        makeBucket(block.key, block.label, 'phase'));
+      const lossOvernight = makeBucket('overnight', 'Overnight', 'overnight');
+      let pnl = 0;
+      let tax = 0;
+      let wins = 0;
+      let losses = 0;
+      let worstTrade = null;
+
+      group.trades.forEach(trade => {
+        pnl += trade.pnl;
+        tax += trade.tax;
+        if (trade.pnl > 0) wins++;
+        if (trade.pnl < 0) losses++;
+
+        const direction = tradeDirection(trade.desc);
+        addTrade(directions[direction], trade);
+        const minutes = timeToMinutes(trade.buyTime);
+        const phaseIndex = TIME_BLOCKS.findIndex(block =>
+          minutes !== null && minutes >= block.from && minutes < block.to);
+        if (phaseIndex >= 0) addTrade(phases[phaseIndex], trade);
+
+        const isOvernight = !!trade.buyDate && trade.buyDate !== trade.date;
+        if (isOvernight) addTrade(overnight, trade);
+
+        if (trade.pnl < 0) {
+          addTrade(lossDirections[direction], trade);
+          if (phaseIndex >= 0) addTrade(lossPhases[phaseIndex], trade);
+          if (isOvernight) addTrade(lossOvernight, trade);
+          if (!worstTrade || trade.pnl < worstTrade.pnl) {
+            worstTrade = { date: trade.date, desc: trade.desc || '', pnl: roundMoney(trade.pnl) };
+          }
+        }
+      });
+
+      const directionResults = [directions.long, directions.short, directions.neutral]
+        .map(finishBucket).filter(Boolean);
+      const phaseResults = phases.map(finishBucket).filter(Boolean);
+      const overnightResult = finishBucket(overnight);
+      // Die Reihenfolge ist absichtlich stabil: Bei gleichem Durchschnitt
+      // gewinnt die konkretere Handelsrichtung vor einer zeitlichen Phase.
+      const candidates = [
+        ...directionResults.filter(bucket => bucket.key !== 'neutral'),
+        ...phaseResults,
+        ...(overnightResult ? [overnightResult] : [])
+      ].filter(bucket => bucket.n >= threshold);
+      const strongest = candidates.reduce((best, bucket) =>
+        bucket.avg > 0 && (!best || bucket.avg > best.avg) ? bucket : best, null);
+      const weakest = candidates.reduce((worst, bucket) =>
+        bucket.avg < 0 && (!worst || bucket.avg < worst.avg) ? bucket : worst, null);
+      const notablePhase = phaseResults
+        .filter(bucket => bucket.n >= threshold)
+        .reduce((notable, bucket) =>
+          !notable || Math.abs(bucket.avg) > Math.abs(notable.avg) ? bucket : notable, null);
+      const decided = wins + losses;
+
+      return {
+        key: group.key,
+        label: group.label,
+        from: group.from,
+        to: group.to,
+        minSample: threshold,
+        summary: {
+          n: group.trades.length,
+          pnl: roundMoney(pnl),
+          tax: roundMoney(tax),
+          wins,
+          losses,
+          winrate: decided > 0 ? roundMoney((wins / decided) * 100) : 0,
+          avg: roundMoney(pnl / group.trades.length)
+        },
+        strongest,
+        weakest,
+        notablePhase,
+        directions: directionResults,
+        phases: phaseResults,
+        overnight: overnightResult,
+        losses: {
+          n: losses,
+          pnl: roundMoney(group.trades
+            .filter(trade => trade.pnl < 0)
+            .reduce((sum, trade) => sum + trade.pnl, 0)),
+          worstTrade,
+          dominantDirection: mostNegative(Object.values(lossDirections)),
+          dominantPhase: mostNegative(lossPhases),
+          overnight: finishBucket(lossOvernight) || {
+            key: 'overnight', label: 'Overnight', kind: 'overnight',
+            n: 0, pnl: 0, avg: 0, wins: 0, losses: 0, winrate: 0
+          }
+        }
+      };
+    });
+
+  return { period: selectedPeriod, minSample: threshold, reviews, excluded };
+}
+
+// ------------------------------------------------------------
 // Vergleicht Long/Call und Short/Put nach Wochentag. Standard ist der
 // Einstiegstag, weil dort die Handelsentscheidung getroffen wurde. Alt- und
 // manuelle Trades ohne buyDate werden nicht stillschweigend dem Ausstiegstag

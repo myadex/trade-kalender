@@ -6,7 +6,7 @@ Ein Skript, alle Checks. Vor JEDEM Push laufen lassen — nur bei
 ## Setup (einmalig, im Projekt-Root)
 
 ```
-npm install acorn jsdom
+npm ci
 ```
 
 Das legt `node_modules/` im Projektordner an (in `.gitignore` aufnehmen).
@@ -16,11 +16,15 @@ Node-Auflösung (test/ -> Projektroot).
 ## Ausführen (aus dem Projekt-Root)
 
 ```
-node test/test_pwa.js
+npm test
 ```
 
 Erwartetes Ende: `ALL GREEN — safe to deliver`. Bei Rot: Fehlerliste
 lesen, erst verstehen (Test falsch oder Code falsch?), dann fixen.
+
+Dasselbe Kommando läuft bei jedem Push und Pull Request in GitHub Actions.
+Der Workflow verwendet Node 24 und installiert den eingecheckten Lockfile-
+Stand reproduzierbar mit `npm ci`.
 
 ## Was geprüft wird (Kategorien)
 

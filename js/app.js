@@ -15,7 +15,8 @@ import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, c
 import {
   aggregateWeeks, aggregateMonths, computeStats, computeEquityCurve,
   computeWeekdayStats, computeTimeStats, computeInsights, diagnoseBucket,
-  computeMonthlyDiscipline, filterTrades, holdMinutes, tradeDirection
+  computeMonthlyDiscipline, filterTrades, holdMinutes, tradeDirection,
+  computePeriodReviews
 } from './views.js';
 import {
   parseScalableCsv, markDuplicates, mergeImportRows, updateImportSellRow,
@@ -420,7 +421,86 @@ function buildCalendar() {
 /* ============================================================
    WEEKLY
    ============================================================ */
+function renderPeriodReview(prefix, result) {
+  const select = $(prefix + '-review-select');
+  const grid = $(prefix + '-review-grid');
+  const note = $(prefix + '-review-note');
+  const previousKey = select.value;
+  const reviews = result.reviews || [];
+
+  select.innerHTML = reviews.map(review =>
+    '<option value="' + escapeHtml(review.key) + '">' + escapeHtml(review.label) + '</option>'
+  ).join('');
+  select.disabled = reviews.length === 0;
+
+  const renderSelected = key => {
+    const review = reviews.find(item => item.key === key) || reviews[0];
+    if (!review) {
+      grid.innerHTML = '<div class="period-review-empty">Noch keine geschlossenen Trades f&uuml;r dieses Review vorhanden.</div>';
+      note.textContent = '';
+      return;
+    }
+
+    select.value = review.key;
+    const summary = review.summary;
+    const strongest = review.strongest;
+    const weakest = review.weakest;
+    const loss = review.losses;
+    const phase = review.notablePhase;
+    const patternCard = (title, pattern, cssClass, emptyText) => {
+      if (!pattern) {
+        return '<article class="period-review-card"><div class="period-review-card-label">' + title + '</div>' +
+          '<div class="period-review-card-value">Noch nicht belastbar</div>' +
+          '<div class="period-review-card-meta">' + escapeHtml(emptyText) + '</div></article>';
+      }
+      return '<article class="period-review-card"><div class="period-review-card-label">' + title + '</div>' +
+        '<div class="period-review-card-value ' + cssClass + '">' + escapeHtml(pattern.label) + '</div>' +
+        '<div class="period-review-card-meta"><strong>' + fmtDE(pattern.avg) + ' / Trade</strong><br>' +
+        pattern.n + ' Trades &middot; gesamt ' + fmtDE(pattern.pnl) + '</div></article>';
+    };
+    const lossDetails = loss.n === 0
+      ? 'Keine Verlusttrades in dieser Periode.'
+      : '<strong>' + loss.n + ' Verluste &middot; ' + fmtDE(loss.pnl) + '</strong><br>' +
+        (loss.worstTrade
+          ? 'Schlimmster Trade: ' + escapeHtml(loss.worstTrade.desc || 'Ohne Produkt') + ' (' + fmtDE(loss.worstTrade.pnl) + ')<br>'
+          : '') +
+        (loss.dominantDirection
+          ? 'Richtung: ' + escapeHtml(loss.dominantDirection.label) + ' (' + fmtDE(loss.dominantDirection.pnl) + ')<br>'
+          : '') +
+        (loss.dominantPhase
+          ? 'Einstiegsphase: ' + escapeHtml(loss.dominantPhase.label) + ' (' + fmtDE(loss.dominantPhase.pnl) + ')<br>'
+          : '') +
+        (loss.overnight.n > 0
+          ? 'Overnight: ' + loss.overnight.n + ' &middot; ' + fmtDE(loss.overnight.pnl)
+          : 'Overnight: keine Verluste');
+
+    grid.innerHTML =
+      '<article class="period-review-card"><div class="period-review-card-label">Periodenergebnis</div>' +
+        '<div class="period-review-card-value ' + (summary.pnl >= 0 ? 'pos' : 'neg') + '">' + fmtDE(summary.pnl) + '</div>' +
+        '<div class="period-review-card-meta"><strong>' + summary.n + ' Trades &middot; ' + fmtPlain(summary.winrate, 1) + '% Treffer</strong><br>' +
+        '&Oslash; ' + fmtDE(summary.avg) + ' / Trade &middot; Steuer ' + fmtDE(summary.tax) +
+        (phase ? '<br>Auff&auml;llige Phase: ' + escapeHtml(phase.label) + ' (' + fmtDE(phase.avg) + ' / Trade)' : '') +
+        '</div></article>' +
+      patternCard('St\u00e4rkstes Muster', strongest, 'pos', 'Kein positives Muster mit mindestens ' + result.minSample + ' Trades.') +
+      patternCard('Schw\u00e4chstes Muster', weakest, 'neg', 'Kein negatives Muster mit mindestens ' + result.minSample + ' Trades.') +
+      '<article class="period-review-card"><div class="period-review-card-label">Verlustursachen</div>' +
+        '<div class="period-review-card-value ' + (loss.n > 0 ? 'neg' : 'pos') + '">' +
+        (loss.n > 0 ? fmtDE(loss.pnl) : 'Keine') + '</div>' +
+        '<div class="period-review-card-meta">' + lossDetails + '</div></article>';
+    note.textContent = 'Muster werden erst ab ' + result.minSample + ' gleichartigen Trades bewertet. ' +
+      'Gruppierung nach Ausstiegsdatum.' +
+      ((result.excluded.invalidDate || result.excluded.invalidPnl)
+        ? ' Ausgeschlossen: ' + result.excluded.invalidDate + ' ung\u00fcltige Datumswerte, ' +
+          result.excluded.invalidPnl + ' ung\u00fcltige P&L-Werte.'
+        : '');
+  };
+
+  select.onchange = () => renderSelected(select.value);
+  renderSelected(reviews.some(review => review.key === previousKey) ? previousKey : (reviews[0] && reviews[0].key));
+}
+
 function buildWeekly() {
+  renderPeriodReview('weekly', computePeriodReviews(DATA.trades, 'week', 3));
   const sorted = aggregateWeeks(dayMapDATA());
   const maxAbs = Math.max(...sorted.map(w => Math.abs(w.pnl)), 1);
   const tbody = $('weekly-tbody');
@@ -437,6 +517,7 @@ function buildWeekly() {
    MONTHLY
    ============================================================ */
 function buildMonthly() {
+  renderPeriodReview('monthly', computePeriodReviews(DATA.trades, 'month', 5));
   const sorted = aggregateMonths(dayMapDATA());
   const maxAbs = Math.max(...sorted.map(m => Math.abs(m.pnl)), 1);
   const MON = { '01': 'Jan', '02': 'Feb', '03': 'M\u00e4r', '04': 'Apr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Okt', '11': 'Nov', '12': 'Dez' };

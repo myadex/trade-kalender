@@ -20,7 +20,7 @@ test/           Test-Harness (siehe test/README.md)
 
 ## Nicht verhandelbare Regeln
 
-1. **Kein Deliverable ohne grünen Test.** Vor jeder Lieferung: `node test/test_pwa.js` → muss mit „ALL GREEN — safe to deliver" enden.
+1. **Kein Deliverable ohne grünen Test.** Vor jeder Lieferung: `npm test` → muss mit „ALL GREEN — safe to deliver" enden.
 2. **Jeder Bug wird permanenter Test.** Erst Test schreiben (rot), dann fixen (grün), dann Bug testweise wieder einbauen und den roten Lauf zeigen (Beweis).
 3. **Logik pure, I/O getrennt.** Berechnung/Parsing/Validierung als pure functions in views/fifo/import/storage — Daten und Abhängigkeiten als Parameter, kein DOM, kein globaler Zustand. UI-Code nur in app.js.
 4. **Kleine Etappen.** Umbauten in einzeln getestete Schritte zerlegen; bei Richtungsentscheidungen Optionen anbieten (klein/sicher vs. groß/gründlich). Im Zweifel: klein.
@@ -76,4 +76,4 @@ als Test-Fixture eingecheckt werden.
 
 ## Workflow
 
-Lokal: VS Code + Live Server (`http://127.0.0.1:5500/index.html`). Test: `node test/test_pwa.js` (Setup siehe test/README.md). Deploy: `git add . && git commit && git push` → GitHub Pages. Danach: Hard-Reload, Versionsnummer im Header verifizieren.
+Lokal: VS Code + Live Server (`http://127.0.0.1:5500/index.html`). Test: `npm test` (Setup siehe test/README.md). Deploy: `git add . && git commit && git push` → GitHub Pages. Danach: Hard-Reload, Versionsnummer im Header verifizieren.

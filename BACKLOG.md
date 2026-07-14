@@ -174,9 +174,18 @@ Wartbarkeit bzw. Komfort.
 
 ### Wochen- und Monatsreview
 
-- **Status:** Offen; kleinere Prioritaet.
+- **Status:** Erledigt in v54.
 - **Ziel:** Regelmaessige Zusammenfassung der staerksten und schwaechsten
   Muster, Verlustursachen und auffaelligen Handelsphasen.
+- **Umsetzung:** Wochen- und Monats-Tab besitzen jeweils ein kompaktes Review
+  mit Periodenauswahl. Es zeigt Netto-P&L, Steuer, Trefferquote, Durchschnitt
+  je Trade, staerkstes und schwaechstes Muster sowie die groessten
+  Verlusttreiber inklusive schlimmstem Trade, Einstiegsphase und Overnight.
+- **Belastbarkeit:** Wochenmuster werden ab drei, Monatsmuster ab fuenf
+  gleichartigen Trades bewertet. Einzelne Ausreisser bleiben separat sichtbar,
+  gelten aber nicht voreilig als Muster.
+- **Zeitraum:** Die Zuordnung folgt wie die vorhandenen Tabellen dem
+  Ausstiegsdatum; Wochen sind ISO-Kalenderwochen von Montag bis Sonntag.
 
 ## Prioritaet 3
 
@@ -189,9 +198,14 @@ Wartbarkeit bzw. Komfort.
 
 ### Testlauf als Standardkommando und CI etablieren
 
-- **Status:** Offen.
+- **Status:** Erledigt in v55.
 - **Ziel:** `npm test` als Einstiegspunkt sowie einen GitHub-Actions-Lauf bei
   jedem Push und Pull Request einrichten.
+- **Umsetzung:** `package.json` definiert den lokalen Standardeinstieg. Der
+  Workflow installiert den Lockfile-Stand reproduzierbar mit `npm ci` unter
+  Node 24 und startet anschliessend dieselbe vollstaendige Testsuite.
+- **Sicherheit:** Der Workflow besitzt nur lesenden Repository-Zugriff, setzt
+  ein Zeitlimit und verwendet die offiziellen GitHub-Actions in Version 6.
 
 ### Node-ESM-Warnung im Testlauf beseitigen
 

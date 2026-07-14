@@ -112,7 +112,15 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .op-btns{display:flex;gap:.4rem;align-items:center;flex-shrink:0;}
 .btn-del-pos{font-family:'JetBrains Mono',monospace;font-size:.72rem;padding:.4rem .55rem;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:none;color:var(--muted);flex-shrink:0;line-height:1;}
 .btn-del-pos:hover{border-color:var(--red-mid);color:var(--red);background:var(--red-bg);}
-.equity-section{margin-bottom:2rem;padding-bottom:1.6rem;border-bottom:1px solid var(--border);}
+.stats-view-nav{display:flex;gap:.35rem;overflow-x:auto;position:sticky;top:.5rem;z-index:20;margin-bottom:1.35rem;padding:.35rem;border:1px solid var(--border);border-radius:10px;background:rgba(13,20,32,.96);scrollbar-width:thin;-webkit-overflow-scrolling:touch;}
+.stats-view-nav-btn{flex:1 0 150px;font-family:'JetBrains Mono',monospace;font-size:.62rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:.6rem .85rem;border:1px solid transparent;border-radius:7px;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;}
+.stats-view-nav-btn:hover{color:var(--ink);background:var(--bg);}.stats-view-nav-btn.active{color:var(--ink);border-color:var(--green-mid);background:var(--green-bg);}
+.stats-view-nav-btn:focus-visible{outline:2px solid var(--green);outline-offset:1px;}
+.stats-view[hidden]{display:none;}
+.stats-view{min-height:240px;}
+.stats-content-section{margin-bottom:2rem;padding-bottom:1.6rem;border-bottom:1px solid var(--border);}
+.stats-view>.stats-content-section:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none;}
+.equity-section{margin-bottom:0;padding-bottom:0;border-bottom:none;}
 .equity-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin-bottom:.8rem;}
 .equity-card{border:1px solid var(--border);border-radius:9px;padding:.65rem .7rem;background:var(--paper);min-width:0;}
 .equity-card-label{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -129,6 +137,27 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .equity-dd-marker{fill:var(--red);stroke:var(--paper);stroke-width:2;}
 .equity-note,.equity-empty{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);line-height:1.45;}
 .equity-note{margin-top:.45rem;}.equity-empty{padding:4.5rem 1rem;text-align:center;}
+.weekday-section{margin-bottom:2rem;padding-bottom:1.6rem;border-bottom:1px solid var(--border);}
+.weekday-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.65rem;}
+.weekday-card{border:1px solid var(--border);border-radius:10px;padding:.75rem;background:var(--paper);min-width:0;}
+.weekday-card-head{min-height:58px;margin-bottom:.55rem;padding-bottom:.5rem;border-bottom:1px solid var(--border);}
+.weekday-card h3{font-family:'Chakra Petch',sans-serif;font-size:1rem;font-weight:600;color:var(--ink);margin:0 0 .18rem;}
+.weekday-tendency{font-family:'JetBrains Mono',monospace;font-size:.52rem;line-height:1.4;color:var(--muted);}
+.weekday-tendency.long{color:var(--green);}.weekday-tendency.short{color:var(--red);}.weekday-tendency.tie{color:var(--blue);}
+.weekday-direction{border:1px solid var(--border);border-radius:8px;padding:.55rem;margin-top:.45rem;}
+.weekday-direction.long{border-left:3px solid var(--green);}.weekday-direction.short{border-left:3px solid var(--red);}
+.weekday-direction-head{display:flex;align-items:center;justify-content:space-between;gap:.4rem;}
+.weekday-badge{font-family:'JetBrains Mono',monospace;font-size:.5rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:.15rem .4rem;border-radius:4px;}
+.weekday-badge.long{color:var(--green);background:var(--green-bg);}.weekday-badge.short{color:var(--red);background:var(--red-bg);}
+.weekday-count{font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--muted);}
+.weekday-average{display:flex;align-items:baseline;justify-content:space-between;gap:.4rem;margin:.5rem 0 .4rem;}
+.weekday-average span{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.weekday-average strong{font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:600;}.weekday-average strong.pos{color:var(--green);}.weekday-average strong.neg{color:var(--red);}
+.weekday-metrics{display:grid;grid-template-columns:1fr 1fr;gap:.35rem .55rem;}
+.weekday-metrics div{min-width:0;}.weekday-metrics span{display:block;font-family:'JetBrains Mono',monospace;font-size:.45rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.weekday-metrics b{display:block;font-family:'JetBrains Mono',monospace;font-size:.56rem;font-weight:500;color:var(--ink);margin-top:.08rem;white-space:nowrap;}
+.weekday-sample{font-family:'JetBrains Mono',monospace;font-size:.46rem;color:var(--muted);margin-top:.45rem;}.weekday-sample.ready{color:var(--green);}
+.weekday-note{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);line-height:1.5;margin:-.25rem 0 .8rem;}
 .ts-head{margin-bottom:1rem;}
 .ts-title{font-family:'Chakra Petch',sans-serif;font-size:1.3rem;font-weight:600;color:var(--ink);margin:0;letter-spacing:.03em;}
 .ts-sub{font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:.25rem;}
@@ -410,33 +439,81 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <div id="tab-open" class="section"><div id="open-pos-wrap"></div><div id="hidden-pos-wrap"></div></div>
 
 <div id="tab-timestats" class="section">
-  <div class="equity-section">
-    <div class="ts-head">
-      <h2 class="ts-title">Equity &amp; Drawdown</h2>
-      <div class="ts-sub">Realisierte Tagesendst&auml;nde und Abstand zum bisherigen Hoch</div>
+  <div class="stats-view-nav" role="tablist" aria-label="Statistikbereich ausw&auml;hlen"
+    onkeydown="handleStatsViewKey(event)">
+    <button id="stats-nav-performance" class="stats-view-nav-btn active" type="button" role="tab"
+      aria-selected="true" aria-controls="stats-view-performance" tabindex="0"
+      onclick="setStatsView('performance')">Performance</button>
+    <button id="stats-nav-timing" class="stats-view-nav-btn" type="button" role="tab"
+      aria-selected="false" aria-controls="stats-view-timing" tabindex="-1"
+      onclick="setStatsView('timing')">Timing</button>
+    <button id="stats-nav-behavior" class="stats-view-nav-btn" type="button" role="tab"
+      aria-selected="false" aria-controls="stats-view-behavior" tabindex="-1"
+      onclick="setStatsView('behavior')">Verhalten</button>
+  </div>
+
+  <section id="stats-view-performance" class="stats-view active" role="tabpanel"
+    aria-labelledby="stats-nav-performance">
+    <div class="equity-section">
+      <div class="ts-head">
+        <h2 class="ts-title">Equity &amp; Drawdown</h2>
+        <div class="ts-sub">Realisierte Tagesendst&auml;nde und Abstand zum bisherigen Hoch</div>
+      </div>
+      <div id="equity-summary" class="equity-summary"></div>
+      <div id="equity-chart" class="equity-chart"></div>
+      <div id="equity-note" class="equity-note"></div>
     </div>
-    <div id="equity-summary" class="equity-summary"></div>
-    <div id="equity-chart" class="equity-chart"></div>
-    <div id="equity-note" class="equity-note"></div>
-  </div>
-  <div class="ts-head">
-    <h2 class="ts-title">Uhrzeit-Statistik</h2>
-    <div class="ts-sub">P&amp;L und Trefferquote nach DAX-Handelsphasen (Verkaufszeitpunkt)</div>
-  </div>
-  <div id="ts-insights"></div>
-  <div class="ts-mode-row">
-    <button id="ts-mode-sell" class="ts-mode-btn active" onclick="setTsMode('sell')">Nach Ausstieg</button>
-    <button id="ts-mode-buy" class="ts-mode-btn" onclick="setTsMode('buy')">Nach Einstieg</button>
-  </div>
-  <div id="ts-note" style="display:none"></div>
-  <div id="ts-overnight"></div>
-  <div id="ts-blocks"></div>
-  <h3 class="ts-h3">Stunden-Profil</h3>
-  <div id="ts-hours"></div>
-  <h3 class="ts-h3">Overnight-Analyse (nach Einstiegszeit)</h3>
-  <div id="ts-on-detail"></div>
-  <h3 class="ts-h3">Disziplin-Trend (Monat)</h3>
-  <div id="ts-discipline"></div>
+  </section>
+
+  <section id="stats-view-timing" class="stats-view" role="tabpanel"
+    aria-labelledby="stats-nav-timing" hidden>
+    <div class="weekday-section">
+      <div class="ts-head">
+        <h2 class="ts-title">Wochentage: Long vs. Short</h2>
+        <div class="ts-sub">Welche Richtung lieferte pro Handelstag das bessere durchschnittliche Netto-P&amp;L?</div>
+      </div>
+      <div class="ts-mode-row">
+        <button id="weekday-mode-buy" class="ts-mode-btn active" aria-pressed="true" onclick="setWeekdayMode('buy')">Nach Einstieg</button>
+        <button id="weekday-mode-sell" class="ts-mode-btn" aria-pressed="false" onclick="setWeekdayMode('sell')">Nach Ausstieg</button>
+      </div>
+      <div id="weekday-note" class="weekday-note"></div>
+      <div id="weekday-grid" class="weekday-grid"></div>
+    </div>
+    <div class="stats-content-section">
+      <div class="ts-head">
+        <h2 class="ts-title">Uhrzeit-Statistik</h2>
+        <div class="ts-sub">P&amp;L und Trefferquote nach DAX-Handelsphasen</div>
+      </div>
+      <div id="ts-insights"></div>
+      <div class="ts-mode-row">
+        <button id="ts-mode-sell" class="ts-mode-btn active" onclick="setTsMode('sell')">Nach Ausstieg</button>
+        <button id="ts-mode-buy" class="ts-mode-btn" onclick="setTsMode('buy')">Nach Einstieg</button>
+      </div>
+      <div id="ts-note" style="display:none"></div>
+      <div id="ts-overnight"></div>
+      <div id="ts-blocks"></div>
+      <h3 class="ts-h3">Stunden-Profil</h3>
+      <div id="ts-hours"></div>
+    </div>
+  </section>
+
+  <section id="stats-view-behavior" class="stats-view" role="tabpanel"
+    aria-labelledby="stats-nav-behavior" hidden>
+    <div class="stats-content-section">
+      <div class="ts-head">
+        <h2 class="ts-title">Overnight-Analyse</h2>
+        <div class="ts-sub">Haltedauer und Ergebnis nach Einstiegszeit</div>
+      </div>
+      <div id="ts-on-detail"></div>
+    </div>
+    <div class="stats-content-section">
+      <div class="ts-head">
+        <h2 class="ts-title">Disziplin-Trend</h2>
+        <div class="ts-sub">Monatliche Entwicklung auff&auml;lliger Handelsmuster</div>
+      </div>
+      <div id="ts-discipline"></div>
+    </div>
+  </section>
 </div>
 </div>
 

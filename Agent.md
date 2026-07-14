@@ -48,6 +48,13 @@ als Test-Fixture eingecheckt werden.
   offene Positionen sind keine Equity-Daten. Prozentwerte nur mit positivem
   Startkapital anzeigen. Maximalbetrag und zugehörige Quote müssen vom selben
   Drawdown-Punkt stammen.
+- **Wochentage:** Einstieg und Ausstieg nie vermischen; der Einstiegstag ist
+  Standard. Fehlende Datumswerte und neutrale Produkte ehrlich ausschliessen.
+  Eine Long-/Short-Tendenz erst ab n>=8 je Richtung und Wochentag ausweisen und
+  dafuer das durchschnittliche Netto-P&L pro Trade vergleichen.
+- **Statistik-UI:** Neue Analysen einem der internen Bereiche `Performance`,
+  `Timing` oder `Verhalten` zuordnen. Keine weitere lange Statistikseite und
+  keine zusaetzlichen Haupttabs fuer einzelne Auswertungen einfuehren.
 - **Steuer:** immer MIT Vorzeichen rechnen (negativ = Erstattung). NIE `Math.abs(tax)` in P&L-Mathematik (nur in Anzeige-Strings erlaubt).
 - **FIFO:** Sortierung Datum+Zeit mit Buy-vor-Sell-Tiebreak bei gleichem Timestamp.
 - **UIDs:** kanonisches Format `ISIN_DATUM_SELL_SHARES` — Duplikat-Erkennung bei Re-Imports hängt daran.

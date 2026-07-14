@@ -610,6 +610,48 @@ const realFifoCheck = (async () => {
     check('timeStats: Winrate US-Block 100%', tst.blocks.find(b => b.key === 'us').winrate === 100);
     check('timeStats: timeToMinutes', vmod.timeToMinutes('17:26:48') === 1046 && vmod.timeToMinutes('kaputt') === null);
     check('direction: Short/Put/Long/Call/neutral', vmod.tradeDirection('DAX Short 26.680 Turbo') === 'short' && vmod.tradeDirection('DAX Put OS') === 'short' && vmod.tradeDirection('DAX Long Turbo') === 'long' && vmod.tradeDirection('Call auf DAX') === 'long' && vmod.tradeDirection('ServiceNow') === 'neutral');
+    check('weekdayStats: pure Berechnung exportiert',
+      typeof vmod.computeWeekdayStats === 'function');
+    const weekdayTrades = [
+      { pnl: 100, buyDate: '2026-07-13', date: '2026-07-14', desc: 'DAX Long Turbo' },
+      { pnl: -20, buyDate: '2026-07-13', date: '2026-07-14', desc: 'Call auf DAX' },
+      { pnl: 30, buyDate: '2026-07-13', date: '2026-07-14', desc: 'DAX Short Turbo' },
+      { pnl: 10, buyDate: '2026-07-13', date: '2026-07-14', desc: 'DAX Put' },
+      { pnl: 500, buyDate: '2026-07-13', date: '2026-07-13', desc: 'ServiceNow' },
+      { pnl: 999, date: '2026-07-13', desc: 'DAX Long Turbo' }
+    ];
+    const weekdayBuy = typeof vmod.computeWeekdayStats === 'function'
+      ? vmod.computeWeekdayStats(weekdayTrades, 'buy', 2)
+      : null;
+    const weekdayMonday = weekdayBuy && weekdayBuy.days[0];
+    check('weekdayStats: Montag trennt Long und Short',
+      !!weekdayMonday && weekdayMonday.label === 'Montag' &&
+      weekdayMonday.long.n === 2 && weekdayMonday.short.n === 2);
+    check('weekdayStats: Long-Handwerte inkl. Median und Profit Factor',
+      !!weekdayMonday && weekdayMonday.long.pnl === 80 && weekdayMonday.long.avg === 40 &&
+      weekdayMonday.long.median === 40 && weekdayMonday.long.winrate === 50 &&
+      weekdayMonday.long.profitFactor === 5);
+    check('weekdayStats: Montag-Tendenz nutzt Durchschnitt pro Trade',
+      !!weekdayMonday && weekdayMonday.comparison.winner === 'long' &&
+      weekdayMonday.comparison.edge === 20);
+    check('weekdayStats: neutrale Richtung und fehlendes Einstiegsdatum ehrlich gezaehlt',
+      !!weekdayBuy && weekdayBuy.excluded.neutral === 1 && weekdayBuy.excluded.missingDate === 1);
+    const weekdaySell = typeof vmod.computeWeekdayStats === 'function'
+      ? vmod.computeWeekdayStats(weekdayTrades, 'sell', 2)
+      : null;
+    check('weekdayStats: Umschalter gruppiert alternativ nach Ausstiegstag',
+      !!weekdaySell && weekdaySell.days[1].long.n === 2 && weekdaySell.days[1].short.n === 2 &&
+      weekdaySell.days[0].long.n === 1);
+    const weekdayDefault = typeof vmod.computeWeekdayStats === 'function'
+      ? vmod.computeWeekdayStats(weekdayTrades, 'buy')
+      : null;
+    check('weekdayStats: Standard-Mindeststichprobe ist acht je Richtung',
+      !!weekdayDefault && weekdayDefault.minSample === 8 &&
+      weekdayDefault.days[0].comparison === null);
+    check('UI: Wochentagsstatistik und Einstieg/Ausstieg-Umschalter verdrahtet',
+      html.includes('id="weekday-grid"') && html.includes('id="weekday-mode-buy"') &&
+      html.includes('id="weekday-mode-sell"') && appJs.includes('function buildWeekdayStats()') &&
+      appJs.includes('function setWeekdayMode(mode)') && appJs.includes('buildWeekdayStats();'));
     const dst = vmod.computeTimeStats([
       { pnl: 100, time: '09:15:00', desc: 'DAX Long Turbo' },
       { pnl: -50, time: '09:30:00', desc: 'DAX Short Turbo' },
@@ -791,6 +833,19 @@ check('CSS fuer Stunden-Richtungszeile', html.includes('.ts-hour-dir{'));
 check('Statistik-Tab in Tab-Order', appJs.includes("'open', 'timestats'"));
 check('buildTimeStats vorhanden + in rebuildAll', appJs.includes('function buildTimeStats') && /rebuildAll[\s\S]{0,400}buildTimeStats\(\)/.test(appJs) || appJs.includes('buildTimeStats();'));
 check('HTML: Statistik-Section vorhanden', html.includes('id="tab-timestats"') && html.includes('ts-blocks'));
+check('Statistik-UI: interne Navigation mit drei Bereichen vorhanden',
+  html.includes('id="stats-nav-performance"') && html.includes('id="stats-nav-timing"') &&
+  html.includes('id="stats-nav-behavior"') && html.includes('id="stats-view-performance"') &&
+  html.includes('id="stats-view-timing"') && html.includes('id="stats-view-behavior"'));
+check('Statistik-UI: Bereichswechsel ist verdrahtet und global erreichbar',
+  appJs.includes('function setStatsView(view)') && appJs.includes('window.setStatsView = setStatsView'));
+check('Statistik-UI: interne Tabs sind per Pfeiltasten erreichbar',
+  html.includes('onkeydown="handleStatsViewKey(event)"') &&
+  appJs.includes('function handleStatsViewKey(event)') &&
+  appJs.includes("'ArrowLeft', 'ArrowRight', 'Home', 'End'"));
+check('Statistik-UI: Untermenue bleibt auf kleinen Displays horizontal bedienbar',
+  html.includes('.stats-view-nav{') && html.includes('overflow-x:auto') &&
+  html.includes('.stats-view-nav-btn{'));
 
 console.log('\n=== 6d. VERSION ===');
 {
@@ -824,6 +879,22 @@ try {
   const allSections = [...doc.querySelectorAll('.section')];
   const firstParent = allSections[0] && allSections[0].parentElement;
   check('alle .section-Tabs im selben Container', allSections.length >= 5 && allSections.every(s => s.parentElement === firstParent));
+  const statsPerformance = doc.getElementById('stats-view-performance');
+  const statsTiming = doc.getElementById('stats-view-timing');
+  const statsBehavior = doc.getElementById('stats-view-behavior');
+  check('Statistik-UI: Performance ist der sichtbare Standardbereich',
+    !!statsPerformance && !statsPerformance.hidden && !!statsTiming && statsTiming.hidden &&
+    !!statsBehavior && statsBehavior.hidden);
+  check('Statistik-UI: Equity liegt ausschliesslich im Performance-Bereich',
+    !!statsPerformance && statsPerformance.contains(doc.getElementById('equity-summary')) &&
+    !statsTiming.contains(doc.getElementById('equity-summary')));
+  check('Statistik-UI: Wochentage, Uhrzeit und Stunden liegen im Timing-Bereich',
+    !!statsTiming && statsTiming.contains(doc.getElementById('weekday-grid')) &&
+    statsTiming.contains(doc.getElementById('ts-blocks')) &&
+    statsTiming.contains(doc.getElementById('ts-hours')));
+  check('Statistik-UI: Overnight und Disziplin liegen im Verhalten-Bereich',
+    !!statsBehavior && statsBehavior.contains(doc.getElementById('ts-on-detail')) &&
+    statsBehavior.contains(doc.getElementById('ts-discipline')));
   check('kein Streutext vor <html> (kaputter Einbau)', !doc.body.textContent.includes('html>'));
   check('calendar container present', !!doc.getElementById('cal-container'));
   check('Monats-Kalender: Navigation (calMonth state)', appJs.includes('let calMonth') && appJs.includes('let calYear'));

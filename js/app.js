@@ -14,7 +14,8 @@ import {
 import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, createData, updateData, createWriteQueue } from './storage.js';
 import {
   aggregateWeeks, aggregateMonths, computeStats, computeEquityCurve,
-  computeTimeStats, computeInsights, diagnoseBucket, computeMonthlyDiscipline
+  computeWeekdayStats, computeTimeStats, computeInsights, diagnoseBucket,
+  computeMonthlyDiscipline
 } from './views.js';
 import { parseScalableCsv, markDuplicates, mergeImportRows, updateImportSellRow } from './import.js';
 
@@ -188,6 +189,48 @@ function showTab(id) {
   const order = ['calendar', 'weekly', 'monthly', 'open', 'timestats'];
   document.querySelectorAll('.nav-tab').forEach((t, i) => t.classList.toggle('active', order[i] === id));
   document.querySelectorAll('.section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + id));
+  if (id === 'timestats') setStatsView(statsView);
+}
+
+// Der Statistik-Tab enthaelt mehrere eigenstaendige Fragestellungen. Es wird
+// bewusst nur ein Bereich eingeblendet, damit die Seite auf Mobilgeraeten nicht
+// wieder zu einer langen Liste anwächst. Der Zustand bleibt beim Haupttab-Wechsel
+// in dieser App-Sitzung erhalten.
+let statsView = 'performance';
+function setStatsView(view) {
+  const allowed = ['performance', 'timing', 'behavior'];
+  const selected = allowed.includes(view) ? view : 'performance';
+  statsView = selected;
+  document.querySelectorAll('.stats-view').forEach(panel => {
+    const active = panel.id === 'stats-view-' + selected;
+    panel.hidden = !active;
+    panel.classList.toggle('active', active);
+  });
+  document.querySelectorAll('.stats-view-nav-btn').forEach(button => {
+    const active = button.id === 'stats-nav-' + selected;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+    button.setAttribute('tabindex', active ? '0' : '-1');
+  });
+}
+
+function handleStatsViewKey(event) {
+  const supported = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+  if (!supported.includes(event.key)) return;
+  const buttons = Array.from(document.querySelectorAll('.stats-view-nav-btn'));
+  if (buttons.length === 0) return;
+
+  event.preventDefault();
+  let index = buttons.indexOf(document.activeElement);
+  if (index < 0) index = Math.max(0, buttons.findIndex(button => button.classList.contains('active')));
+  if (event.key === 'Home') index = 0;
+  else if (event.key === 'End') index = buttons.length - 1;
+  else if (event.key === 'ArrowRight') index = (index + 1) % buttons.length;
+  else index = (index - 1 + buttons.length) % buttons.length;
+
+  const nextButton = buttons[index];
+  setStatsView(nextButton.id.slice('stats-nav-'.length));
+  nextButton.focus();
 }
 
 /* ============================================================
@@ -725,6 +768,93 @@ function buildEquityCurve() {
 
   note.textContent = 'Tagesendst\u00e4nde aus realisiertem Netto-P&L; offene Positionen sind nicht enthalten.' +
     (hasCapital ? '' : ' F\u00fcr Depotwerte und prozentuale Drawdowns zuerst den Einstand im Kopfbereich setzen.');
+}
+
+/* ============================================================
+   WOCHENTAGS-STATISTIK (Long/Call vs. Short/Put)
+   ============================================================ */
+let weekdayMode = 'buy'; // Einstieg ist der Entscheidungstag und daher Standard.
+
+function setWeekdayMode(mode) {
+  weekdayMode = mode === 'sell' ? 'sell' : 'buy';
+  const buyButton = $('weekday-mode-buy');
+  const sellButton = $('weekday-mode-sell');
+  if (buyButton) {
+    buyButton.classList.toggle('active', weekdayMode === 'buy');
+    buyButton.setAttribute('aria-pressed', weekdayMode === 'buy' ? 'true' : 'false');
+  }
+  if (sellButton) {
+    sellButton.classList.toggle('active', weekdayMode === 'sell');
+    sellButton.setAttribute('aria-pressed', weekdayMode === 'sell' ? 'true' : 'false');
+  }
+  buildWeekdayStats();
+}
+
+function buildWeekdayStats() {
+  const grid = $('weekday-grid');
+  const note = $('weekday-note');
+  if (!grid || !note) return;
+
+  const result = computeWeekdayStats(DATA.trades, weekdayMode);
+  const formatPercent = value => value === null
+    ? '\u2014'
+    : fmtPlain(value, 1) + ' %';
+  const formatFactor = value => value === null
+    ? '\u2014'
+    : (value === Infinity ? '\u221e' : fmtPlain(value, 2));
+  const formatMoney = (bucket, value) => bucket.n > 0 ? fmtDE(value) : '\u2014';
+  const directionBlock = (key, label, bucket) => {
+    const remaining = Math.max(0, result.minSample - bucket.n);
+    const sampleText = bucket.significant
+      ? 'Stichprobe belastbar'
+      : (remaining + ' bis Mindeststichprobe');
+    return '<div class="weekday-direction ' + key + '">' +
+      '<div class="weekday-direction-head"><span class="weekday-badge ' + key + '">' + label + '</span>' +
+      '<span class="weekday-count">n = ' + bucket.n + '</span></div>' +
+      '<div class="weekday-average"><span>\u00d8 pro Trade</span><strong class="' +
+      (bucket.avg >= 0 ? 'pos' : 'neg') + '">' + formatMoney(bucket, bucket.avg) + '</strong></div>' +
+      '<div class="weekday-metrics">' +
+      '<div><span>Netto-P&amp;L</span><b>' + formatMoney(bucket, bucket.pnl) + '</b></div>' +
+      '<div><span>Median</span><b>' + (bucket.median === null ? '\u2014' : fmtDE(bucket.median)) + '</b></div>' +
+      '<div><span>Winrate</span><b>' + formatPercent(bucket.winrate) + '</b></div>' +
+      '<div><span>Profit Factor</span><b>' + formatFactor(bucket.profitFactor) + '</b></div>' +
+      '</div><div class="weekday-sample ' + (bucket.significant ? 'ready' : '') + '">' + sampleText + '</div></div>';
+  };
+
+  grid.innerHTML = result.days.map(day => {
+    let tendency;
+    let tendencyClass = '';
+    if (!day.comparison) {
+      tendency = 'Noch keine belastbare Tendenz';
+    } else if (day.comparison.winner === 'tie') {
+      tendency = 'Long und Short im Durchschnitt gleich';
+      tendencyClass = 'tie';
+    } else {
+      const winner = day.comparison.winner === 'long' ? 'Long' : 'Short';
+      tendency = 'Tendenz ' + winner + ' \u00b7 Vorsprung \u00d8 ' + fmtPlain(day.comparison.edge) + ' \u20ac/Trade';
+      tendencyClass = day.comparison.winner;
+    }
+    return '<article class="weekday-card">' +
+      '<div class="weekday-card-head"><h3>' + escapeHtml(day.label) + '</h3>' +
+      '<div class="weekday-tendency ' + tendencyClass + '">' + tendency + '</div></div>' +
+      directionBlock('long', 'Long / Call', day.long) +
+      directionBlock('short', 'Short / Put', day.short) +
+      '</article>';
+  }).join('');
+
+  const excluded = [];
+  if (result.excluded.missingDate > 0) {
+    excluded.push(result.excluded.missingDate + ' ohne ' +
+      (result.mode === 'buy' ? 'Einstiegsdatum' : 'Ausstiegsdatum'));
+  }
+  if (result.excluded.neutral > 0) excluded.push(result.excluded.neutral + ' ohne Long-/Short-Zuordnung');
+  if (result.excluded.weekend > 0) excluded.push(result.excluded.weekend + ' am Wochenende');
+  if (result.excluded.invalidPnl > 0) excluded.push(result.excluded.invalidPnl + ' ohne g\u00fcltiges P&L');
+  note.textContent = result.included + ' zugeordnete Trades nach ' +
+    (result.mode === 'buy' ? 'Einstiegstag' : 'Ausstiegstag') +
+    '. Tendenzen vergleichen das durchschnittliche Netto-P&L und gelten erst ab n \u2265 ' +
+    result.minSample + ' je Richtung und Wochentag.' +
+    (excluded.length ? ' Nicht enthalten: ' + excluded.join(', ') + '.' : '');
 }
 
 /* ============================================================
@@ -1466,6 +1596,7 @@ function rebuildAll() {
   buildMonthly();
   buildOpenPositions();
   buildEquityCurve();
+  buildWeekdayStats();
   buildTimeStats();
 }
 
@@ -1542,6 +1673,9 @@ function gisLoaded() {
 }
 window.gisLoaded = gisLoaded;
 window.setTsMode = setTsMode;
+window.setWeekdayMode = setWeekdayMode;
+window.setStatsView = setStatsView;
+window.handleStatsViewKey = handleStatsViewKey;
 
 // Falls das Google-Script schon geladen war, bevor dieses Modul lief:
 if (window.google && window.google.accounts && window.google.accounts.oauth2) {

@@ -92,15 +92,29 @@ Wartbarkeit bzw. Komfort.
 
 ### Wochentagsstatistik Long/Short
 
-- **Status:** Offen; naechstes priorisiertes Statistik-Feature.
-- **Ziel:** Long/Call und Short/Put pro Wochentag nach Anzahl, Netto-P&L,
-  Durchschnitt, Median, Winrate und Profit Factor vergleichen. Aussagen gelten
-  erst ab einer ausreichenden Stichprobe; Einstiegstag ist der Standard,
-  Ausstiegstag bleibt umschaltbar.
+- **Status:** Erledigt in v48.
+- **Loesung:** Der Statistik-Tab vergleicht Long/Call und Short/Put von Montag
+  bis Freitag nach Anzahl, Netto-P&L, Durchschnitt, Median, Winrate und Profit
+  Factor. Standard ist der Einstiegstag als Tag der Handelsentscheidung; der
+  Ausstiegstag ist direkt umschaltbar.
+- **Belastbarkeit:** Eine Tendenz erscheint erst, wenn am jeweiligen Wochentag
+  beide Richtungen mindestens acht Trades enthalten. Verglichen wird dann das
+  durchschnittliche Netto-P&L pro Trade. Fehlende Datumswerte, neutrale
+  Produkte und Wochenend-Trades werden sichtbar als ausgeschlossen gemeldet.
+
+### Statistik-Tab in Themenbereiche gliedern
+
+- **Status:** Erledigt in v49.
+- **Loesung:** Eine interne Navigation trennt den Statistik-Tab in
+  `Performance`, `Timing` und `Verhalten`. Es ist immer nur ein Themenbereich
+  sichtbar; die Auswahl bleibt beim Wechsel zwischen den Haupttabs erhalten.
+- **Entscheidung:** Interne Bereiche statt weiterer Haupttabs oder Akkordeons.
+  So bleibt die Hauptnavigation kompakt, zusammengehoerige Analysen bleiben
+  beieinander und die mobile Ansicht vermeidet eine einzige lange Seite.
 
 ### Trades suchen und filtern
 
-- **Status:** Offen; hohe Prioritaet nach den Statistik-Features.
+- **Status:** Offen; naechster priorisierter Produktpunkt.
 - **Ziel:** Zeitraum, Richtung, Produkt, Ergebnis und Haltedauer kombinierbar
   filtern, ohne die gespeicherten Trades zu veraendern.
 

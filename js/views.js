@@ -264,6 +264,106 @@ export function tradeDirection(desc) {
 }
 
 // ------------------------------------------------------------
+// Vergleicht Long/Call und Short/Put nach Wochentag. Standard ist der
+// Einstiegstag, weil dort die Handelsentscheidung getroffen wurde. Alt- und
+// manuelle Trades ohne buyDate werden nicht stillschweigend dem Ausstiegstag
+// zugeschlagen, sondern als fehlend ausgewiesen.
+// ------------------------------------------------------------
+export function computeWeekdayStats(trades, mode = 'buy', minSample = 8) {
+  const selectedMode = mode === 'sell' ? 'sell' : 'buy';
+  const parsedMinSample = Math.floor(Number(minSample));
+  const threshold = Number.isFinite(parsedMinSample) && parsedMinSample > 0
+    ? parsedMinSample
+    : 8;
+  const labels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag'];
+  const keys = ['mon', 'tue', 'wed', 'thu', 'fri'];
+  const makeBucket = () => ({
+    n: 0, wins: 0, losses: 0, pnl: 0,
+    grossProfit: 0, grossLoss: 0, values: []
+  });
+  const days = labels.map((label, index) => ({
+    index,
+    key: keys[index],
+    label,
+    long: makeBucket(),
+    short: makeBucket(),
+    comparison: null
+  }));
+  const excluded = { neutral: 0, missingDate: 0, weekend: 0, invalidPnl: 0 };
+
+  (trades || []).forEach(trade => {
+    const direction = tradeDirection(trade && trade.desc);
+    if (direction === 'neutral') { excluded.neutral++; return; }
+
+    const dateKey = selectedMode === 'buy' ? trade && trade.buyDate : trade && trade.date;
+    const date = utcDateFromKey(String(dateKey || '').slice(0, 10));
+    if (!date) { excluded.missingDate++; return; }
+    const utcDay = date.getUTCDay();
+    if (utcDay === 0 || utcDay === 6) { excluded.weekend++; return; }
+
+    const pnl = Number(trade && trade.pnl);
+    if (!Number.isFinite(pnl)) { excluded.invalidPnl++; return; }
+    const bucket = days[utcDay - 1][direction];
+    bucket.n++;
+    bucket.pnl += pnl;
+    bucket.values.push(pnl);
+    if (pnl > 0) {
+      bucket.wins++;
+      bucket.grossProfit += pnl;
+    } else if (pnl < 0) {
+      bucket.losses++;
+      bucket.grossLoss += Math.abs(pnl);
+    }
+  });
+
+  const finalize = bucket => {
+    const values = bucket.values.slice().sort((a, b) => a - b);
+    const middle = Math.floor(values.length / 2);
+    const medianValue = values.length === 0
+      ? null
+      : (values.length % 2
+        ? values[middle]
+        : (values[middle - 1] + values[middle]) / 2);
+    const decided = bucket.wins + bucket.losses;
+    const profitFactor = bucket.grossLoss > 0
+      ? bucket.grossProfit / bucket.grossLoss
+      : (bucket.grossProfit > 0 ? Infinity : null);
+    return {
+      n: bucket.n,
+      wins: bucket.wins,
+      losses: bucket.losses,
+      pnl: +bucket.pnl.toFixed(2),
+      avg: bucket.n > 0 ? +(bucket.pnl / bucket.n).toFixed(2) : 0,
+      median: medianValue === null ? null : +medianValue.toFixed(2),
+      winrate: decided > 0 ? +((bucket.wins / decided) * 100).toFixed(1) : null,
+      profitFactor: profitFactor === null || profitFactor === Infinity
+        ? profitFactor
+        : +profitFactor.toFixed(2),
+      significant: bucket.n >= threshold
+    };
+  };
+
+  days.forEach(day => {
+    day.long = finalize(day.long);
+    day.short = finalize(day.short);
+    if (!day.long.significant || !day.short.significant) return;
+    const difference = +(day.long.avg - day.short.avg).toFixed(2);
+    day.comparison = {
+      winner: difference > 0 ? 'long' : (difference < 0 ? 'short' : 'tie'),
+      edge: +Math.abs(difference).toFixed(2)
+    };
+  });
+
+  return {
+    mode: selectedMode,
+    minSample: threshold,
+    days,
+    excluded,
+    included: days.reduce((sum, day) => sum + day.long.n + day.short.n, 0)
+  };
+}
+
+// ------------------------------------------------------------
 // Berechnet die Uhrzeit-Statistik über alle Trades.
 // mode: 'sell' = nach Ausstieg (Realisierung), 'buy' = nach Einstieg
 //       (Entscheidung). 'buy' nutzt buyTime/buyDate, falls vorhanden.

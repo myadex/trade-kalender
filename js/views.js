@@ -604,6 +604,75 @@ export function holdMinutes(t) {
   return diff >= 0 ? Math.round(diff) : null;
 }
 
+// ------------------------------------------------------------
+// Filtert geschlossene Trades fuer die Suche, ohne die Eingabe zu sortieren
+// oder anderweitig zu veraendern. Der Zeitraum bezieht sich auf den
+// Ausstiegstag, weil auch Kalender und realisiertes P&L diesen Tag verwenden.
+// Haltezeitklassen sind bewusst ueberschneidungsfrei; Alt-Daten ohne
+// Einstiegszeit verschwinden nicht, sondern bleiben als "unknown" filterbar.
+// ------------------------------------------------------------
+export function filterTrades(trades, filters = {}) {
+  const source = Array.isArray(trades) ? trades : [];
+  const from = utcDateFromKey(String(filters.from || '').slice(0, 10))
+    ? String(filters.from).slice(0, 10)
+    : '';
+  const to = utcDateFromKey(String(filters.to || '').slice(0, 10))
+    ? String(filters.to).slice(0, 10)
+    : '';
+  const invalidRange = !!(from && to && from > to);
+  const query = String(filters.query || '').trim().toLocaleLowerCase('de-DE');
+  const directions = ['long', 'short', 'neutral'];
+  const direction = directions.includes(filters.direction) ? filters.direction : 'all';
+  const results = ['win', 'loss', 'flat'];
+  const result = results.includes(filters.result) ? filters.result : 'all';
+  const holdValues = ['under60', '1to4h', 'over4h', 'overnight', 'unknown'];
+  const hold = holdValues.includes(filters.hold) ? filters.hold : 'all';
+
+  const holdBucket = trade => {
+    if (trade && trade.buyDate && trade.date && trade.buyDate !== trade.date) return 'overnight';
+    const minutes = holdMinutes(trade || {});
+    if (minutes === null) return 'unknown';
+    if (minutes < 60) return 'under60';
+    if (minutes <= 240) return '1to4h';
+    return 'over4h';
+  };
+
+  const filtered = invalidRange ? [] : source.filter(trade => {
+    const date = String(trade && trade.date || '').slice(0, 10);
+    if (from && date < from) return false;
+    if (to && date > to) return false;
+    if (query) {
+      const product = (String(trade && trade.desc || '') + ' ' +
+        String(trade && trade.isin || '')).toLocaleLowerCase('de-DE');
+      if (!product.includes(query)) return false;
+    }
+    if (direction !== 'all' && tradeDirection(trade && trade.desc) !== direction) return false;
+    const pnl = Number(trade && trade.pnl);
+    if (result === 'win' && !(pnl > 0)) return false;
+    if (result === 'loss' && !(pnl < 0)) return false;
+    if (result === 'flat' && pnl !== 0) return false;
+    if (hold !== 'all' && holdBucket(trade) !== hold) return false;
+    return true;
+  }).slice().sort((a, b) => {
+    const aKey = String(a && a.date || '') + 'T' + String(a && a.time || '');
+    const bKey = String(b && b.date || '') + 'T' + String(b && b.time || '');
+    return bKey.localeCompare(aKey);
+  });
+
+  const pnlValues = filtered.map(trade => Number(trade && trade.pnl))
+    .filter(Number.isFinite);
+  return {
+    trades: filtered,
+    count: filtered.length,
+    totalPnl: +pnlValues.reduce((sum, pnl) => sum + pnl, 0).toFixed(2),
+    wins: pnlValues.filter(pnl => pnl > 0).length,
+    losses: pnlValues.filter(pnl => pnl < 0).length,
+    flat: pnlValues.filter(pnl => pnl === 0).length,
+    invalidRange,
+    hasActiveFilters: !!(from || to || query || direction !== 'all' || result !== 'all' || hold !== 'all')
+  };
+}
+
 // Median einer Zahlenliste (leer -> null)
 function median(arr) {
   if (!arr.length) return null;

@@ -716,6 +716,54 @@ const realFifoCheck = (async () => {
       { buyDate: '2026-06-29', buyTime: '09:00:00', date: '2026-06-29', time: '11:00:00', pnl: -50 }
     ]);
     check('computeHoldStats: Mediane + Ratio', hs.winMedian === 30 && hs.lossMedian === 120 && hs.ratio === 4);
+    const searchableTrades = [
+      { uid: 'a', date: '2026-07-10', time: '10:00:00', buyDate: '2026-07-10', buyTime: '09:30:00', pnl: 100, desc: 'DAX Long Turbo', isin: 'DE000LONG' },
+      { uid: 'b', date: '2026-07-11', time: '12:00:00', buyDate: '2026-07-11', buyTime: '09:00:00', pnl: -40, desc: 'DAX Short Turbo', isin: 'DE000SHORT' },
+      { uid: 'c', date: '2026-07-12', time: '14:00:00', buyDate: '2026-07-12', buyTime: '09:00:00', pnl: 0, desc: 'ServiceNow Aktie', isin: 'US81762P1021' },
+      { uid: 'd', date: '2026-07-13', time: '08:00:00', buyDate: '2026-07-12', buyTime: '22:00:00', pnl: 70, desc: 'DAX Call Overnight', isin: 'DE000CALL' },
+      { uid: 'e', date: '2026-07-14', time: '10:00:00', pnl: 0, desc: 'DAX Put Altbestand', isin: 'DE000PUT' }
+    ];
+    check('tradeFilter: pure Filterfunktion exportiert', typeof vmod.filterTrades === 'function');
+    const combinedFilter = typeof vmod.filterTrades === 'function'
+      ? vmod.filterTrades(searchableTrades, {
+        from: '2026-07-11', to: '2026-07-13', query: 'dax',
+        direction: 'short', result: 'loss', hold: '1to4h'
+      })
+      : null;
+    check('tradeFilter: Zeitraum, Produkt, Richtung, Ergebnis und Haltedauer sind kombinierbar',
+      !!combinedFilter && combinedFilter.trades.length === 1 && combinedFilter.trades[0].uid === 'b');
+    const isinFilter = typeof vmod.filterTrades === 'function'
+      ? vmod.filterTrades(searchableTrades, { query: 'de000long' })
+      : null;
+    check('tradeFilter: Produktsuche findet Beschreibung und ISIN ohne Gross-/Kleinschreibung',
+      !!isinFilter && isinFilter.trades.length === 1 && isinFilter.trades[0].uid === 'a');
+    const holdFilters = typeof vmod.filterTrades === 'function'
+      ? {
+        under60: vmod.filterTrades(searchableTrades, { hold: 'under60' }),
+        oneToFour: vmod.filterTrades(searchableTrades, { hold: '1to4h' }),
+        overFour: vmod.filterTrades(searchableTrades, { hold: 'over4h' }),
+        overnight: vmod.filterTrades(searchableTrades, { hold: 'overnight' }),
+        unknown: vmod.filterTrades(searchableTrades, { hold: 'unknown' })
+      }
+      : null;
+    check('tradeFilter: Haltedauer-Bereiche sind eindeutig und Alt-Daten bleiben sichtbar',
+      !!holdFilters && holdFilters.under60.trades[0].uid === 'a' &&
+      holdFilters.oneToFour.trades[0].uid === 'b' && holdFilters.overFour.trades[0].uid === 'c' &&
+      holdFilters.overnight.trades[0].uid === 'd' && holdFilters.unknown.trades[0].uid === 'e');
+    const allFiltered = typeof vmod.filterTrades === 'function'
+      ? vmod.filterTrades(searchableTrades)
+      : null;
+    check('tradeFilter: Zusammenfassung zaehlt Treffer und Netto-P&L korrekt',
+      !!allFiltered && allFiltered.count === 5 && allFiltered.totalPnl === 130 &&
+      allFiltered.wins === 2 && allFiltered.losses === 1 && allFiltered.flat === 2);
+    check('tradeFilter: Ergebnis ist neueste zuerst und mutiert Eingabe nicht',
+      !!allFiltered && allFiltered.trades[0].uid === 'e' &&
+      searchableTrades.map(t => t.uid).join(',') === 'a,b,c,d,e');
+    const invalidRange = typeof vmod.filterTrades === 'function'
+      ? vmod.filterTrades(searchableTrades, { from: '2026-07-14', to: '2026-07-10' })
+      : null;
+    check('tradeFilter: ungueltiger Zeitraum wird ehrlich gemeldet',
+      !!invalidRange && invalidRange.invalidRange === true && invalidRange.trades.length === 0);
     const mdisc = vmod.computeMonthlyDiscipline([
       { date: '2026-06-05', pnl: 300, buyDate: '2026-06-05', buyTime: '09:00:00', time: '10:00:00' },
       { date: '2026-06-10', pnl: -1500, buyDate: '2026-06-09', buyTime: '15:00:00', time: '09:00:00' },
@@ -846,6 +894,17 @@ check('Statistik-UI: interne Tabs sind per Pfeiltasten erreichbar',
 check('Statistik-UI: Untermenue bleibt auf kleinen Displays horizontal bedienbar',
   html.includes('.stats-view-nav{') && html.includes('overflow-x:auto') &&
   html.includes('.stats-view-nav-btn{'));
+check('Trade-Suche: alle kombinierbaren Filter und Ergebnisbereich vorhanden',
+  html.includes('id="search-overlay"') && html.includes('id="search-query"') &&
+  html.includes('id="search-from"') && html.includes('id="search-to"') &&
+  html.includes('id="search-direction"') && html.includes('id="search-result"') &&
+  html.includes('id="search-hold"') && html.includes('id="search-results"'));
+check('Trade-Suche: Renderer nutzt die pure Filterlogik ohne Speichervorgang',
+  appJs.includes('function buildTradeSearch()') && appJs.includes('filterTrades(DATA.trades') &&
+  !/function buildTradeSearch[\s\S]{0,5000}persist\(\)/.test(appJs));
+check('Trade-Suche: auf Desktop und Mobil erreichbar',
+  html.includes('id="btn-search"') && html.includes('id="btn-search-m"') &&
+  appJs.includes('function openTradeSearch()') && appJs.includes('function closeTradeSearch()'));
 
 console.log('\n=== 6d. VERSION ===');
 {
@@ -905,6 +964,9 @@ try {
   check('edit modal present', !!doc.getElementById('edit-overlay'));
   check('import modal present', !!doc.getElementById('import-overlay'));
   check('close-position modal present', !!doc.getElementById('close-pos-overlay'));
+  const searchOverlay = doc.getElementById('search-overlay');
+  check('Trade-Suche: Overlay liegt ausserhalb der Haupttabs',
+    !!searchOverlay && !searchOverlay.closest('.section'));
   check('capital card present', !!doc.getElementById('s-capital'));
   check('rendite card present', !!doc.getElementById('s-rendite'));
 } catch (e) {

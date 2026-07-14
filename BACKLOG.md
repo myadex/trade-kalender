@@ -114,13 +114,20 @@ Wartbarkeit bzw. Komfort.
 
 ### Trades suchen und filtern
 
-- **Status:** Offen; naechster priorisierter Produktpunkt.
-- **Ziel:** Zeitraum, Richtung, Produkt, Ergebnis und Haltedauer kombinierbar
-  filtern, ohne die gespeicherten Trades zu veraendern.
+- **Status:** Erledigt in v50.
+- **Loesung:** Eine von Desktop- und Mobilaktionen erreichbare Suchansicht
+  filtert geschlossene Trades kombinierbar nach Ausstiegszeitraum,
+  Produktbeschreibung oder ISIN, Richtung, Ergebnis und Haltedauer. Treffer
+  erscheinen neueste zuerst mit Anzahl, Netto-P&L und direktem Sprung zum
+  vorhandenen Tagesdialog.
+- **Datenintegritaet:** Die Filterung ist eine pure, rein lesende Operation und
+  veraendert weder `DATA.trades` noch die Drive-Datei. Haltezeitklassen sind
+  ueberschneidungsfrei; Legacy-Trades ohne vollstaendige Einstiegstimestamps
+  bleiben als `Unbekannt / Alt-Daten` auffindbar.
 
 ### Import-Migration in der UI erklaeren
 
-- **Status:** Offen.
+- **Status:** Offen; naechster priorisierter Produktpunkt.
 - **Warum:** Der erste Ledger-Import akzeptiert bewusst nur neue Brokerzeilen.
 - **Ziel:** Dialog mit erklaertem Stichtag, erkannter Historie und klarer
   Handlungsanweisung statt einer reinen Fehlermeldung.

@@ -23,4 +23,4 @@ export const TAX_RATE = 0.26375;
 
 // App-Version — wird in der App angezeigt und sollte bei jeder Änderung erhöht werden.
 // Hilft zu erkennen, ob die neueste Version geladen ist (oder noch der Cache hängt).
-export const APP_VERSION = 'v49';
+export const APP_VERSION = 'v50';

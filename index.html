@@ -228,6 +228,25 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .import-preview tr.dup td{opacity:.35;text-decoration:line-through;}
 .import-summary{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);margin:.5rem 0;}
 .import-summary.warn{color:var(--amber);}
+.search-modal{max-width:960px;height:min(760px,90vh);display:flex;flex-direction:column;overflow:hidden;}
+.search-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem;}
+.search-header h3{margin:0 0 .2rem;}.search-header p{font-family:'JetBrains Mono',monospace;font-size:.58rem;line-height:1.45;color:var(--muted);}
+.search-filter-grid{display:grid;grid-template-columns:2fr repeat(5,minmax(110px,1fr));gap:.6rem;align-items:end;}
+.search-modal .form-group input,.search-modal .form-group select{background:var(--bg);color:var(--ink);color-scheme:dark;}
+.search-filter-actions{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin:.65rem 0 .8rem;}
+.search-filter-note{font-family:'JetBrains Mono',monospace;font-size:.54rem;color:var(--muted);line-height:1.4;}
+.search-summary{display:flex;flex-wrap:wrap;gap:.45rem 1.2rem;padding:.65rem .75rem;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--muted);}
+.search-summary strong{color:var(--ink);}.search-summary strong.pos{color:var(--green);}.search-summary strong.neg{color:var(--red);}.search-summary.error{color:var(--red);border-color:var(--red-mid);}
+.search-results{flex:1;min-height:0;overflow-y:auto;margin-top:.65rem;padding-right:.15rem;}
+.search-result-row{display:grid;grid-template-columns:92px minmax(180px,1fr) 170px 100px 96px;gap:.7rem;align-items:center;padding:.65rem .7rem;border:1px solid var(--border);border-radius:9px;background:var(--bg);margin-bottom:.45rem;}
+.search-result-date,.search-result-product{display:flex;flex-direction:column;min-width:0;}.search-result-date strong,.search-result-product strong{font-family:'Chakra Petch',sans-serif;font-size:.78rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.search-result-date span,.search-result-product span{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.search-result-meta{display:flex;align-items:center;gap:.45rem;min-width:0;font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--muted);}
+.search-direction{padding:.14rem .35rem;border-radius:4px;text-transform:uppercase;font-size:.47rem;font-weight:600;}.search-direction.long{color:var(--green);background:var(--green-bg);}.search-direction.short{color:var(--red);background:var(--red-bg);}.search-direction.neutral{color:var(--blue);background:var(--blue-bg);}
+.search-result-pnl{font-family:'JetBrains Mono',monospace;font-size:.68rem;font-weight:600;text-align:right;white-space:nowrap;}.search-result-pnl.pos{color:var(--green);}.search-result-pnl.neg{color:var(--red);}
+.search-result-open{font-family:'JetBrains Mono',monospace;font-size:.52rem;text-transform:uppercase;letter-spacing:.04em;padding:.38rem .5rem;border:1px solid var(--border);border-radius:6px;background:none;color:var(--ink);cursor:pointer;white-space:nowrap;}.search-result-open:hover{border-color:var(--green);color:var(--green);}
+.search-empty{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--muted);text-align:center;padding:3rem 1rem;border:1px dashed var(--border);border-radius:9px;}
+@media(max-width:900px){.search-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr));}.search-filter-grid .search-filter-product{grid-column:1/-1;}.search-result-row{grid-template-columns:82px minmax(150px,1fr) 145px 92px 90px;gap:.5rem;}}
 
 /* Desktop defaults: mobile-only elements hidden (overridden inside media query) */
 #bottom-bar { display: none; }
@@ -359,6 +378,16 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   /* Modals full-height friendly */
   .modal { max-width: 100%; border-radius: 12px 12px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-height: 92vh; }
   .modal-overlay { align-items: flex-end; padding: 0; }
+  .search-modal { height: 92vh; padding: 1rem; }
+  .search-filter-grid { grid-template-columns: 1fr 1fr; }
+  .search-filter-grid .search-filter-product { grid-column: 1 / -1; }
+  .search-filter-actions { align-items: flex-start; }
+  .search-result-row { grid-template-columns: 1fr auto; gap: .45rem .7rem; }
+  .search-result-date { grid-column: 1; grid-row: 1; }
+  .search-result-pnl { grid-column: 2; grid-row: 1; }
+  .search-result-product { grid-column: 1 / -1; grid-row: 2; }
+  .search-result-meta { grid-column: 1; grid-row: 3; }
+  .search-result-open { grid-column: 2; grid-row: 3; }
 }
 
 
@@ -404,6 +433,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 
   <div class="toolbar">
     <button class="btn" id="btn-add">+ Trade hinzuf&uuml;gen</button>
+    <button class="btn" id="btn-search">&#128269; Trades suchen</button>
     <button class="btn" id="btn-import">&uarr; CSV importieren</button>
     <button class="btn" id="btn-export">&darr; Export CSV</button>
     <button class="btn" id="btn-restore">&#8593; JSON wiederherstellen</button>
@@ -515,6 +545,62 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </div>
   </section>
 </div>
+</div>
+
+<!-- TRADE SEARCH -->
+<div class="modal-overlay" id="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title"
+  onclick="if(event.target===this)closeTradeSearch()">
+  <div class="modal search-modal">
+    <div class="search-header">
+      <div>
+        <h3 id="search-title">Trades suchen</h3>
+        <p>Filter werden nur auf die aktuelle Ansicht angewendet und ver&auml;ndern keine gespeicherten Trades.</p>
+      </div>
+      <button type="button" class="detail-close" title="Suche schlie&szlig;en" onclick="closeTradeSearch()">&times;</button>
+    </div>
+    <div class="search-filter-grid">
+      <div class="form-group search-filter-product">
+        <label for="search-query">Produkt oder ISIN</label>
+        <input type="search" id="search-query" autocomplete="off" placeholder="z.B. DAX Short oder DE000&hellip;" oninput="buildTradeSearch()">
+      </div>
+      <div class="form-group">
+        <label for="search-from">Ausstieg von</label>
+        <input type="date" id="search-from" onchange="buildTradeSearch()">
+      </div>
+      <div class="form-group">
+        <label for="search-to">Ausstieg bis</label>
+        <input type="date" id="search-to" onchange="buildTradeSearch()">
+      </div>
+      <div class="form-group">
+        <label for="search-direction">Richtung</label>
+        <select id="search-direction" onchange="buildTradeSearch()">
+          <option value="all">Alle</option><option value="long">Long / Call</option>
+          <option value="short">Short / Put</option><option value="neutral">Neutral / Aktie</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="search-result">Ergebnis</label>
+        <select id="search-result" onchange="buildTradeSearch()">
+          <option value="all">Alle</option><option value="win">Gewinn</option>
+          <option value="loss">Verlust</option><option value="flat">Neutral</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="search-hold">Haltedauer</label>
+        <select id="search-hold" onchange="buildTradeSearch()">
+          <option value="all">Alle</option><option value="under60">Unter 1 Stunde</option>
+          <option value="1to4h">1 bis 4 Stunden</option><option value="over4h">&Uuml;ber 4 Std. intraday</option>
+          <option value="overnight">Overnight</option><option value="unknown">Unbekannt / Alt-Daten</option>
+        </select>
+      </div>
+    </div>
+    <div class="search-filter-actions">
+      <span class="search-filter-note">Zeitraum = realisierter Ausstiegstag. Haltezeiten ohne vollst&auml;ndige Einstiegsdaten werden als unbekannt ausgewiesen.</span>
+      <button type="button" class="btn" onclick="resetTradeSearch()">Filter zur&uuml;cksetzen</button>
+    </div>
+    <div id="search-summary" class="search-summary"></div>
+    <div id="search-results" class="search-results"></div>
+  </div>
 </div>
 
 <!-- DAY DETAIL -->
@@ -644,6 +730,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <!-- MOBILE ACTION SHEET -->
 <div id="mobile-actions">
   <button onclick="closeMobileActions();openAddModal()">+ Trade hinzuf&uuml;gen</button>
+  <button id="btn-search-m">&#128269; Trades suchen</button>
   <button onclick="closeMobileActions();openImportModal()">&uarr; CSV importieren</button>
   <button onclick="closeMobileActions();exportCSV()">&darr; Export CSV</button>
   <button id="btn-restore-m">&#8593; JSON wiederherstellen</button>

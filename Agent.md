@@ -55,6 +55,10 @@ als Test-Fixture eingecheckt werden.
 - **Statistik-UI:** Neue Analysen einem der internen Bereiche `Performance`,
   `Timing` oder `Verhalten` zuordnen. Keine weitere lange Statistikseite und
   keine zusaetzlichen Haupttabs fuer einzelne Auswertungen einfuehren.
+- **Trade-Filter:** Suche bleibt rein lesend und verwendet die pure
+  `views.filterTrades`-Logik. Zeitraum bedeutet Ausstiegstag; unbekannte
+  Haltedauer bei Legacy-Daten muss sichtbar filterbar bleiben und darf nicht
+  stillschweigend als Intraday einsortiert werden.
 - **Steuer:** immer MIT Vorzeichen rechnen (negativ = Erstattung). NIE `Math.abs(tax)` in P&L-Mathematik (nur in Anzeige-Strings erlaubt).
 - **FIFO:** Sortierung Datum+Zeit mit Buy-vor-Sell-Tiebreak bei gleichem Timestamp.
 - **UIDs:** kanonisches Format `ISIN_DATUM_SELL_SHARES` — Duplikat-Erkennung bei Re-Imports hängt daran.

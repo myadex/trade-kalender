@@ -36,6 +36,20 @@ check('UI-Controller: Navigation liegt in einem eigenen Modul',
   !appControllerJs.includes('function showTab(') &&
   !appControllerJs.includes('function setStatsView(') &&
   !appControllerJs.includes('function mobileTab('));
+const tradeDialogsPath = DIR + '/js/trade-dialogs.js';
+check('UI-Controller: Trade-Formulare liegen in einem eigenen Dialogmodul',
+  fs.existsSync(tradeDialogsPath) && appControllerJs.includes("from './trade-dialogs.js'") &&
+  !appControllerJs.includes('function updatePnlPreview(') &&
+  !appControllerJs.includes('function updateEditPreview(') &&
+  !appControllerJs.includes("$('f-desc').value = ''"));
+const tradeSearchPath = DIR + '/js/trade-search.js';
+const tradeSearchJs = fs.existsSync(tradeSearchPath)
+  ? fs.readFileSync(tradeSearchPath, 'utf8')
+  : '';
+check('UI-Controller: Trade-Suche liegt in einem eigenen Render-Modul',
+  fs.existsSync(tradeSearchPath) && appControllerJs.includes("from './trade-search.js'") &&
+  !appControllerJs.includes('function tradeSearchFilters(') &&
+  !appControllerJs.includes("row.className = 'search-result-row'"));
 // Der Service Worker wird aus index.html mit './sw.js' registriert. Er muss
 // deshalb im Projekt-Root liegen: Unter js/ haette er nur den Scope /js/ und
 // koennte weder die App-Seite noch die PWA-Root-Route kontrollieren.
@@ -60,7 +74,8 @@ catch (e) { check('sw.js parses (' + e.message + ')', false); }
 const offlineAssets = [
   './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
-  './js/import.js', './js/navigation.js', './js/storage.js', './js/views.js'
+  './js/import.js', './js/navigation.js', './js/storage.js',
+  './js/trade-dialogs.js', './js/trade-search.js', './js/views.js'
 ];
 check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
 check('PWA: Navigation hat einen Offline-Fallback auf index.html',
@@ -342,6 +357,12 @@ const realFifoCheck = (async () => {
     const navmod = fs.existsSync(navigationPath)
       ? await import('file://' + navigationPath)
       : null;
+    const dialogmod = fs.existsSync(tradeDialogsPath)
+      ? await import('file://' + tradeDialogsPath)
+      : null;
+    const searchmod = fs.existsSync(tradeSearchPath)
+      ? await import('file://' + tradeSearchPath)
+      : null;
     check('navigation: alle Desktop- und Mobilfunktionen exportiert',
       !!navmod && ['showTab', 'setStatsView', 'handleStatsViewKey', 'mobileTab',
         'toggleMobileActions', 'closeMobileActions']
@@ -387,6 +408,116 @@ const realFifoCheck = (async () => {
       global.window = previousWindow;
       global.document = previousDocument;
       navDom.window.close();
+    }
+
+    check('tradeDialogs: Formular- und Vorschaufunktionen exportiert',
+      !!dialogmod && ['openAddModal', 'closeAddModal', 'updatePnlPreview',
+        'readAddTradeForm', 'openEditTradeDialog', 'closeEditModal',
+        'updateEditPreview', 'readEditTradeForm']
+        .every(name => typeof dialogmod[name] === 'function'));
+    const dialogDom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true });
+    global.window = dialogDom.window;
+    global.document = dialogDom.window.document;
+    try {
+      if (dialogmod) dialogmod.openAddModal('2026-07-14');
+      check('tradeDialogs: Hinzufuegen oeffnet mit Wunschdatum und leerem Formular',
+        !!dialogmod && dialogDom.window.document.getElementById('add-overlay').classList.contains('open') &&
+        dialogDom.window.document.getElementById('f-date').value === '2026-07-14' &&
+        dialogDom.window.document.getElementById('f-desc').value === '' &&
+        dialogDom.window.document.getElementById('pnl-preview').textContent.includes('0,00'));
+
+      dialogDom.window.document.getElementById('f-desc').value = 'Test Long';
+      dialogDom.window.document.getElementById('f-buy').value = '100';
+      dialogDom.window.document.getElementById('f-sell').value = '150';
+      dialogDom.window.document.getElementById('f-tax').value = '10';
+      if (dialogmod) dialogmod.updatePnlPreview();
+      const addForm = dialogmod ? dialogmod.readAddTradeForm() : {};
+      check('tradeDialogs: Hinzufuegen liest Zahlen und berechnet die Vorschau',
+        addForm.desc === 'Test Long' && addForm.buy === 100 && addForm.sell === 150 &&
+        addForm.tax === 10 && dialogDom.window.document.getElementById('pnl-preview').textContent.includes('40,00'));
+
+      if (dialogmod) dialogmod.openEditTradeDialog({
+        uid: 'import-1', date: '2026-07-13', desc: 'DAX Short', broker: 'scalable',
+        shares: 2, buy: 200, sell: 150, tax: -10, source: 'import'
+      });
+      check('tradeDialogs: Import-Editor sperrt FIFO-Einstand und Broker sichtbar',
+        !!dialogmod && dialogDom.window.document.getElementById('e-buy').readOnly &&
+        dialogDom.window.document.getElementById('e-broker').disabled &&
+        dialogDom.window.document.getElementById('e-import-note').style.display === 'block' &&
+        dialogDom.window.document.getElementById('edit-pnl-preview').textContent.includes('FIFO'));
+
+      if (dialogmod) dialogmod.openEditTradeDialog({
+        uid: 'manual-1', date: '2026-07-12', desc: 'Manuell', broker: 'tr',
+        shares: 1, buy: 80, sell: 120, tax: 5
+      });
+      const editForm = dialogmod ? dialogmod.readEditTradeForm() : {};
+      check('tradeDialogs: Manueller Editor entsperrt Felder und liefert Formulardaten',
+        !!dialogmod && !dialogDom.window.document.getElementById('e-buy').readOnly &&
+        !dialogDom.window.document.getElementById('e-broker').disabled &&
+        editForm.uid === 'manual-1' && editForm.buy === 80 && editForm.sell === 120 &&
+        dialogDom.window.document.getElementById('edit-pnl-preview').textContent.includes('35,00'));
+    } finally {
+      global.window = previousWindow;
+      global.document = previousDocument;
+      dialogDom.window.close();
+    }
+
+    check('tradeSearch: Dialogfunktionen exportiert und State bleibt Parameter',
+      !!searchmod && ['openTradeSearchDialog', 'closeTradeSearch',
+        'resetTradeSearchDialog', 'readTradeSearchFilters', 'renderTradeSearch']
+        .every(name => typeof searchmod[name] === 'function'));
+    const searchDom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true });
+    global.window = searchDom.window;
+    global.document = searchDom.window.document;
+    let shownDate = '';
+    const searchTrades = [
+      {
+        uid: 'old', date: '2026-07-12', time: '10:00:00', buyDate: '2026-07-12',
+        buyTime: '09:00:00', pnl: 50, desc: '<img src=x> DAX Long', isin: 'DE000OLD'
+      },
+      {
+        uid: 'new', date: '2026-07-14', time: '10:30:00', buyDate: '2026-07-14',
+        buyTime: '09:30:00', pnl: -30, desc: 'DAX Short', isin: 'DE000NEW'
+      }
+    ];
+    try {
+      if (searchmod) searchmod.openTradeSearchDialog(searchTrades, date => { shownDate = date; });
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const searchRows = searchDom.window.document.querySelectorAll('.search-result-row');
+      check('tradeSearch: Oeffnen rendert aktuelle Trades und fokussiert die Produktsuche',
+        !!searchmod && searchDom.window.document.getElementById('search-overlay').classList.contains('open') &&
+        searchRows.length === 2 && searchRows[0].textContent.includes('DAX Short') &&
+        searchDom.window.document.getElementById('search-summary').textContent.includes('2 von 2') &&
+        searchDom.window.document.activeElement.id === 'search-query');
+      check('tradeSearch: importierte Texte bleiben beim Rendern HTML-sicher',
+        !!searchmod && searchDom.window.document.querySelector('#search-results img') === null &&
+        searchRows[1].textContent.includes('<img src=x> DAX Long'));
+
+      if (searchRows[0]) searchRows[0].querySelector('.search-result-open').click();
+      check('tradeSearch: Tag anzeigen schliesst den Dialog und meldet das Datum zurueck',
+        shownDate === '2026-07-14' &&
+        !searchDom.window.document.getElementById('search-overlay').classList.contains('open'));
+
+      searchDom.window.document.getElementById('search-from').value = '2026-07-15';
+      searchDom.window.document.getElementById('search-to').value = '2026-07-14';
+      if (searchmod) searchmod.renderTradeSearch(searchTrades, () => {});
+      check('tradeSearch: ungueltiger Zeitraum wird ohne Ergebniszeilen erklaert',
+        !!searchmod && searchDom.window.document.getElementById('search-summary').classList.contains('error') &&
+        searchDom.window.document.querySelectorAll('.search-result-row').length === 0 &&
+        searchDom.window.document.getElementById('search-results').textContent.includes('Keine Suche ausgef\u00fchrt'));
+
+      searchDom.window.document.getElementById('search-query').value = 'short';
+      if (searchmod) searchmod.resetTradeSearchDialog(searchTrades, () => {});
+      check('tradeSearch: Zuruecksetzen leert alle Filter und rendert erneut',
+        !!searchmod && searchDom.window.document.getElementById('search-query').value === '' &&
+        searchDom.window.document.getElementById('search-from').value === '' &&
+        searchDom.window.document.getElementById('search-direction').value === 'all' &&
+        searchDom.window.document.querySelectorAll('.search-result-row').length === 2 &&
+        searchDom.window.document.activeElement.id === 'search-query');
+    } finally {
+      global.window = previousWindow;
+      global.document = previousDocument;
+      searchDom.window.close();
     }
     const sampleTrades = [
       { date: '2026-06-01', pnl: 100, sell: 500, tax: 35, n: 1 },
@@ -1198,11 +1329,13 @@ check('Trade-Suche: alle kombinierbaren Filter und Ergebnisbereich vorhanden',
   html.includes('id="search-direction"') && html.includes('id="search-result"') &&
   html.includes('id="search-hold"') && html.includes('id="search-results"'));
 check('Trade-Suche: Renderer nutzt die pure Filterlogik ohne Speichervorgang',
-  appJs.includes('function buildTradeSearch()') && appJs.includes('filterTrades(DATA.trades') &&
-  !/function buildTradeSearch[\s\S]{0,5000}persist\(\)/.test(appJs));
+  tradeSearchJs.includes('function renderTradeSearch(trades, onShowDetail)') &&
+  tradeSearchJs.includes('filterTrades(source, readTradeSearchFilters())') &&
+  !/function renderTradeSearch[\s\S]{0,5000}persist\(\)/.test(tradeSearchJs));
 check('Trade-Suche: auf Desktop und Mobil erreichbar',
   html.includes('id="btn-search"') && html.includes('id="btn-search-m"') &&
-  appJs.includes('function openTradeSearch()') && appJs.includes('function closeTradeSearch()'));
+  appControllerJs.includes('function openTradeSearch()') &&
+  appControllerJs.includes('closeTradeSearch'));
 check('Periodenreview: Wochen- und Monats-Tab besitzen Auswahl und Review-Karten',
   html.includes('id="weekly-review"') && html.includes('id="weekly-review-select"') &&
   html.includes('id="weekly-review-grid"') && html.includes('id="monthly-review"') &&

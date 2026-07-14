@@ -227,18 +227,27 @@ Wartbarkeit bzw. Komfort.
 
 ### UI-Controller weiter aufteilen
 
-- **Status:** In Arbeit; erste Etappe in v57 abgeschlossen.
+- **Status:** In Arbeit; drei Etappen bis v59 abgeschlossen.
 - **Warum:** `js/app.js` enthaelt weiterhin State, Rendering und Event-Logik.
 - **Ziel:** Tabs und Dialoge in kleine Render-Module auslagern; pure Logik bleibt
   in den bestehenden Fachmodulen.
 - **Etappe 1:** Haupttabs, Statistik-Untertabs, Tastatursteuerung und mobile
   Navigation liegen jetzt in `js/navigation.js`. Das Modul kennt weder
   Finanzdaten noch Drive, Import oder Berechnungslogik.
-- **Sicherung:** Echte DOM-Tests pruefen Desktop-Wechsel, ARIA-Zustaende,
-  Pfeiltastenfokus, mobile Tabs, Action-Sheet und Scroll-Verhalten. Das neue
-  Modul ist Teil des Service-Worker-App-Shell-Caches.
-- **Rest:** Dialoge und deren Rendering werden in weiteren kleinen Etappen
-  ausgelagert; `app.js` bleibt bis dahin der zentrale Daten- und I/O-Controller.
+- **Etappe 2:** Formulardaten, Feldzustaende und P&L-Vorschauen fuer die Dialoge
+  zum Hinzufuegen und Bearbeiten liegen jetzt in `js/trade-dialogs.js`.
+  Validierung, UID-Erzeugung, FIFO-Replay, Datenmutation und Persistenz bleiben
+  im zentralen App-Controller.
+- **Etappe 3:** Filterformular und Ergebnis-Rendering der rein lesenden
+  Trade-Suche liegen jetzt in `js/trade-search.js`. Die aktuelle Trade-Liste
+  und der Callback zum Oeffnen eines Tages werden explizit uebergeben; das
+  Modul kennt weder globales `DATA` noch Persistenz.
+- **Sicherung:** Echte DOM-Tests pruefen Navigation, ARIA-Zustaende,
+  Tastatursteuerung, beide Trade-Formulare einschliesslich der gesperrten
+  Importfelder sowie Filter, HTML-Sicherheit und Callback-Verhalten der Suche.
+  Alle drei UI-Module sind Teil des Service-Worker-App-Shell-Caches.
+- **Rest:** Import- und Positionsdialoge koennen in weiteren kleinen Etappen
+  ausgelagert werden; `app.js` bleibt der zentrale Daten- und I/O-Controller.
 
 ### Bedienbarkeit und Barrierefreiheit pruefen
 

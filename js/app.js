@@ -10,6 +10,14 @@ import {
   mobileTab, toggleMobileActions, closeMobileActions
 } from './navigation.js';
 import {
+  openAddModal, closeAddModal, updatePnlPreview, readAddTradeForm,
+  openEditTradeDialog, closeEditModal, updateEditPreview, readEditTradeForm
+} from './trade-dialogs.js';
+import {
+  openTradeSearchDialog, closeTradeSearch,
+  resetTradeSearchDialog, renderTradeSearch
+} from './trade-search.js';
+import {
   dayMap, deriveOpenPositions, fifoMatch, replayImportLedger,
   closePositionPnl, tradePnl, withOpenLotIds,
   createHiddenOpenPositionEvent, visibleOpenLots,
@@ -19,7 +27,7 @@ import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, c
 import {
   aggregateWeeks, aggregateMonths, computeStats, computeEquityCurve,
   computeWeekdayStats, computeTimeStats, computeInsights, diagnoseBucket,
-  computeMonthlyDiscipline, filterTrades, holdMinutes, tradeDirection,
+  computeMonthlyDiscipline,
   computePeriodReviews
 } from './views.js';
 import {
@@ -1246,37 +1254,13 @@ async function deleteTrade(uid, date) {
    ADD / EDIT TRADE
    ============================================================ */
 function openAddModalForDate() {
-  if (currentDetailDate) $('f-date').value = currentDetailDate;
+  const preferredDate = currentDetailDate || '';
   closeDetail();
-  openAddModal();
-}
-
-function openAddModal() {
-  if (!$('f-date').value) $('f-date').value = toLocalDateStr(new Date());
-  $('f-desc').value = ''; $('f-shares').value = ''; $('f-buy').value = ''; $('f-sell').value = ''; $('f-tax').value = '';
-  updatePnlPreview();
-  $('add-overlay').classList.add('open');
-}
-function closeAddModal() { $('add-overlay').classList.remove('open'); }
-
-function updatePnlPreview() {
-  const buy = parseFloat($('f-buy').value) || 0;
-  const sell = parseFloat($('f-sell').value) || 0;
-  const tax = parseFloat($('f-tax').value) || 0;
-  const pnl = sell - buy - tax;
-  const el = $('pnl-preview');
-  el.textContent = 'P&L: ' + fmtDE(pnl);
-  el.className = 'pnl-preview ' + (pnl >= 0 ? 'pos' : 'neg');
+  openAddModal(preferredDate);
 }
 
 async function saveTrade() {
-  const date = $('f-date').value;
-  const desc = $('f-desc').value.trim();
-  const broker = $('f-broker').value;
-  const shares = parseFloat($('f-shares').value) || 0;
-  const buy = parseFloat($('f-buy').value) || 0;
-  const sell = parseFloat($('f-sell').value) || 0;
-  const tax = parseFloat($('f-tax').value) || 0;
+  const { date, desc, broker, shares, buy, sell, tax } = readAddTradeForm();
   if (!date || !desc || !buy || !sell) { alert('Bitte Datum, Produkt, Kauf- und Verkaufsbetrag ausf\u00fcllen.'); return; }
   const pnl = parseFloat((sell - buy - tax).toFixed(2));
   const base = 'manual_' + date + '_' + sell.toFixed(2) + '_' + shares.toFixed(3);
@@ -1293,52 +1277,14 @@ function openEditModal(uid) {
   if (!t) { alert('Trade nicht gefunden.'); return; }
   const isImported = t.source === 'import';
   if (isImported && !t.sourceRowId) { alert('Import-Quelle fehlt \u2014 Trade kann nicht sicher bearbeitet werden.'); return; }
-  $('e-uid').value = uid;
-  $('e-date').value = t.date;
-  $('e-desc').value = t.desc;
-  $('e-broker').value = t.broker || 'scalable';
-  $('e-shares').value = t.shares || '';
-  $('e-buy').value = t.buy;
-  $('e-sell').value = t.sell;
-  $('e-tax').value = t.tax;
-  // Bei Importen gehoert der Einstand zu den Buy-Rohzeilen und der Broker ist
-  // durch die Quelle festgelegt. Beides darf der Sell-Editor nicht veraendern.
-  $('e-buy').readOnly = isImported;
-  $('e-broker').disabled = isImported;
-  $('e-import-note').style.display = isImported ? 'block' : 'none';
-  $('edit-overlay').dataset.imported = isImported ? 'true' : 'false';
-  updateEditPreview();
-  $('edit-overlay').classList.add('open');
-}
-function closeEditModal() { $('edit-overlay').classList.remove('open'); }
-
-function updateEditPreview() {
-  const el = $('edit-pnl-preview');
-  if ($('edit-overlay').dataset.imported === 'true') {
-    el.textContent = 'P&L wird beim Speichern per FIFO neu berechnet.';
-    el.className = 'pnl-preview';
-    return;
-  }
-  const buy = parseFloat($('e-buy').value) || 0;
-  const sell = parseFloat($('e-sell').value) || 0;
-  const tax = parseFloat($('e-tax').value) || 0;
-  const pnl = sell - buy - tax;
-  el.textContent = 'P&L: ' + fmtDE(pnl);
-  el.className = 'pnl-preview ' + (pnl >= 0 ? 'pos' : 'neg');
+  openEditTradeDialog(t);
 }
 
 async function saveEdit() {
-  const uid = $('e-uid').value;
+  const { uid, date, desc, broker, shares, buy, sell, tax } = readEditTradeForm();
   const idx = DATA.trades.findIndex(x => x.uid === uid);
   if (idx === -1) { alert('Trade nicht gefunden.'); return; }
   const trade = DATA.trades[idx];
-  const buy = parseFloat($('e-buy').value) || 0;
-  const sell = parseFloat($('e-sell').value) || 0;
-  const tax = parseFloat($('e-tax').value) || 0;
-  const desc = $('e-desc').value.trim();
-  const broker = $('e-broker').value;
-  const shares = parseFloat($('e-shares').value) || 0;
-  const date = $('e-date').value;
 
   if (trade.source === 'import') {
     const updated = updateImportSellRow(DATA.importRows, trade.sourceRowId, {
@@ -1728,35 +1674,11 @@ async function setCapital() {
    ============================================================ */
 function openTradeSearch() {
   closeMobileActions();
-  $('search-overlay').classList.add('open');
-  buildTradeSearch();
-  setTimeout(() => $('search-query').focus(), 0);
-}
-
-function closeTradeSearch() {
-  $('search-overlay').classList.remove('open');
+  openTradeSearchDialog(DATA.trades, showDetail);
 }
 
 function resetTradeSearch() {
-  $('search-query').value = '';
-  $('search-from').value = '';
-  $('search-to').value = '';
-  $('search-direction').value = 'all';
-  $('search-result').value = 'all';
-  $('search-hold').value = 'all';
-  buildTradeSearch();
-  $('search-query').focus();
-}
-
-function tradeSearchFilters() {
-  return {
-    query: $('search-query').value,
-    from: $('search-from').value,
-    to: $('search-to').value,
-    direction: $('search-direction').value,
-    result: $('search-result').value,
-    hold: $('search-hold').value
-  };
+  resetTradeSearchDialog(DATA.trades, showDetail);
 }
 
 function searchDateLabel(value) {
@@ -1764,64 +1686,8 @@ function searchDateLabel(value) {
   return parts.length === 3 ? parts[2] + '.' + parts[1] + '.' + parts[0] : '\u2014';
 }
 
-function searchHoldLabel(trade) {
-  const minutes = holdMinutes(trade);
-  const duration = minutes === null
-    ? ''
-    : (minutes < 60
-      ? minutes + ' Min.'
-      : Math.floor(minutes / 60) + ' Std.' + (minutes % 60 ? ' ' + (minutes % 60) + ' Min.' : ''));
-  if (trade.buyDate && trade.date && trade.buyDate !== trade.date) {
-    return 'Overnight' + (duration ? ' \u00b7 ' + duration : '');
-  }
-  return duration || 'Unbekannt';
-}
-
 function buildTradeSearch() {
-  const result = filterTrades(DATA.trades, tradeSearchFilters());
-  const summary = $('search-summary');
-  const results = $('search-results');
-  results.innerHTML = '';
-
-  if (result.invalidRange) {
-    summary.className = 'search-summary error';
-    summary.textContent = 'Der Start des Zeitraums liegt nach dem Ende. Bitte die Ausstiegsdaten korrigieren.';
-    results.innerHTML = '<div class="search-empty">Keine Suche ausgef\u00fchrt.</div>';
-    return;
-  }
-
-  summary.className = 'search-summary';
-  summary.innerHTML = '<span><strong>' + result.count + '</strong> von ' + DATA.trades.length + ' Trades</span>' +
-    '<span>Netto-P&amp;L <strong class="' + (result.totalPnl >= 0 ? 'pos' : 'neg') + '">' +
-    fmtDE(result.totalPnl) + '</strong></span>' +
-    '<span><strong class="pos">' + result.wins + ' W</strong> \u00b7 <strong class="neg">' +
-    result.losses + ' L</strong> \u00b7 ' + result.flat + ' neutral</span>';
-
-  if (result.trades.length === 0) {
-    results.innerHTML = '<div class="search-empty">Keine Trades passen zu diesen Filtern.</div>';
-    return;
-  }
-
-  result.trades.forEach(trade => {
-    const direction = tradeDirection(trade.desc);
-    const directionLabel = direction === 'long' ? 'Long' : (direction === 'short' ? 'Short' : 'Neutral');
-    const pnl = Number(trade.pnl) || 0;
-    const row = document.createElement('article');
-    row.className = 'search-result-row';
-    row.innerHTML = '<div class="search-result-date"><strong>' + escapeHtml(searchDateLabel(trade.date)) + '</strong>' +
-      '<span>' + escapeHtml(trade.time || '') + '</span></div>' +
-      '<div class="search-result-product"><strong>' + escapeHtml(trade.desc || 'Ohne Produkt') + '</strong>' +
-      '<span>' + escapeHtml(trade.isin || 'Manueller Trade') + '</span></div>' +
-      '<div class="search-result-meta"><span class="search-direction ' + direction + '">' + directionLabel + '</span>' +
-      '<span>' + escapeHtml(searchHoldLabel(trade)) + '</span></div>' +
-      '<div class="search-result-pnl ' + (pnl >= 0 ? 'pos' : 'neg') + '">' + fmtDE(pnl) + '</div>' +
-      '<button type="button" class="search-result-open">Tag anzeigen</button>';
-    row.querySelector('.search-result-open').onclick = () => {
-      closeTradeSearch();
-      showDetail(trade.date);
-    };
-    results.appendChild(row);
-  });
+  renderTradeSearch(DATA.trades, showDetail);
 }
 
 function rebuildAll() {

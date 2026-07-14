@@ -62,6 +62,69 @@ export function mergeImportRows(existingRows, incomingRows) {
   return merged;
 }
 
+// Beim ersten Ledger-Import existieren fuer alte Trades noch keine Broker-
+// Rohzeilen. Die Diagnose trennt deshalb reine Analyse von der UI und bezieht
+// neben geschlossenen Trades auch offene Lots ein: Deren Kaufzeilen duerfen
+// ebenfalls nicht erneut importiert werden.
+export function diagnoseFirstLedgerImport(legacyTrades, baseOpenLots, incomingRows, incomingTrades) {
+  const trades = Array.isArray(legacyTrades) ? legacyTrades : [];
+  const lots = Array.isArray(baseOpenLots) ? baseOpenLots : [];
+  const rows = Array.isArray(incomingRows) ? incomingRows : [];
+  const closed = Array.isArray(incomingTrades) ? incomingTrades : [];
+  const validDate = value => {
+    const normalized = normalizeXlsxDate(value);
+    const parts = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!parts) return null;
+    const year = Number(parts[1]);
+    const month = Number(parts[2]);
+    const day = Number(parts[3]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day ? normalized : null;
+  };
+
+  const historyDates = [];
+  trades.forEach(trade => {
+    const buyDate = validDate(trade.buyDate);
+    const sellDate = validDate(trade.date);
+    if (buyDate) historyDates.push(buyDate);
+    if (sellDate) historyDates.push(sellDate);
+  });
+  lots.forEach(lot => {
+    const lotDate = validDate(lot.date || lot.buyDate);
+    if (lotDate) historyDates.push(lotDate);
+  });
+  historyDates.sort();
+
+  const incomingDates = rows.map(row => validDate(row.date)).filter(Boolean).sort();
+  const cutoff = historyDates.length > 0 ? historyDates[historyDates.length - 1] : null;
+  const legacyUids = new Set(trades.map(trade => trade.uid).filter(Boolean));
+  const overlapUids = new Set(
+    closed.filter(trade => trade && legacyUids.has(trade.uid)).map(trade => trade.uid)
+  );
+  const overlapCount = overlapUids.size;
+  const rowsAtOrBeforeCutoff = cutoff ? incomingDates.filter(date => date <= cutoff).length : 0;
+  const rowsAfterCutoff = cutoff ? incomingDates.filter(date => date > cutoff).length : 0;
+
+  return {
+    // Auch eine reine alte Buy-Zeile ist gefaehrlich: Sie erzeugt zwar keinen
+    // UID-Treffer, kann aber ein bereits offenes Basis-Lot verdoppeln.
+    blocked: overlapCount > 0 || rowsAtOrBeforeCutoff > 0,
+    overlapCount,
+    legacyTradeCount: trades.length,
+    baseOpenLotCount: lots.length,
+    historyFrom: historyDates[0] || null,
+    historyTo: cutoff,
+    cutoff,
+    incomingFrom: incomingDates[0] || null,
+    incomingTo: incomingDates[incomingDates.length - 1] || null,
+    incomingRowCount: rows.length,
+    rowsAtOrBeforeCutoff,
+    rowsAfterCutoff,
+    rowsWithoutDate: rows.length - incomingDates.length
+  };
+}
+
 // Import-Trades sind nur eine abgeleitete Sicht. Deshalb wird beim Bearbeiten
 // die zugehoerige Sell-Rohzeile ersetzt und ihre technische ID neu erzeugt;
 // Einstand, P&L und offene Lots berechnet anschliessend allein der FIFO-Replay.

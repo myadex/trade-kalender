@@ -17,7 +17,10 @@ import {
   computeWeekdayStats, computeTimeStats, computeInsights, diagnoseBucket,
   computeMonthlyDiscipline, filterTrades, holdMinutes, tradeDirection
 } from './views.js';
-import { parseScalableCsv, markDuplicates, mergeImportRows, updateImportSellRow } from './import.js';
+import {
+  parseScalableCsv, markDuplicates, mergeImportRows, updateImportSellRow,
+  diagnoseFirstLedgerImport
+} from './import.js';
 
 /* ============================================================
    STATE
@@ -1349,14 +1352,25 @@ async function saveEdit() {
    ============================================================ */
 function openImportModal() {
   pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null;
+  closeImportMigration();
   $('import-tbody').innerHTML = '';
   $('import-preview').style.display = 'none';
   $('import-summary').style.display = 'none';
   $('import-confirm-btn').style.display = 'none';
   $('drop-zone').style.display = 'block';
+  $('csv-input').value = '';
   $('import-overlay').classList.add('open');
 }
-function closeImportModal() { $('import-overlay').classList.remove('open'); }
+function closeImportModal() {
+  closeImportMigration();
+  $('import-overlay').classList.remove('open');
+}
+function closeImportMigration() { $('import-migration-overlay').classList.remove('open'); }
+function chooseImportMigrationFile() {
+  closeImportMigration();
+  $('csv-input').value = '';
+  $('csv-input').click();
+}
 function handleDragOver(e) { e.preventDefault(); $('drop-zone').classList.add('dragover'); }
 function handleDragLeave() { $('drop-zone').classList.remove('dragover'); }
 function handleDrop(e) { e.preventDefault(); $('drop-zone').classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }
@@ -1394,11 +1408,63 @@ function importError(msg) {
   if (btn) btn.style.display = 'none';
 }
 
+function showImportMigration(migration) {
+  // Eine alte Vorschau darf hinter dem Dialog nicht versehentlich bestaetigt
+  // werden. Der Dialog erklaert nur den sicheren Zuschnitt und veraendert DATA nie.
+  pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null;
+  $('import-preview').style.display = 'none';
+  $('import-confirm-btn').style.display = 'none';
+  $('drop-zone').style.display = 'block';
+  $('import-summary').style.display = 'none';
+
+  const tradeLabel = migration.legacyTradeCount === 1 ? 'geschlossener Trade' : 'geschlossene Trades';
+  const lotLabel = migration.baseOpenLotCount === 1 ? 'offenes Lot' : 'offene Lots';
+  $('migration-existing-count').textContent =
+    migration.legacyTradeCount + ' ' + tradeLabel + ' \u00b7 ' +
+    migration.baseOpenLotCount + ' ' + lotLabel;
+  $('migration-history-range').textContent = migration.historyFrom && migration.historyTo
+    ? (migration.historyFrom === migration.historyTo
+      ? searchDateLabel(migration.historyFrom)
+      : searchDateLabel(migration.historyFrom) + ' bis ' + searchDateLabel(migration.historyTo))
+    : 'Nicht automatisch bestimmbar';
+  $('migration-cutoff').textContent = migration.cutoff
+    ? 'Nur Zeilen nach dem ' + searchDateLabel(migration.cutoff)
+    : 'Manuelle Pr\u00fcfung erforderlich';
+  $('migration-overlap-count').textContent = migration.overlapCount === 0
+    ? 'Kein geschlossener Trade-Treffer'
+    : migration.overlapCount + ' bereits vorhandene' +
+      (migration.overlapCount === 1 ? 'r Trade' : ' Trades');
+
+  const datedRows = migration.incomingRowCount - migration.rowsWithoutDate;
+  let rowSummary = migration.incomingRowCount + ' Brokerzeilen';
+  if (migration.cutoff) {
+    rowSummary += ' \u00b7 ' + migration.rowsAtOrBeforeCutoff + ' bis einschlie\u00dflich Stichtag' +
+      ' \u00b7 ' + migration.rowsAfterCutoff + ' danach';
+  } else if (datedRows > 0) {
+    rowSummary += ' \u00b7 ' + datedRows + ' mit Datum';
+  }
+  if (migration.rowsWithoutDate > 0) rowSummary += ' \u00b7 ' + migration.rowsWithoutDate + ' ohne Datum';
+  $('migration-row-summary').textContent = rowSummary;
+  $('migration-step-cutoff').textContent = migration.cutoff
+    ? 'Entferne alle Datenzeilen bis einschlie\u00dflich ' + searchDateLabel(migration.cutoff) +
+      '. Die Kopfzeile bleibt unver\u00e4ndert.'
+    : 'Vergleiche die Datei mit deiner App und behalte nur Brokerzeilen, die dort noch nicht erfasst sind.';
+  $('migration-same-day-note').style.display = migration.cutoff ? 'block' : 'none';
+  $('import-migration-overlay').classList.add('open');
+}
+
 function parseImport(text) {
   // Parsen + Validieren passiert in import.js (pure). Hier nur Fehleranzeige + Rendering.
   const result = parseScalableCsv(text);
   if (result.error) { importError(result.error); return; }
   const filtered = result.rows;
+  // Datierbare Altzeilen werden vor dem Replay erkannt. So ueberdeckt ein
+  // daraus folgender FIFO-Fehler nicht die eigentliche Migrationsanleitung.
+  const migrationByDate = diagnoseFirstLedgerImport(legacyTrades(), DATA.openLots, filtered, []);
+  if (!hasImportLedger() && migrationByDate.blocked) {
+    showImportMigration(migrationByDate);
+    return;
+  }
   const importBaseOpenLots = hasImportLedger() ? cloneLots(DATA.importBaseOpenLots) : cloneLots(DATA.openLots);
   const importRows = mergeImportRows(DATA.importRows, filtered);
   const newImportRowCount = importRows.length - DATA.importRows.length;
@@ -1416,11 +1482,12 @@ function parseImport(text) {
     );
     return;
   }
-  // Ein erster Ledger-Import darf keine alte Historie nochmals uebernehmen:
-  // deren Rohzeilen fehlen, daher waere ein Mix aus Legacy und Replay falsch.
-  const legacyUids = new Set(legacyTrades().map(t => t.uid));
-  if (!hasImportLedger() && closed.some(t => legacyUids.has(t.uid))) {
-    importError('Dieser CSV-Export enth\u00e4lt bereits historische Trades. Bitte f\u00fcr den ersten Ledger-Import nur neue Brokerzeilen verwenden.');
+  // Ein erster Ledger-Import darf keine alte Historie nochmals uebernehmen.
+  // Die pure Diagnose liefert der UI zugleich den sicheren Stichtag und den
+  // Umfang der erkannten Ueberschneidung, ohne gespeicherte Daten anzufassen.
+  const migration = diagnoseFirstLedgerImport(legacyTrades(), DATA.openLots, filtered, closed);
+  if (!hasImportLedger() && migration.blocked) {
+    showImportMigration(migration);
     return;
   }
   pendingOpenLots = openLots;
@@ -1801,7 +1868,8 @@ Object.assign(window, {
   openAddModalForDate, closeAddModal, saveTrade, updatePnlPreview,
   closeEditModal, saveEdit, updateEditPreview,
   closeDetail,
-  closeImportModal, confirmImport, handleFileSelect,
+  closeImportModal, closeImportMigration, chooseImportMigrationFile,
+  confirmImport, handleFileSelect,
   handleDragOver, handleDragLeave, handleDrop,
   closeClosePosModal, confirmClosePos, setCloseTotalLoss, updateClosePreview, onCloseTaxInput
 });

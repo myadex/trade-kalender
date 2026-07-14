@@ -127,10 +127,19 @@ Wartbarkeit bzw. Komfort.
 
 ### Import-Migration in der UI erklaeren
 
-- **Status:** Offen; naechster priorisierter Produktpunkt.
-- **Warum:** Der erste Ledger-Import akzeptiert bewusst nur neue Brokerzeilen.
-- **Ziel:** Dialog mit erklaertem Stichtag, erkannter Historie und klarer
-  Handlungsanweisung statt einer reinen Fehlermeldung.
+- **Status:** Erledigt in v51.
+- **Loesung:** Erkennt der erste Ledger-Import bereits vorhandene Historie,
+  wird er vor dem Speichern angehalten. Ein eigener Dialog zeigt Bestand,
+  Historienbereich, Ueberschneidungen und die Aufteilung der CSV-Zeilen am
+  ermittelten Stichtag. Eine Schrittfolge erklaert den sicheren CSV-Zuschnitt;
+  ein unsicherer Bypass wird bewusst nicht angeboten.
+- **Stichtag:** Fuer den letzten bereits erfassten Tag werden sowohl Kauf- und
+  Verkaufsdaten der Legacy-Trades als auch die Kaufdaten vorhandener offener
+  Lots beruecksichtigt. Dadurch kann auch eine offene Position nicht durch ihre
+  alte Kaufzeile doppelt angelegt werden. Buchungen am selben Stichtag bleiben
+  als manuell zu pruefender Sonderfall sichtbar.
+- **Datenintegritaet:** Diagnose und Stichtagsberechnung sind pure Funktionen.
+  Beim angehaltenen Import werden weder App-Daten noch Drive-Daten veraendert.
 
 ### CSV-Export gegen Tabellenformeln absichern
 

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0a0e14;--paper:#0d1420;--ink:#e2e8f0;--muted:#64748b;--border:#1c2433;--green:#22c55e;--green-bg:#0f2318;--green-mid:#1a5233;--red:#ef4444;--red-bg:#2a1416;--red-mid:#5c2528;--amber:#f59e0b;--blue:#3b82f6;--blue-bg:#0f1e33;}
+:root{--bg:#0a0e14;--paper:#0d1420;--ink:#e2e8f0;--muted:#64748b;--border:#1c2433;--green:#22c55e;--green-bg:#0f2318;--green-mid:#1a5233;--red:#ef4444;--red-bg:#2a1416;--red-mid:#5c2528;--amber:#f59e0b;--amber-bg:#2a2110;--amber-mid:#5c4517;--blue:#3b82f6;--blue-bg:#0f1e33;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--ink);font-family:'Chakra Petch',sans-serif;min-height:100vh;padding:1.5rem 1rem;-webkit-tap-highlight-color:transparent;}
 
@@ -228,6 +228,18 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .import-preview tr.dup td{opacity:.35;text-decoration:line-through;}
 .import-summary{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);margin:.5rem 0;}
 .import-summary.warn{color:var(--amber);}
+.import-migration-overlay{z-index:210;}
+.import-migration-modal{max-width:680px;}
+.migration-kicker{font-family:'JetBrains Mono',monospace;font-size:.58rem;letter-spacing:.09em;text-transform:uppercase;color:var(--amber);margin-bottom:.35rem;}
+.migration-lead{font-size:.82rem;line-height:1.55;color:var(--ink);margin-bottom:.85rem;}
+.migration-explanation{padding:.75rem .85rem;border:1px solid var(--amber-mid);border-radius:8px;background:var(--amber-bg);font-size:.72rem;line-height:1.5;color:var(--ink);}
+.migration-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.55rem;margin:.85rem 0;}
+.migration-fact{padding:.65rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--bg);min-width:0;}
+.migration-fact span{display:block;font-family:'JetBrains Mono',monospace;font-size:.52rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:.25rem;}
+.migration-fact strong{display:block;font-family:'JetBrains Mono',monospace;font-size:.68rem;line-height:1.4;color:var(--ink);overflow-wrap:anywhere;}
+.migration-steps{margin:.75rem 0 0 1.25rem;padding:0;font-size:.74rem;line-height:1.5;color:var(--ink);}
+.migration-steps li{padding-left:.2rem;margin-bottom:.42rem;}
+.migration-note{font-size:.66rem;line-height:1.45;color:var(--muted);margin-top:.65rem;}
 .search-modal{max-width:960px;height:min(760px,90vh);display:flex;flex-direction:column;overflow:hidden;}
 .search-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem;}
 .search-header h3{margin:0 0 .2rem;}.search-header p{font-family:'JetBrains Mono',monospace;font-size:.58rem;line-height:1.45;color:var(--muted);}
@@ -710,6 +722,38 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     <div class="modal-actions">
       <button class="btn" onclick="closeImportModal()">Schlie&szlig;en</button>
       <button class="btn primary" id="import-confirm-btn" style="display:none" onclick="confirmImport()">Importieren</button>
+    </div>
+  </div>
+</div>
+
+<!-- ERSTER LEDGER-IMPORT: BESTEHENDE HISTORIE -->
+<div class="modal-overlay import-migration-overlay" id="import-migration-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="import-migration-title" onclick="if(event.target===this)closeImportMigration()">
+  <div class="modal import-migration-modal">
+    <div class="migration-kicker">Import sicher angehalten</div>
+    <h3 id="import-migration-title">Bestehende Historie erkannt</h3>
+    <p class="migration-lead">Der erste Ledger-Import wurde vor dem Speichern gestoppt. Deine vorhandenen Trades und offenen Positionen wurden nicht ver&auml;ndert.</p>
+    <div class="migration-explanation">
+      Ab dem ersten Ledger-Import speichert die App jede Brokerzeile als nachvollziehbare Grundlage f&uuml;r FIFO und offene Positionen. Diese Datei enth&auml;lt bereits bekannte Historie. Ein Zusammenf&uuml;hren k&ouml;nnte Trades oder Positionen doppelt erzeugen.
+    </div>
+    <div class="migration-facts">
+      <div class="migration-fact"><span>Vorhandener Bestand</span><strong id="migration-existing-count">&mdash;</strong></div>
+      <div class="migration-fact"><span>Erkannte Historie</span><strong id="migration-history-range">&mdash;</strong></div>
+      <div class="migration-fact"><span>Sicherer Schnitt</span><strong id="migration-cutoff">&mdash;</strong></div>
+      <div class="migration-fact"><span>Trade-&Uuml;berschneidung</span><strong id="migration-overlap-count">&mdash;</strong></div>
+      <div class="migration-fact"><span>Ausgew&auml;hlte Datei</span><strong id="migration-row-summary">&mdash;</strong></div>
+    </div>
+    <strong>So bereitest du den ersten Import vor:</strong>
+    <ol class="migration-steps">
+      <li>Erstelle eine Kopie des Scalable-CSV-Exports.</li>
+      <li id="migration-step-cutoff">Behalte nur neue Brokerzeilen.</li>
+      <li>Behalte ausschlie&szlig;lich ausgef&uuml;hrte Buy-/Sell-Zeilen; &auml;ndere die Spaltennamen nicht.</li>
+      <li>Importiere die bearbeitete Kopie erneut.</li>
+    </ol>
+    <p class="migration-note" id="migration-same-day-note">Gab es am Stichtag nach deinem bisherigen Datenstand noch weitere Buchungen, pr&uuml;fe diese Zeilen manuell. Ein reiner Datumsfilter kann Buchungen desselben Tages nicht sicher trennen.</p>
+    <div class="modal-actions">
+      <button class="btn" type="button" onclick="closeImportMigration()">Zur&uuml;ck</button>
+      <button class="btn primary" type="button" onclick="chooseImportMigrationFile()">Andere CSV ausw&auml;hlen</button>
     </div>
   </div>
 </div>

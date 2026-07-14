@@ -394,6 +394,55 @@ const realFifoCheck = (async () => {
     check('import: CSV fehlende Spalten -> error', !!imod.parseScalableCsv('foo;bar\n1;2').error);
     const md = imod.markDuplicates([{ uid: 'a' }, { uid: 'b' }], new Set(['b']));
     check('import: markDuplicates (1 neu, 1 dup)', md.newCount === 1 && md.dupCount === 1);
+    const migrationFnReady = typeof imod.diagnoseFirstLedgerImport === 'function';
+    check('Import-Migration: pure Diagnose exportiert', migrationFnReady);
+    if (migrationFnReady) {
+      const legacyInput = [
+        { uid: 'legacy-1', buyDate: '2026-06-10', date: '2026-06-15' },
+        { uid: 'legacy-2', buyDate: '2026-06-12', date: '2026-06-18' }
+      ];
+      const openLotInput = [{ isin: 'OPEN', date: '2026-06-20', shares: 1 }];
+      const rowInput = [
+        { date: '2026-06-18' },
+        { date: '2026-06-20' },
+        { date: '2026-06-21' }
+      ];
+      const closedInput = [{ uid: 'legacy-2' }, { uid: 'new-1' }];
+      const before = JSON.stringify([legacyInput, openLotInput, rowInput, closedInput]);
+      const migration = imod.diagnoseFirstLedgerImport(
+        legacyInput, openLotInput, rowInput, closedInput
+      );
+      check('Import-Migration: historische Ueberschneidung blockiert ersten Ledger-Import',
+        migration.blocked && migration.overlapCount === 1);
+      check('Import-Migration: Stichtag beruecksichtigt auch vorhandene offene Lots',
+        migration.cutoff === '2026-06-20' &&
+        migration.historyFrom === '2026-06-10' && migration.historyTo === '2026-06-20');
+      check('Import-Migration: CSV-Zeilen werden am Stichtag nachvollziehbar aufgeteilt',
+        migration.rowsAtOrBeforeCutoff === 2 && migration.rowsAfterCutoff === 1 &&
+        migration.incomingFrom === '2026-06-18' && migration.incomingTo === '2026-06-21');
+      check('Import-Migration: Diagnose meldet Bestandsumfang und mutiert keine Eingaben',
+        migration.legacyTradeCount === 2 && migration.baseOpenLotCount === 1 &&
+        JSON.stringify([legacyInput, openLotInput, rowInput, closedInput]) === before);
+      const cleanMigration = imod.diagnoseFirstLedgerImport(
+        legacyInput, openLotInput, [{ date: '2026-06-21' }], [{ uid: 'new-1' }]
+      );
+      check('Import-Migration: reine neue Brokerzeilen bleiben erlaubt',
+        !cleanMigration.blocked && cleanMigration.overlapCount === 0 &&
+        cleanMigration.rowsAtOrBeforeCutoff === 0 && cleanMigration.rowsAfterCutoff === 1);
+      const openLotDuplicate = imod.diagnoseFirstLedgerImport(
+        [], openLotInput, [{ date: '2026-06-20' }], []
+      );
+      check('Import-Migration: alte Kaufzeile einer offenen Position wird ebenfalls blockiert',
+        openLotDuplicate.blocked && openLotDuplicate.overlapCount === 0 &&
+        openLotDuplicate.rowsAtOrBeforeCutoff === 1);
+    } else {
+      check('Import-Migration: historische Ueberschneidung blockiert ersten Ledger-Import', false);
+      check('Import-Migration: Stichtag beruecksichtigt auch vorhandene offene Lots', false);
+      check('Import-Migration: CSV-Zeilen werden am Stichtag nachvollziehbar aufgeteilt', false);
+      check('Import-Migration: Diagnose meldet Bestandsumfang und mutiert keine Eingaben', false);
+      check('Import-Migration: reine neue Brokerzeilen bleiben erlaubt', false);
+      check('Import-Migration: alte Kaufzeile einer offenen Position wird ebenfalls blockiert', false);
+    }
     const ledgerFnsReady =
       typeof imod.withSourceRowIds === 'function' &&
       typeof imod.mergeImportRows === 'function' &&
@@ -813,6 +862,18 @@ check('UI escaped Texte aus CSV und JSON vor innerHTML',
 check('Import blockiert FIFO-Ueberverkaeufe vor dem Speichern',
   appJs.includes('const { trades: closed, openLots, errors } = replayImportLedger') &&
   appJs.includes('if (errors.length > 0)'));
+check('Import-Migration: eigener Erklaerdialog statt knapper Fehlermeldung',
+  html.includes('id="import-migration-overlay"') &&
+  html.includes('id="migration-cutoff"') &&
+  html.includes('id="migration-overlap-count"') &&
+  appJs.includes('function showImportMigration(') &&
+  !appJs.includes('Bitte f\\u00fcr den ersten Ledger-Import nur neue Brokerzeilen verwenden.'));
+check('Import-Migration: UI nutzt die pure Diagnose und bietet keinen unsicheren Bypass',
+  appJs.includes('diagnoseFirstLedgerImport(') &&
+  appJs.includes('if (!hasImportLedger() && migration.blocked)') &&
+  !html.includes('import-migration-force'));
+check('Import-Migration: Stichtagspruefung laeuft vor dem FIFO-Replay',
+  /const migrationByDate[\s\S]{0,1000}replayImportLedger\(importRows/.test(appJs));
 check('App persistiert Import-Ledger getrennt von Legacy-Trades',
   appJs.includes('importRows') &&
   appJs.includes('importBaseOpenLots') &&

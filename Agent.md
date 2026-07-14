@@ -12,7 +12,9 @@ js/helpers.js   Formatierung, Datum (toLocalDateStr, normalizeXlsxDate)
 js/fifo.js      FIFO-Matching, Steuer, buyDate/buyTime   [KERN — Golden Values!]
 js/views.js     Aggregation, Statistik, Insights, Diagnosen (pure)
 js/import.js    CSV-Parsing + Validierung (pure)
+js/import-dialogs.js CSV-Auswahl, Importvorschau und Kontrollberichte
 js/navigation.js Haupttabs, Statistik-Untertabs und mobile Navigation
+js/position-dialog.js Formular und Vorschau zum Schliessen einer Position
 js/trade-dialogs.js Formulare und Vorschau fuer Hinzufuegen/Bearbeiten
 js/trade-search.js Filterformular und rein lesende Suchergebnisse
 js/storage.js   Google-Drive-API (zustandslos, Token als Parameter)

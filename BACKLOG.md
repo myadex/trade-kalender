@@ -227,7 +227,7 @@ Wartbarkeit bzw. Komfort.
 
 ### UI-Controller weiter aufteilen
 
-- **Status:** In Arbeit; drei Etappen bis v59 abgeschlossen.
+- **Status:** Erledigt in v60.
 - **Warum:** `js/app.js` enthaelt weiterhin State, Rendering und Event-Logik.
 - **Ziel:** Tabs und Dialoge in kleine Render-Module auslagern; pure Logik bleibt
   in den bestehenden Fachmodulen.
@@ -242,12 +242,21 @@ Wartbarkeit bzw. Komfort.
   Trade-Suche liegen jetzt in `js/trade-search.js`. Die aktuelle Trade-Liste
   und der Callback zum Oeffnen eines Tages werden explizit uebergeben; das
   Modul kennt weder globales `DATA` noch Persistenz.
+- **Etappe 4:** Formular, Steuerautomatik und P&L-Vorschau zum Schliessen einer
+  offenen Position liegen in `js/position-dialog.js`. Ledger-Buchung,
+  Trade-Erzeugung und Persistenz bleiben im App-Controller.
+- **Etappe 5:** CSV-Auswahl, Drag-and-drop, Fehleransicht, Importvorschau,
+  Migrationshinweise und Kontrollbericht liegen in `js/import-dialogs.js`.
+  Parsing, FIFO-Replay, Pending-State und Speichern bleiben in den bestehenden
+  Fachmodulen und im App-Controller.
 - **Sicherung:** Echte DOM-Tests pruefen Navigation, ARIA-Zustaende,
   Tastatursteuerung, beide Trade-Formulare einschliesslich der gesperrten
-  Importfelder sowie Filter, HTML-Sicherheit und Callback-Verhalten der Suche.
-  Alle drei UI-Module sind Teil des Service-Worker-App-Shell-Caches.
-- **Rest:** Import- und Positionsdialoge koennen in weiteren kleinen Etappen
-  ausgelagert werden; `app.js` bleibt der zentrale Daten- und I/O-Controller.
+  Importfelder, Filter und Callback-Verhalten der Suche, Positionssteuer sowie
+  den vollstaendigen Importdialog inklusive HTML-Sicherheit. Alle fuenf
+  UI-Module sind Teil des Service-Worker-App-Shell-Caches.
+- **Abschluss:** `app.js` bleibt bewusst der zentrale State- und I/O-Controller.
+  Eine weitere Zerlegung der Kalender- und Statistik-Renderer waere ein eigener
+  Refactoring-Punkt und braucht vorab eine neue Nutzen-/Risikoentscheidung.
 
 ### Bedienbarkeit und Barrierefreiheit pruefen
 

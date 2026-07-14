@@ -50,6 +50,16 @@ check('UI-Controller: Trade-Suche liegt in einem eigenen Render-Modul',
   fs.existsSync(tradeSearchPath) && appControllerJs.includes("from './trade-search.js'") &&
   !appControllerJs.includes('function tradeSearchFilters(') &&
   !appControllerJs.includes("row.className = 'search-result-row'"));
+const positionDialogPath = DIR + '/js/position-dialog.js';
+check('UI-Controller: Positionsdialog liegt in einem eigenen UI-Modul',
+  fs.existsSync(positionDialogPath) && appControllerJs.includes("from './position-dialog.js'") &&
+  !appControllerJs.includes('function updateClosePreview(') &&
+  !appControllerJs.includes("$('cp-name').textContent"));
+const importDialogsPath = DIR + '/js/import-dialogs.js';
+check('UI-Controller: Importdialoge liegen in einem eigenen UI-Modul',
+  fs.existsSync(importDialogsPath) && appControllerJs.includes("from './import-dialogs.js'") &&
+  !appControllerJs.includes('function renderImportReport(') &&
+  !appControllerJs.includes("$('import-tbody')"));
 // Der Service Worker wird aus index.html mit './sw.js' registriert. Er muss
 // deshalb im Projekt-Root liegen: Unter js/ haette er nur den Scope /js/ und
 // koennte weder die App-Seite noch die PWA-Root-Route kontrollieren.
@@ -74,7 +84,8 @@ catch (e) { check('sw.js parses (' + e.message + ')', false); }
 const offlineAssets = [
   './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
-  './js/import.js', './js/navigation.js', './js/storage.js',
+  './js/import-dialogs.js', './js/import.js', './js/navigation.js',
+  './js/position-dialog.js', './js/storage.js',
   './js/trade-dialogs.js', './js/trade-search.js', './js/views.js'
 ];
 check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
@@ -363,6 +374,12 @@ const realFifoCheck = (async () => {
     const searchmod = fs.existsSync(tradeSearchPath)
       ? await import('file://' + tradeSearchPath)
       : null;
+    const positionmod = fs.existsSync(positionDialogPath)
+      ? await import('file://' + positionDialogPath)
+      : null;
+    const importdialogsmod = fs.existsSync(importDialogsPath)
+      ? await import('file://' + importDialogsPath)
+      : null;
     check('navigation: alle Desktop- und Mobilfunktionen exportiert',
       !!navmod && ['showTab', 'setStatsView', 'handleStatsViewKey', 'mobileTab',
         'toggleMobileActions', 'closeMobileActions']
@@ -460,6 +477,165 @@ const realFifoCheck = (async () => {
       global.window = previousWindow;
       global.document = previousDocument;
       dialogDom.window.close();
+    }
+
+    check('positionDialog: Formular- und Vorschaufunktionen exportiert',
+      !!positionmod && ['openClosePositionDialog', 'closeClosePositionDialog',
+        'readClosePositionForm', 'setCloseTotalLoss', 'updateClosePreview',
+        'onCloseTaxInput']
+        .every(name => typeof positionmod[name] === 'function'));
+    const positionDom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true });
+    global.window = positionDom.window;
+    global.document = positionDom.window.document;
+    const positionLots = [
+      { desc: 'DAX Long', shares: 1.25, amount: 1000 },
+      { desc: 'DAX Long', shares: 0.75, amount: 500 }
+    ];
+    try {
+      if (positionmod) positionmod.openClosePositionDialog(positionLots, '2026-07-14');
+      check('positionDialog: Oeffnen zeigt aggregierte Position und Verlustvorschau',
+        !!positionmod && positionDom.window.document.getElementById('close-pos-overlay').classList.contains('open') &&
+        positionDom.window.document.getElementById('cp-name').textContent === 'DAX Long' &&
+        positionDom.window.document.getElementById('cp-info').textContent.includes('2 St\u00fcck') &&
+        positionDom.window.document.getElementById('cp-date').value === '2026-07-14' &&
+        positionDom.window.document.getElementById('cp-tax').value === '-395.63' &&
+        positionDom.window.document.getElementById('cp-preview').textContent.includes('-1.104,37'));
+
+      positionDom.window.document.getElementById('cp-sell').value = '2000';
+      if (positionmod) positionmod.updateClosePreview();
+      check('positionDialog: Gewinn berechnet automatische Steuer mit 26,375 Prozent',
+        !!positionmod && positionDom.window.document.getElementById('cp-tax').value === '131.88' &&
+        positionDom.window.document.getElementById('cp-preview').textContent.includes('368,12'));
+
+      positionDom.window.document.getElementById('cp-tax').value = '100';
+      if (positionmod) positionmod.onCloseTaxInput();
+      const closeForm = positionmod ? positionmod.readClosePositionForm() : {};
+      check('positionDialog: Manuelle Steuer bleibt erhalten und Formulardaten sind numerisch',
+        closeForm.date === '2026-07-14' && closeForm.sell === 2000 && closeForm.tax === 100 &&
+        positionDom.window.document.getElementById('cp-tax').dataset.touched === '1' &&
+        positionDom.window.document.getElementById('cp-preview').textContent.includes('400,00'));
+
+      if (positionmod) {
+        positionmod.openClosePositionDialog(positionLots, '2026-07-15');
+        positionmod.setCloseTotalLoss();
+      }
+      check('positionDialog: Totalverlust setzt Verkauf auf null und Steuererstattung automatisch',
+        !!positionmod && positionDom.window.document.getElementById('cp-sell').value === '0' &&
+        positionDom.window.document.getElementById('cp-tax').value === '-395.63' &&
+        positionDom.window.document.getElementById('cp-preview').textContent.includes('Steuererstattung'));
+
+      if (positionmod) positionmod.closeClosePositionDialog();
+      check('positionDialog: Schliessen entfernt den sichtbaren Dialogzustand',
+        !!positionmod && !positionDom.window.document.getElementById('close-pos-overlay').classList.contains('open'));
+    } finally {
+      global.window = previousWindow;
+      global.document = previousDocument;
+      positionDom.window.close();
+    }
+
+    check('importDialogs: Dialog-, Datei- und Renderfunktionen exportiert',
+      !!importdialogsmod && ['openImportDialog', 'closeImportDialog',
+        'closeImportMigration', 'chooseImportMigrationFile',
+        'handleImportDragOver', 'handleImportDragLeave', 'handleImportDrop',
+        'readImportFile', 'showImportError', 'renderImportMigration',
+        'renderImportReport', 'renderImportPreview', 'showSavedImportReport']
+        .every(name => typeof importdialogsmod[name] === 'function'));
+    const importDom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true });
+    global.window = importDom.window;
+    global.document = importDom.window.document;
+    const importReport = {
+      newBrokerRows: 2, duplicateBrokerRows: 1, acceptedRows: 3, sourceRows: 4,
+      rejectedRows: 1, newClosedTrades: 1, duplicateClosedTrades: 1,
+      openPositionsAfter: 2, openPositionsBefore: 1, openPositionsDelta: 1,
+      pnlAfter: 120, pnlBefore: 100, pnlDelta: 20,
+      taxAfter: 30, taxBefore: 20, taxDelta: 10
+    };
+    const previewTrades = Array.from({ length: 41 }, (_, index) => ({
+      date: '2026-07-' + String((index % 28) + 1).padStart(2, '0'),
+      desc: index === 0 ? '<img src=x> DAX Long' : 'DAX Trade ' + index,
+      shares: 1, buy: 100, sell: 120, pnl: 20, isDup: index === 1
+    }));
+    try {
+      importDom.window.document.getElementById('import-migration-overlay').classList.add('open');
+      importDom.window.document.getElementById('import-tbody').innerHTML = '<tr><td>alt</td></tr>';
+      if (importdialogsmod) importdialogsmod.openImportDialog();
+      check('importDialogs: Oeffnen setzt die komplette Importansicht zurueck',
+        !!importdialogsmod && importDom.window.document.getElementById('import-overlay').classList.contains('open') &&
+        !importDom.window.document.getElementById('import-migration-overlay').classList.contains('open') &&
+        importDom.window.document.getElementById('import-tbody').children.length === 0 &&
+        importDom.window.document.getElementById('drop-zone').style.display === 'block' &&
+        importDom.window.document.getElementById('import-preview').style.display === 'none' &&
+        importDom.window.document.getElementById('import-confirm-btn').style.display === 'none');
+
+      if (importdialogsmod) importdialogsmod.showImportError('CSV ist ungueltig');
+      check('importDialogs: Fehleransicht erklaert den Fehler ohne alte Vorschau',
+        !!importdialogsmod && importDom.window.document.getElementById('import-summary').textContent === 'CSV ist ungueltig' &&
+        importDom.window.document.getElementById('import-summary').classList.contains('warn') &&
+        importDom.window.document.getElementById('import-summary').style.display === 'block' &&
+        importDom.window.document.getElementById('import-report').style.display === 'none');
+
+      if (importdialogsmod) importdialogsmod.renderImportMigration({
+        legacyTradeCount: 2, baseOpenLotCount: 1,
+        historyFrom: '2026-01-01', historyTo: '2026-02-01', cutoff: '2026-02-01',
+        overlapCount: 1, incomingRowCount: 5, rowsWithoutDate: 1,
+        rowsAtOrBeforeCutoff: 3, rowsAfterCutoff: 1
+      });
+      check('importDialogs: Migrationsdialog zeigt Bestand, Zeitraum und sicheren Schnitt',
+        !!importdialogsmod && importDom.window.document.getElementById('import-migration-overlay').classList.contains('open') &&
+        importDom.window.document.getElementById('migration-existing-count').textContent.includes('2 geschlossene Trades') &&
+        importDom.window.document.getElementById('migration-history-range').textContent === '01.01.2026 bis 01.02.2026' &&
+        importDom.window.document.getElementById('migration-cutoff').textContent.includes('01.02.2026') &&
+        importDom.window.document.getElementById('migration-row-summary').textContent.includes('1 ohne Datum'));
+
+      if (importdialogsmod) importdialogsmod.renderImportPreview(previewTrades, importReport, 2, 1);
+      const previewRows = importDom.window.document.querySelectorAll('#import-tbody tr');
+      check('importDialogs: Vorschau begrenzt Zeilen, markiert Duplikate und bleibt HTML-sicher',
+        !!importdialogsmod && previewRows.length === 41 && previewRows[1].classList.contains('dup') &&
+        importDom.window.document.querySelector('#import-tbody img') === null &&
+        previewRows[0].textContent.includes('<img src=x> DAX Long') &&
+        previewRows[40].textContent.includes('1 weitere'));
+      check('importDialogs: Kontrollbericht und Importaktion zeigen die berechneten Werte',
+        !!importdialogsmod && importDom.window.document.getElementById('import-report-state').textContent.includes('Vorschau') &&
+        importDom.window.document.getElementById('import-report-rows').textContent === '2 neu' &&
+        importDom.window.document.getElementById('import-report-pnl').textContent.includes('120,00') &&
+        importDom.window.document.getElementById('import-confirm-btn').textContent === '1 Trade importieren');
+
+      if (importdialogsmod) importdialogsmod.showSavedImportReport(importReport);
+      check('importDialogs: Gespeicherter Bericht bleibt sichtbar und sperrt erneutes Bestaetigen',
+        !!importdialogsmod && importDom.window.document.getElementById('import-report').classList.contains('saved') &&
+        importDom.window.document.getElementById('import-report-state').textContent === 'Import gespeichert' &&
+        importDom.window.document.getElementById('import-preview').style.display === 'none' &&
+        importDom.window.document.getElementById('import-confirm-btn').style.display === 'none');
+
+      let droppedFile = null;
+      let prevented = false;
+      const fakeFile = { name: 'broker.csv' };
+      importDom.window.document.getElementById('drop-zone').classList.add('dragover');
+      if (importdialogsmod) importdialogsmod.handleImportDrop({
+        preventDefault: () => { prevented = true; },
+        dataTransfer: { files: [fakeFile] }
+      }, file => { droppedFile = file; });
+      check('importDialogs: Drop-Zone entfernt Hervorhebung und reicht die Datei weiter',
+        prevented && droppedFile === fakeFile &&
+        !importDom.window.document.getElementById('drop-zone').classList.contains('dragover'));
+
+      let fileError = '';
+      if (importdialogsmod) importdialogsmod.readImportFile(
+        { name: 'broker.xlsx' }, () => {}, message => { fileError = message; }
+      );
+      check('importDialogs: Dateiauswahl lehnt Nicht-CSV vor dem Lesen ab',
+        fileError.includes('.csv-Datei'));
+
+      let filePickerClicks = 0;
+      importDom.window.document.getElementById('csv-input').addEventListener('click', () => { filePickerClicks++; });
+      if (importdialogsmod) importdialogsmod.chooseImportMigrationFile();
+      check('importDialogs: Andere CSV schliesst die Migration und oeffnet die Dateiauswahl',
+        filePickerClicks === 1 &&
+        !importDom.window.document.getElementById('import-migration-overlay').classList.contains('open'));
+    } finally {
+      global.window = previousWindow;
+      global.document = previousDocument;
+      importDom.window.close();
     }
 
     check('tradeSearch: Dialogfunktionen exportiert und State bleibt Parameter',
@@ -1211,8 +1387,8 @@ console.log('\n=== 6c. IMPORT ROBUSTHEIT ===');
 check('UI escaped Texte aus CSV und JSON vor innerHTML',
   appJs.includes('escapeHtml(p.desc)') &&
   appJs.includes('escapeHtml(p.isin)') &&
-  appJs.includes('escapeHtml(t.desc)') &&
-  appJs.includes('escapeHtml(t.date)'));
+  (appJs.includes('escapeHtml(t.desc)') || appJs.includes('escapeHtml(trade.desc)')) &&
+  (appJs.includes('escapeHtml(t.date)') || appJs.includes('escapeHtml(trade.date)')));
 check('Import blockiert FIFO-Ueberverkaeufe vor dem Speichern',
   appJs.includes('const { trades: closed, openLots, errors } = replayImportLedger') &&
   appJs.includes('if (errors.length > 0)'));
@@ -1235,10 +1411,10 @@ check('Import-Kontrollbericht: UI zeigt alle geforderten Kennzahlen',
   html.includes('id="import-report-tax"'));
 check('Import-Kontrollbericht: Vorschau nutzt pure Berechnung und sichtbare offene Lots',
   appJs.includes('buildImportReport({') && appJs.includes('visibleOpenLots(DATA.openLots') &&
-  appJs.includes('renderImportReport(pendingImportReport, false)'));
+  appControllerJs.includes('renderImportPreview(pendingImport, pendingImportReport'));
 check('Import-Kontrollbericht: bleibt nach erfolgreichem Speichern sichtbar',
-  /function confirmImport[\s\S]{0,1200}renderImportReport\(pendingImportReport, true\)/.test(appJs) &&
-  !/function confirmImport[\s\S]{0,1200}closeImportModal\(\)/.test(appJs));
+  /function confirmImport[\s\S]{0,1200}showSavedImportReport\(pendingImportReport\)/.test(appControllerJs) &&
+  !/function confirmImport[\s\S]{0,1200}closeImportModal\(\)/.test(appControllerJs));
 check('App persistiert Import-Ledger getrennt von Legacy-Trades',
   appJs.includes('importRows') &&
   appJs.includes('importBaseOpenLots') &&

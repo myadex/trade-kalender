@@ -3,7 +3,7 @@
 // ============================================================
 // app.js — Haupt-Einstiegspunkt (verbindet alle Module)
 // ============================================================
-import { CLIENT_ID, SCOPE, TAX_RATE, APP_VERSION } from './config.js';
+import { CLIENT_ID, SCOPE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml, csvCell } from './helpers.js';
 import {
   showTab, setStatsView, handleStatsViewKey,
@@ -17,6 +17,16 @@ import {
   openTradeSearchDialog, closeTradeSearch,
   resetTradeSearchDialog, renderTradeSearch
 } from './trade-search.js';
+import {
+  openClosePositionDialog, closeClosePositionDialog, readClosePositionForm,
+  setCloseTotalLoss, updateClosePreview, onCloseTaxInput
+} from './position-dialog.js';
+import {
+  openImportDialog, closeImportDialog, closeImportMigration,
+  chooseImportMigrationFile, handleImportDragOver, handleImportDragLeave,
+  handleImportDrop, readImportFile, showImportError, renderImportMigration,
+  renderImportPreview, showSavedImportReport
+} from './import-dialogs.js';
 import {
   dayMap, deriveOpenPositions, fifoMatch, replayImportLedger,
   closePositionPnl, tradePnl, withOpenLotIds,
@@ -508,59 +518,19 @@ function openClosePosModal(isin) {
   closingIsin = isin;
   const lots = DATA.openLots.filter(l => l.isin === isin);
   if (lots.length === 0) { alert('Position nicht gefunden.'); return; }
-  const totalShares = lots.reduce((s, l) => s + l.shares, 0);
-  const totalCost = lots.reduce((s, l) => s + l.amount, 0);
-  $('cp-name').textContent = lots[0].desc;
-  $('cp-info').textContent = totalShares.toLocaleString('de-DE') + ' St\u00fcck \u00b7 Einstand ' + fmtPlain(totalCost, 2) + ' \u20ac';
-  $('cp-cost').value = totalCost.toFixed(2);
-  $('cp-date').value = toLocalDateStr(new Date());
-  $('cp-sell').value = '';
-  $('cp-tax').value = '';
-  delete $('cp-tax').dataset.touched;
-  updateClosePreview();
-  $('close-pos-overlay').classList.add('open');
+  openClosePositionDialog(lots);
 }
 
 function closeClosePosModal() {
-  $('close-pos-overlay').classList.remove('open');
+  closeClosePositionDialog();
   closingIsin = null;
-}
-
-function setCloseTotalLoss() {
-  $('cp-sell').value = '0';
-  updateClosePreview();
-}
-
-function updateClosePreview() {
-  const cost = parseFloat($('cp-cost').value) || 0;
-  const sell = parseFloat($('cp-sell').value) || 0;
-  const grossPnl = sell - cost; // before tax
-  // On a loss: tax refund = loss × tax rate (negative tax). On a gain: tax = gain × rate.
-  // Auto-fill the tax field only if the user hasn't manually overridden it.
-  const taxField = $('cp-tax');
-  if (!taxField.dataset.touched) {
-    const autoTax = +(grossPnl * TAX_RATE).toFixed(2); // negative if loss → refund
-    taxField.value = autoTax.toFixed(2);
-  }
-  const tax = parseFloat(taxField.value) || 0;
-  const pnl = sell - cost - tax;
-  const el = $('cp-preview');
-  el.textContent = 'P&L: ' + fmtDE(pnl) + (tax < 0 ? '  (inkl. ' + fmtPlain(Math.abs(tax)) + ' \u20ac Steuererstattung)' : '');
-  el.className = 'pnl-preview ' + (pnl >= 0 ? 'pos' : 'neg');
-}
-
-function onCloseTaxInput() {
-  $('cp-tax').dataset.touched = '1';
-  updateClosePreview();
 }
 
 async function confirmClosePos() {
   if (!closingIsin) return;
   const lots = DATA.openLots.filter(l => l.isin === closingIsin);
   if (lots.length === 0) { alert('Position nicht gefunden.'); return; }
-  const date = $('cp-date').value;
-  const sell = parseFloat($('cp-sell').value);
-  const tax = parseFloat($('cp-tax').value) || 0;
+  const { date, sell, tax } = readClosePositionForm();
   if (!date || isNaN(sell)) { alert('Bitte Datum und Verkaufswert eingeben (0 f\u00fcr Totalverlust).'); return; }
   const totalShares = lots.reduce((s, l) => s + l.shares, 0);
   const totalCost = lots.reduce((s, l) => s + l.amount, 0);
@@ -1333,144 +1303,28 @@ async function saveEdit() {
    ============================================================ */
 function openImportModal() {
   pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null; pendingImportReport = null;
-  closeImportMigration();
-  $('import-tbody').innerHTML = '';
-  $('import-preview').style.display = 'none';
-  $('import-summary').style.display = 'none';
-  $('import-report').style.display = 'none';
-  $('import-confirm-btn').style.display = 'none';
-  $('drop-zone').style.display = 'block';
-  $('csv-input').value = '';
-  $('import-overlay').classList.add('open');
+  openImportDialog();
 }
 function closeImportModal() {
-  closeImportMigration();
-  $('import-overlay').classList.remove('open');
+  closeImportDialog();
 }
-function closeImportMigration() { $('import-migration-overlay').classList.remove('open'); }
-function chooseImportMigrationFile() {
-  closeImportMigration();
-  $('csv-input').value = '';
-  $('csv-input').click();
-}
-function handleDragOver(e) { e.preventDefault(); $('drop-zone').classList.add('dragover'); }
-function handleDragLeave() { $('drop-zone').classList.remove('dragover'); }
-function handleDrop(e) { e.preventDefault(); $('drop-zone').classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }
+function handleDragOver(event) { handleImportDragOver(event); }
+function handleDragLeave() { handleImportDragLeave(); }
+function handleDrop(event) { handleImportDrop(event, handleFileSelect); }
 function handleFileSelect(file) {
-  if (!file) return;
-  // Dateityp-Check: CSV
-  if (!/\.csv$/i.test(file.name)) {
-    importError('Bitte eine .csv-Datei ausw\u00e4hlen (Scalable Capital Export).');
-    return;
-  }
-  const r = new FileReader();
-  r.onerror = () => importError('Datei konnte nicht gelesen werden.');
-  r.onload = e => {
-    try {
-      parseImport(e.target.result);
-    } catch (err) {
-      importError('Import fehlgeschlagen: ' + (err && err.message ? err.message : 'unbekannter Fehler'));
-    }
-  };
-  r.readAsText(file, 'utf-8');
+  readImportFile(file, parseImport, importError);
 }
 
 function importError(msg) {
   pendingImportReport = null;
-  const sumEl = $('import-summary');
-  if (sumEl) {
-    sumEl.textContent = msg;
-    sumEl.className = 'import-summary warn';
-    sumEl.style.display = 'block';
-  }
-  const dz = $('drop-zone');
-  if (dz) dz.style.display = 'block';
-  const prev = $('import-preview');
-  if (prev) prev.style.display = 'none';
-  const report = $('import-report');
-  if (report) report.style.display = 'none';
-  const btn = $('import-confirm-btn');
-  if (btn) btn.style.display = 'none';
+  showImportError(msg);
 }
 
 function showImportMigration(migration) {
   // Eine alte Vorschau darf hinter dem Dialog nicht versehentlich bestaetigt
   // werden. Der Dialog erklaert nur den sicheren Zuschnitt und veraendert DATA nie.
   pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null; pendingImportReport = null;
-  $('import-preview').style.display = 'none';
-  $('import-confirm-btn').style.display = 'none';
-  $('drop-zone').style.display = 'block';
-  $('import-summary').style.display = 'none';
-  $('import-report').style.display = 'none';
-
-  const tradeLabel = migration.legacyTradeCount === 1 ? 'geschlossener Trade' : 'geschlossene Trades';
-  const lotLabel = migration.baseOpenLotCount === 1 ? 'offenes Lot' : 'offene Lots';
-  $('migration-existing-count').textContent =
-    migration.legacyTradeCount + ' ' + tradeLabel + ' \u00b7 ' +
-    migration.baseOpenLotCount + ' ' + lotLabel;
-  $('migration-history-range').textContent = migration.historyFrom && migration.historyTo
-    ? (migration.historyFrom === migration.historyTo
-      ? searchDateLabel(migration.historyFrom)
-      : searchDateLabel(migration.historyFrom) + ' bis ' + searchDateLabel(migration.historyTo))
-    : 'Nicht automatisch bestimmbar';
-  $('migration-cutoff').textContent = migration.cutoff
-    ? 'Nur Zeilen nach dem ' + searchDateLabel(migration.cutoff)
-    : 'Manuelle Pr\u00fcfung erforderlich';
-  $('migration-overlap-count').textContent = migration.overlapCount === 0
-    ? 'Kein geschlossener Trade-Treffer'
-    : migration.overlapCount + ' bereits vorhandene' +
-      (migration.overlapCount === 1 ? 'r Trade' : ' Trades');
-
-  const datedRows = migration.incomingRowCount - migration.rowsWithoutDate;
-  let rowSummary = migration.incomingRowCount + ' Brokerzeilen';
-  if (migration.cutoff) {
-    rowSummary += ' \u00b7 ' + migration.rowsAtOrBeforeCutoff + ' bis einschlie\u00dflich Stichtag' +
-      ' \u00b7 ' + migration.rowsAfterCutoff + ' danach';
-  } else if (datedRows > 0) {
-    rowSummary += ' \u00b7 ' + datedRows + ' mit Datum';
-  }
-  if (migration.rowsWithoutDate > 0) rowSummary += ' \u00b7 ' + migration.rowsWithoutDate + ' ohne Datum';
-  $('migration-row-summary').textContent = rowSummary;
-  $('migration-step-cutoff').textContent = migration.cutoff
-    ? 'Entferne alle Datenzeilen bis einschlie\u00dflich ' + searchDateLabel(migration.cutoff) +
-      '. Die Kopfzeile bleibt unver\u00e4ndert.'
-    : 'Vergleiche die Datei mit deiner App und behalte nur Brokerzeilen, die dort noch nicht erfasst sind.';
-  $('migration-same-day-note').style.display = migration.cutoff ? 'block' : 'none';
-  $('import-migration-overlay').classList.add('open');
-}
-
-function renderImportReport(report, saved) {
-  if (!report) return;
-  const hasChanges = report.newBrokerRows > 0;
-  const signedCount = value => (value > 0 ? '+' : '') + value;
-  const state = saved ? 'Import gespeichert' : (hasChanges ? 'Vorschau vor dem Speichern' : 'Keine neuen Brokerzeilen');
-  const badge = saved ? 'Gespeichert' : (hasChanges ? 'Vorschau' : 'Unver\u00e4ndert');
-
-  $('import-report-state').textContent = state;
-  $('import-report-badge').textContent = badge;
-  $('import-report-rows').textContent = report.newBrokerRows + ' neu';
-  $('import-report-rows-meta').textContent = report.duplicateBrokerRows + ' Duplikate \u00b7 ' +
-    report.acceptedRows + ' von ' + report.sourceRows + ' angenommen';
-  $('import-report-rejected').textContent = report.rejectedRows + ' ignoriert';
-  $('import-report-rejected-meta').textContent = 'Nicht ausgef\u00fchrt oder kein Buy/Sell';
-  $('import-report-trades').textContent = report.newClosedTrades + ' neu geschlossen';
-  $('import-report-trades-meta').textContent = report.duplicateClosedTrades + ' bereits vorhanden';
-  $('import-report-open').textContent = report.openPositionsAfter + ' Positionen';
-  $('import-report-open-meta').textContent = 'Vorher ' + report.openPositionsBefore +
-    ' \u00b7 \u00c4nderung ' + signedCount(report.openPositionsDelta);
-  $('import-report-pnl').textContent = fmtDE(report.pnlAfter);
-  $('import-report-pnl-meta').textContent = 'Vorher ' + fmtDE(report.pnlBefore) +
-    ' \u00b7 \u00c4nderung ' + fmtDE(report.pnlDelta);
-  $('import-report-tax').textContent = fmtDE(report.taxAfter);
-  $('import-report-tax-meta').textContent = 'Vorher ' + fmtDE(report.taxBefore) +
-    ' \u00b7 \u00c4nderung ' + fmtDE(report.taxDelta);
-  $('import-report-note').textContent = saved
-    ? 'Der dargestellte Stand wurde in Google Drive gespeichert.'
-    : (hasChanges
-      ? 'Noch nicht gespeichert. Bitte Bericht pr\u00fcfen und den Import best\u00e4tigen.'
-      : 'Es gibt nichts zu speichern; alle angenommenen Brokerzeilen sind bereits bekannt.');
-  $('import-report').classList.toggle('saved', saved);
-  $('import-report').style.display = 'block';
+  renderImportMigration(migration);
 }
 
 function parseImport(text) {
@@ -1527,39 +1381,7 @@ function parseImport(text) {
     nextOpenLots: visibleOpenLots(openLots, hiddenOpenPositionsDATA())
   });
 
-  const tbody = $('import-tbody');
-  tbody.innerHTML = '';
-  pendingImport.slice(0, 40).forEach(t => {
-    const cls = t.isDup ? 'dup' : '';
-    const col = t.pnl >= 0 ? 'var(--green)' : 'var(--red)';
-    const tr = document.createElement('tr');
-    tr.className = cls;
-    tr.innerHTML = '<td>' + escapeHtml(t.date) + '</td>' +
-      '<td style="font-size:.65rem;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(t.desc) + '</td>' +
-      '<td class="r">' + t.shares + '</td>' +
-      '<td class="r">' + fmtPlain(t.buy, 0) + '</td>' +
-      '<td class="r">' + fmtPlain(t.sell, 0) + '</td>' +
-      '<td class="r" style="color:' + col + '">' + fmtDE(t.pnl) + '</td>' +
-      '<td>' + (t.isDup ? 'Vorhanden' : 'Neu') + '</td>';
-    tbody.appendChild(tr);
-  });
-  if (pendingImport.length > 40) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td colspan="7" style="color:var(--muted);font-size:.65rem;padding:.3rem .5rem">\u2026 und ' + (pendingImport.length - 40) + ' weitere</td>';
-    tbody.appendChild(tr);
-  }
-
-  $('import-preview').style.display = 'block';
-  $('drop-zone').style.display = 'none';
-  $('import-summary').style.display = 'none';
-  renderImportReport(pendingImportReport, false);
-  if (newImportRowCount > 0) {
-    const btn = $('import-confirm-btn');
-    btn.style.display = 'inline-block';
-    btn.textContent = newCount > 0
-      ? newCount + ' Trade' + (newCount !== 1 ? 's' : '') + ' importieren'
-      : newImportRowCount + ' Brokerzeile' + (newImportRowCount !== 1 ? 'n' : '') + ' importieren';
-  }
+  renderImportPreview(pendingImport, pendingImportReport, newImportRowCount, newCount);
 }
 
 async function confirmImport() {
@@ -1575,9 +1397,7 @@ async function confirmImport() {
   DATA.openLots = pendingOpenLots;
   if (!(await persist()).ok) return;
   rebuildAll();
-  $('import-preview').style.display = 'none';
-  $('import-confirm-btn').style.display = 'none';
-  renderImportReport(pendingImportReport, true);
+  showSavedImportReport(pendingImportReport);
 }
 
 /* ============================================================
@@ -1679,11 +1499,6 @@ function openTradeSearch() {
 
 function resetTradeSearch() {
   resetTradeSearchDialog(DATA.trades, showDetail);
-}
-
-function searchDateLabel(value) {
-  const parts = String(value || '').split('-');
-  return parts.length === 3 ? parts[2] + '.' + parts[1] + '.' + parts[0] : '\u2014';
 }
 
 function buildTradeSearch() {

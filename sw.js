@@ -1,4 +1,4 @@
-const CACHE = 'trade-kalender-v71';
+const CACHE = 'trade-kalender-v72';
 const ASSETS = [
   './',
   './index.html',
@@ -6,18 +6,24 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './js/app.js',
+  './js/app-data.js',
+  './js/backup-crypto.js',
   './js/config.js',
   './js/dialog-accessibility.js',
+  './js/encrypted-backup-dialog.js',
   './js/fifo.js',
   './js/helpers.js',
   './js/import-dialogs.js',
   './js/import.js',
+  './js/local-storage.js',
   './js/metrics-view.js',
   './js/navigation.js',
   './js/position-dialog.js',
   './js/safety-backup-dialog.js',
   './js/safety-backups.js',
   './js/storage.js',
+  './js/storage-migration.js',
+  './js/storage-migration-dialog.js',
   './js/trade-dialogs.js',
   './js/trade-search.js',
   './js/views.js',
@@ -44,7 +50,8 @@ self.addEventListener('fetch', e => {
     return;
   }
   // Eine Navigation muss offline zumindest die bereits installierte App-Huelle
-  // laden koennen. Die Drive-Anmeldung und Daten laden danach wieder online.
+  // laden koennen. Lokale IndexedDB-Daten funktionieren dann ohne Netz;
+  // Drive-Anmeldung und Drive-Daten benoetigen weiterhin eine Verbindung.
   if (e.request.mode === 'navigate') {
     e.respondWith(fetch(e.request).catch(() => caches.match('./index.html')));
     return;

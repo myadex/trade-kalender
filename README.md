@@ -1,5 +1,55 @@
 # Trade Kalender
 
+Persönlicher Trade-Kalender als installierbare PWA. Die App läuft ohne
+Framework und ohne Build-Schritt direkt im Browser.
+
+## Speichermodi ab v72
+
+Beim ersten Start stehen zwei gleichwertige Wege bereit:
+
+- **Mit Google Drive starten:** Die App speichert den vollständigen Zustand in
+  `trade-kalender.json` im `drive.file`-Scope. Gleichzeitige Änderungen werden
+  mit einem starken ETag erkannt.
+- **Nur auf diesem Gerät:** Die App speichert den vollständigen Zustand in der
+  IndexedDB dieses Browsers. Ein bereits gewählter lokaler Modus startet ohne
+  Google-Anmeldung und kann nach geladener App-Hülle offline arbeiten.
+
+Lokaler Browser-Speicher ist weder ein Backup noch ein geräteübergreifender
+Sync. Gelöschte Website-Daten, eine App-Deinstallation oder ein Gerätedefekt
+können ihn entfernen. Mehrere gleichzeitig geöffnete lokale Tabs besitzen
+aktuell keinen gegenseitigen Versionsvergleich.
+
+### Lokalen Stand später mit Drive verbinden
+
+Im lokalen Modus ist **Mit Google Drive verbinden** auf Desktop und Mobil
+verfügbar. Die App liest zuerst beide Seiten und zeigt Trade-Anzahl, Zeitraum,
+Netto-P&L, sichtbare offene Positionen und die letzte interne Sicherung. Danach
+wird ausdrücklich genau ein führender Stand gewählt:
+
+- lokalen Stand zu Drive übertragen oder
+- vorhandenen Drive-Stand verwenden.
+
+Es gibt bewusst keinen automatischen Merge. Import-Ledger, manuelle Trades,
+offene Lots und ausgeblendete Positionen könnten sonst doppelt oder
+widersprüchlich werden. Der ersetzte Stand wird als Safety-Snapshot in den
+gewählten Zielstand aufgenommen; ein vorhandener Drive-Stand wird nur mit dem
+zuvor gelesenen ETag überschrieben.
+
+## Verschlüsselte Backup-Dateien ab v72
+
+Unter **Backup-Datei** kann der komplette App-Zustand auf Desktop und Mobil
+passwortgeschützt exportiert oder wiederhergestellt werden. Das versionierte
+Format verwendet PBKDF2-HMAC-SHA-256 mit 600.000 Iterationen und zufälligem Salt
+sowie AES-256-GCM mit zufälliger Nonce. Die Verschlüsselung läuft vollständig
+im Browser; Passphrase und Klartext werden nicht in der Datei gespeichert.
+
+Vor einer erfolgreichen Wiederherstellung wird der aktuelle Zustand als
+interne Sicherung aufgenommen. Falsche Passphrasen, manipulierte Dateien,
+unbekannte Formatversionen und ungültige App-Daten werden vor dem Speichern
+abgelehnt. Eine vergessene Passphrase kann nicht zurückgesetzt werden. Die
+Datei ist ein manuelles Backup beziehungsweise Transportmittel und kein
+automatischer Sync.
+
 ## Import-Ledger ab v35
 
 Bestehende `trades` und `openLots` bleiben Legacy-Daten. Ab dem ersten neuen
@@ -70,16 +120,19 @@ Race-Condition-Fenster best\u00fcnde.
 ## Datenschutz
 
 `trade-kalender.json` ist ein lokaler, personenbezogener Laufzeit-Snapshot und
-wird nicht versioniert. Die kanonischen Daten liegen in Google Drive. Bereits
-ver\u00f6ffentlichte Git-Historie wird dadurch nicht bereinigt; eine History-Rewrite
-mit anschlie\u00dfendem Force-Push ist eine separate, bewusste Sicherheitsma\u00dfnahme.
+wird nicht versioniert. Je nach gewähltem Speichermodus liegt der führende
+Datenstand in IndexedDB oder Google Drive. Verschlüsselte Backup-Dateien werden
+nur auf ausdrückliche Nutzeraktion erstellt. Bereits veröffentlichte
+Git-Historie wird dadurch nicht bereinigt; eine History-Rewrite mit
+anschließendem Force-Push ist eine separate, bewusste Sicherheitsmaßnahme.
 
 ## Offline-PWA ab v39
 
 Die App-H\u00fclle, alle lokalen JavaScript-Module und Icons werden beim Service-
 Worker-Install vorgeladen. Offline kann eine Navigation daher die vorhandene
-`index.html` anzeigen. Google-Anmeldung, Drive-Daten und Google-Fonts bleiben
-bewusst online-only; ohne Netz ist kein Login oder Datensynchronisieren m\u00f6glich.
+`index.html` anzeigen. Der lokale Modus kann danach seine IndexedDB-Daten ohne
+Netz verwenden. Google-Anmeldung, Drive-Daten und Google-Fonts bleiben bewusst
+online-only; ohne Netz ist kein Drive-Login oder Drive-Synchronisieren möglich.
 
 ## Weiterentwicklung
 

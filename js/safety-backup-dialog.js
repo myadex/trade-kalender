@@ -13,6 +13,9 @@ const REASON_LABELS = {
   'json-restore': 'Vor JSON-Wiederherstellung',
   reset: 'Vor komplettem Reset',
   'backup-restore': 'Vor Wiederherstellung',
+  'drive-replaced': 'Drive-Stand vor lokaler Uebernahme',
+  'local-replaced': 'Lokaler Stand vor Drive-Uebernahme',
+  'encrypted-restore': 'Vor verschluesselter Wiederherstellung',
   unknown: 'Automatische Sicherung'
 };
 

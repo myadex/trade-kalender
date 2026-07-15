@@ -76,6 +76,19 @@ check('Safety: Sicherungslogik und Dialog sind getrennte Module',
   fs.existsSync(safetyBackupsPath) && fs.existsSync(safetyBackupDialogPath) &&
   appControllerJs.includes("from './safety-backups.js'") &&
   appControllerJs.includes("from './safety-backup-dialog.js'"));
+const localStoragePath = DIR + '/js/local-storage.js';
+const storageMigrationPath = DIR + '/js/storage-migration.js';
+const storageMigrationDialogPath = DIR + '/js/storage-migration-dialog.js';
+const backupCryptoPath = DIR + '/js/backup-crypto.js';
+const encryptedBackupDialogPath = DIR + '/js/encrypted-backup-dialog.js';
+check('Lokaler Modus: Persistenz und Migrationslogik sind getrennte Module',
+  fs.existsSync(localStoragePath) && fs.existsSync(storageMigrationPath) &&
+  appControllerJs.includes("from './local-storage.js'") &&
+  appControllerJs.includes("from './storage-migration.js'"));
+check('Verschluesseltes Backup: Kryptografie und Dialog sind getrennte Module',
+  fs.existsSync(backupCryptoPath) && fs.existsSync(encryptedBackupDialogPath) &&
+  appControllerJs.includes("from './backup-crypto.js'") &&
+  appControllerJs.includes("from './encrypted-backup-dialog.js'"));
 // Der Service Worker wird aus index.html mit './sw.js' registriert. Er muss
 // deshalb im Projekt-Root liegen: Unter js/ haette er nur den Scope /js/ und
 // koennte weder die App-Seite noch die PWA-Root-Route kontrollieren.
@@ -86,11 +99,18 @@ const swJs = hasRootServiceWorker ? fs.readFileSync(swPath, 'utf8') : '';
 const html = fs.readFileSync(DIR + '/index.html', 'utf8');
 const backlogPath = DIR + '/BACKLOG.md';
 const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8') : '';
+const readme = fs.readFileSync(DIR + '/README.md', 'utf8');
 check('Projekt-Backlog mit offenen Punkten vorhanden',
   backlog.includes('# App-Backlog') && backlog.includes('## Prioritaet 1'));
 check('Backlog: Vergleich mit anderen Tradern ist vollstaendig entfernt',
   !backlog.includes('### Vergleich mit einem guten Trader-Profil') &&
   !backlog.includes('Orientierungsprofil'));
+check('Dokumentation: lokaler Modus und verschluesselte Backups sind in v72 abgeschlossen',
+  /### Lokaler Geraetemodus[\s\S]{0,150}\*\*Status:\*\* Erledigt in v72/.test(backlog) &&
+  /### Verschluesselte externe Backups[\s\S]{0,150}\*\*Status:\*\* Erledigt in v72/.test(backlog) &&
+  readme.includes('## Speichermodi ab v72') &&
+  readme.includes('## Verschlüsselte Backup-Dateien ab v72') &&
+  readme.includes('keinen automatischen Merge'));
 check('Verworfener CSV-Komplettneuaufbau ist nicht mehr ausfuehrbar',
   backlog.includes('### Legacy-Daten vollstaendig neu aufbauen') &&
   backlog.includes('**Status:** Verworfen') &&
@@ -102,10 +122,12 @@ try { acorn.parse(swJs, { ecmaVersion: 2020 }); check('sw.js parses', true); }
 catch (e) { check('sw.js parses (' + e.message + ')', false); }
 const offlineAssets = [
   './index.html', './manifest.json', './icon-192.png', './icon-512.png',
-  './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
+  './js/app.js', './js/app-data.js', './js/backup-crypto.js', './js/config.js', './js/fifo.js', './js/helpers.js',
   './js/dialog-accessibility.js', './js/import-dialogs.js', './js/import.js', './js/navigation.js',
   './js/metrics-view.js', './js/position-dialog.js', './js/storage.js',
   './js/safety-backup-dialog.js', './js/safety-backups.js',
+  './js/local-storage.js', './js/storage-migration.js', './js/storage-migration-dialog.js',
+  './js/encrypted-backup-dialog.js',
   './js/trade-dialogs.js', './js/trade-search.js', './js/views.js'
 ];
 check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
@@ -217,7 +239,7 @@ const accessibilityDom = new JSDOM(html);
 const accessibilityDocument = accessibilityDom.window.document;
 const dialogOverlays = Array.from(accessibilityDocument.querySelectorAll('.modal-overlay, .detail-overlay'));
 check('A11y: alle Dialoge besitzen Rolle, Modalstatus und erreichbaren Titel',
-  dialogOverlays.length === 9 && dialogOverlays.every(overlay => {
+  dialogOverlays.length === 11 && dialogOverlays.every(overlay => {
     const titleId = overlay.getAttribute('aria-labelledby');
     return overlay.getAttribute('role') === 'dialog' &&
       overlay.getAttribute('aria-modal') === 'true' && titleId &&
@@ -244,6 +266,9 @@ check('Mobile: Hauptnavigation, Aktionsmenü und Safe-Area sind semantisch abges
   accessibilityDocument.getElementById('mobile-actions-toggle')?.getAttribute('aria-controls') === 'mobile-actions' &&
   accessibilityDocument.getElementById('mobile-actions-toggle')?.getAttribute('aria-expanded') === 'false' &&
   html.includes('env(safe-area-inset-bottom'));
+check('Mobile: langes Aktionsmenue bleibt auf kleinen Displays scrollbar und kontrastreich',
+  /#mobile-actions\s*\{[\s\S]*?max-height:calc\(100dvh[\s\S]*?overflow-y:auto/.test(html) &&
+  /#mobile-actions button\s*\{[\s\S]*?background:\s*var\(--bg\)/.test(html));
 check('Mobile: Touchziele und Eingaben sind mindestens fingerfreundlich definiert',
   html.includes('min-height:44px') && html.includes('font-size:16px'));
 check('A11y: Fokus ist global sichtbar und Formularfelder bleiben kontrastreich',
@@ -264,7 +289,74 @@ try {
 } catch (e) {}
 check('Laufzeit-Datensnapshot ist nicht im Git-Index', !runtimeDataTracked);
 
-console.log('\n=== 2c. WEB-HAERTUNG ===');
+console.log('\n=== 2c. LOKALER GERAETEMODUS ===');
+const localStorageJs = fs.existsSync(localStoragePath)
+  ? fs.readFileSync(localStoragePath, 'utf8')
+  : '';
+check('Lokaler Modus: Startauswahl bietet Drive und Nur-auf-diesem-Geraet',
+  html.includes('id="btn-login"') && html.includes('id="btn-local-mode"') &&
+  html.includes('Nur auf diesem Ger') && html.includes('Mit Google Drive'));
+check('Lokaler Modus: IndexedDB speichert Daten und Modus getrennt',
+  localStorageJs.includes('indexedDB') && localStorageJs.includes("'data'") &&
+  localStorageJs.includes("'storage-mode'"));
+check('Lokaler Modus: persistenter Browser-Speicher wird bestmoeglich angefordert',
+  localStorageJs.includes('storageManager.persist()'));
+check('Lokaler Modus: Controller verzweigt Speichern zwischen lokal und Drive',
+  appControllerJs.includes("storageMode === 'local'") &&
+  appControllerJs.includes('saveLocalData(snapshot)') &&
+  appControllerJs.includes('saveToDrive(false, snapshot)'));
+check('Lokaler Modus: Drive-Verbindung ist auf Desktop und Mobil erreichbar',
+  html.includes('id="btn-connect-drive"') && html.includes('id="btn-connect-drive-m"'));
+check('Speicherwechsel: Vergleichsdialog zeigt beide Staende und drei sichere Ausgaenge',
+  html.includes('id="storage-migration-overlay"') &&
+  html.includes('id="storage-migration-local"') &&
+  html.includes('id="storage-migration-drive"') &&
+  html.includes('id="storage-migration-cancel"') &&
+  html.includes('id="storage-migration-local-summary"') &&
+  html.includes('id="storage-migration-drive-summary"'));
+check('Speicherwechsel: Controller liest Drive vor jeder Entscheidung nur ein',
+  appControllerJs.includes('async function inspectDriveConnection()') &&
+  appControllerJs.includes('classifyStorageMigration(DATA, driveData)') &&
+  appControllerJs.includes('openStorageMigrationDialog(migrationComparison)'));
+check('Speicherwechsel: Auswahl wird mit ETag und Safety-Snapshot geschrieben',
+  appControllerJs.includes("prepareStorageMigration(DATA, pendingDriveData, choice)") &&
+  appControllerJs.includes('updateData(accessToken, driveFileId, target, driveEtag)') &&
+  appControllerJs.includes('saveStorageMode(STORAGE_MODE_DRIVE)'));
+const backupCryptoJs = fs.existsSync(backupCryptoPath)
+  ? fs.readFileSync(backupCryptoPath, 'utf8')
+  : '';
+const encryptedBackupDialogJs = fs.existsSync(encryptedBackupDialogPath)
+  ? fs.readFileSync(encryptedBackupDialogPath, 'utf8')
+  : '';
+check('Verschluesseltes Backup: AES-GCM nutzt PBKDF2-SHA-256 mit starkem Work-Factor',
+  backupCryptoJs.includes("name: 'AES-GCM'") &&
+  backupCryptoJs.includes("name: 'PBKDF2'") &&
+  backupCryptoJs.includes("hash: 'SHA-256'") &&
+  backupCryptoJs.includes('600000'));
+check('Verschluesseltes Backup: Export und Restore sind auf Desktop und Mobil erreichbar',
+  html.includes('id="btn-encrypted-backup"') &&
+  html.includes('id="btn-encrypted-backup-m"') &&
+  html.includes('id="encrypted-backup-overlay"') &&
+  html.includes('id="encrypted-backup-export-password"') &&
+  html.includes('id="encrypted-backup-import-password"'));
+check('Verschluesseltes Backup: Restore validiert vor Mutation und legt Rueckweg an',
+  appControllerJs.includes('decryptBackupFile(') &&
+  appControllerJs.includes('isAppDataDocument(restored)') &&
+  appControllerJs.includes("addSafetyBackupFrom(normalized, DATA, 'encrypted-restore')"));
+check('Speicherwechsel: laufender ETag-Schreibvorgang kann nicht abgebrochen werden',
+  appControllerJs.includes('let migrationCommitInProgress = false') &&
+  appControllerJs.includes('if (migrationCommitInProgress) return;') &&
+  appControllerJs.includes('migrationCommitInProgress = true'));
+check('Verschluesseltes Backup: Dialog bleibt waehrend Kryptografie gesperrt',
+  encryptedBackupDialogJs.includes('let backupOperationBusy = false') &&
+  encryptedBackupDialogJs.includes('if (backupOperationBusy && !force) return false'));
+check('Google-Auth: Fehler werden im jeweils sichtbaren App-Bereich angekuendigt',
+  appControllerJs.includes('function reportAuthError(') &&
+  appControllerJs.includes("$('login-screen').style.display !== 'none'") &&
+  appControllerJs.includes("reportAuthError('Login fehlgeschlagen: ' + resp.error)") &&
+  appControllerJs.includes("reportAuthError('Auth noch nicht bereit, bitte neu laden.')"));
+
+console.log('\n=== 2d. WEB-HAERTUNG ===');
 const cspMeta = accessibilityDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
 const cspContent = cspMeta ? cspMeta.getAttribute('content') : '';
 const cspDirectives = {};
@@ -480,6 +572,185 @@ const realFifoCheck = (async () => {
       restoredState.safetyBackups[0].data.trades[0].uid === 'current');
     check('Safety: unbekannte Sicherung veraendert keine Daten',
       safetyMod.restoreSafetyBackup(currentState, 'fehlt', 5000) === null);
+    const storageMigrationMod = await import('file://' + storageMigrationPath);
+    const localMigrationData = {
+      trades: [
+        { uid: 'local-1', date: '2026-01-02', pnl: 125.5 },
+        { uid: 'local-2', date: '2026-01-05', pnl: -25.5 }
+      ],
+      openLots: [
+        { isin: 'SYNTH-LOCAL', desc: 'Lokal', remainingShares: 2 },
+        { isin: 'SYNTH-LOCAL', desc: 'Lokal', remainingShares: 1 }
+      ],
+      capital: 1000, importRows: [], importBaseOpenLots: null,
+      hiddenOpenPositions: [], safetyBackups: []
+    };
+    const driveMigrationData = {
+      trades: [{ uid: 'drive-1', date: '2025-12-30', pnl: 50 }],
+      openLots: [], capital: 500, importRows: [], importBaseOpenLots: null,
+      hiddenOpenPositions: [], safetyBackups: []
+    };
+    const migrationBefore = JSON.stringify({ localMigrationData, driveMigrationData });
+    const migrationComparison = storageMigrationMod.classifyStorageMigration(
+      localMigrationData,
+      driveMigrationData
+    );
+    check('Speicherwechsel: Vergleich trennt beide nicht-leeren Staende mit Handwerten',
+      migrationComparison.kind === 'compare' &&
+      migrationComparison.local.tradeCount === 2 &&
+      migrationComparison.local.openPositionCount === 1 &&
+      migrationComparison.local.netPnl === 100 &&
+      migrationComparison.local.from === '2026-01-02' &&
+      migrationComparison.local.to === '2026-01-05' &&
+      migrationComparison.drive.tradeCount === 1);
+    const realLot = {
+      isin: 'SYNTH-HIDDEN', desc: 'Verdeckter Long', shares: 2, amount: 200,
+      date: '2026-01-03', time: '09:30:00', sourceRowId: 'synthetic-row'
+    };
+    const realLotId = fmod.withOpenLotIds([realLot])[0].openLotId;
+    const visibleLotComparison = storageMigrationMod.summarizeStorageData({
+      trades: [], openLots: [realLot], capital: 0, importRows: [],
+      importBaseOpenLots: null, safetyBackups: [], hiddenOpenPositions: []
+    });
+    const hiddenLotComparison = storageMigrationMod.summarizeStorageData({
+      trades: [], openLots: [realLot], capital: 0, importRows: [],
+      importBaseOpenLots: null, safetyBackups: [],
+      hiddenOpenPositions: [{ version: 1, id: 'hidden-test', lotIds: [realLotId] }]
+    });
+    check('Speicherwechsel: offene Positionen nutzen echte Lot-Felder und respektieren Ausblendungen',
+      visibleLotComparison.openPositionCount === 1 && hiddenLotComparison.openPositionCount === 0);
+    const migratedLocal = storageMigrationMod.prepareStorageMigration(
+      localMigrationData,
+      driveMigrationData,
+      'local',
+      6000
+    );
+    check('Speicherwechsel: lokaler Zielstand sichert den ersetzten Drive-Stand',
+      migratedLocal.trades[0].uid === 'local-1' &&
+      migratedLocal.safetyBackups[0].reason === 'drive-replaced' &&
+      migratedLocal.safetyBackups[0].data.trades[0].uid === 'drive-1');
+    const migratedDrive = storageMigrationMod.prepareStorageMigration(
+      localMigrationData,
+      driveMigrationData,
+      'drive',
+      7000
+    );
+    check('Speicherwechsel: Drive-Zielstand sichert den ersetzten lokalen Stand',
+      migratedDrive.trades[0].uid === 'drive-1' &&
+      migratedDrive.safetyBackups[0].reason === 'local-replaced' &&
+      migratedDrive.safetyBackups[0].data.trades.length === 2 &&
+      JSON.stringify({ localMigrationData, driveMigrationData }) === migrationBefore);
+    const localStorageMod = await import('file://' + localStoragePath);
+    function createFakeIndexedDb() {
+      const records = new Map();
+      let created = false;
+      const db = {
+        objectStoreNames: { contains: () => created },
+        createObjectStore: () => { created = true; },
+        close: () => {},
+        transaction: () => {
+          const transaction = {};
+          transaction.objectStore = () => ({
+            get: key => {
+              const request = {};
+              queueMicrotask(() => {
+                request.result = records.get(key);
+                request.onsuccess?.();
+              });
+              return request;
+            },
+            put: (value, key) => {
+              records.set(key, JSON.parse(JSON.stringify(value)));
+              queueMicrotask(() => transaction.oncomplete?.());
+            }
+          });
+          return transaction;
+        }
+      };
+      return {
+        records,
+        api: {
+          open: () => {
+            const request = {};
+            queueMicrotask(() => {
+              request.result = db;
+              if (!created) request.onupgradeneeded?.();
+              request.onsuccess?.();
+            });
+            return request;
+          }
+        }
+      };
+    }
+    const fakeIndexedDb = createFakeIndexedDb();
+    await localStorageMod.saveLocalData(localMigrationData, fakeIndexedDb.api);
+    await localStorageMod.saveStorageMode('local', fakeIndexedDb.api);
+    const loadedLocalData = await localStorageMod.loadLocalData(fakeIndexedDb.api);
+    const loadedLocalMode = await localStorageMod.loadStorageMode(fakeIndexedDb.api);
+    check('Lokaler Modus: IndexedDB-Vertrag speichert Daten und Modus ueber echte Modulgrenze',
+      loadedLocalMode === 'local' && loadedLocalData.trades.length === 2 &&
+      loadedLocalData.trades[0].uid === 'local-1' && loadedLocalData.capital === 1000);
+    check('Lokaler Modus: Persistenzanforderung behandelt Zusage und fehlende API ehrlich',
+      await localStorageMod.requestPersistentLocalStorage({ persist: async () => true }) === true &&
+      await localStorageMod.requestPersistentLocalStorage(null) === false);
+    fakeIndexedDb.records.set('data', { kaputt: true });
+    let corruptLocalError = '';
+    try { await localStorageMod.loadLocalData(fakeIndexedDb.api); }
+    catch (error) { corruptLocalError = error.message; }
+    check('Lokaler Modus: korrupter IndexedDB-Stand wird nicht still als leer geladen',
+      corruptLocalError.includes('ungueltig'));
+    const backupCryptoMod = await import('file://' + backupCryptoPath);
+    const cryptoSource = {
+      trades: [{ uid: 'secret-trade', date: '2026-02-03', pnl: 42.5 }],
+      openLots: [], capital: 1200, importRows: [], importBaseOpenLots: null,
+      hiddenOpenPositions: [], safetyBackups: []
+    };
+    const cryptoBefore = JSON.stringify(cryptoSource);
+    const encryptedOne = await backupCryptoMod.encryptBackupFile(
+      cryptoSource,
+      'Sichere Test Passphrase 2026',
+      { iterations: 100000, createdAt: 8000 }
+    );
+    const envelopeOne = JSON.parse(encryptedOne);
+    const decryptedOne = await backupCryptoMod.decryptBackupFile(
+      encryptedOne,
+      'Sichere Test Passphrase 2026'
+    );
+    check('Verschluesseltes Backup: echter Web-Crypto-Roundtrip erhaelt Daten exakt',
+      JSON.stringify(decryptedOne) === cryptoBefore &&
+      JSON.stringify(cryptoSource) === cryptoBefore &&
+      !encryptedOne.includes('secret-trade'));
+    check('Verschluesseltes Backup: Format traegt Salt, Nonce, Version und Work-Factor',
+      envelopeOne.format === backupCryptoMod.ENCRYPTED_BACKUP_FORMAT &&
+      envelopeOne.version === 1 && envelopeOne.createdAt === 8000 &&
+      envelopeOne.kdf.iterations === 100000 && envelopeOne.kdf.salt.length > 10 &&
+      envelopeOne.cipher.name === 'AES-GCM' && envelopeOne.cipher.iv.length > 10);
+    const encryptedTwo = await backupCryptoMod.encryptBackupFile(
+      cryptoSource,
+      'Sichere Test Passphrase 2026',
+      { iterations: 100000, createdAt: 8000 }
+    );
+    check('Verschluesseltes Backup: gleicher Klartext erzeugt durch Zufallswerte andere Datei',
+      encryptedTwo !== encryptedOne &&
+      JSON.parse(encryptedTwo).kdf.salt !== envelopeOne.kdf.salt &&
+      JSON.parse(encryptedTwo).cipher.iv !== envelopeOne.cipher.iv);
+    let wrongPasswordError = '';
+    try {
+      await backupCryptoMod.decryptBackupFile(encryptedOne, 'Falsche Test Passphrase');
+    } catch (error) { wrongPasswordError = error.message; }
+    check('Verschluesseltes Backup: falsche Passphrase liefert keine Daten',
+      wrongPasswordError.includes('falsch') && !wrongPasswordError.includes('secret-trade'));
+    const tamperedEnvelope = JSON.parse(encryptedOne);
+    tamperedEnvelope.createdAt = 9000;
+    let tamperError = '';
+    try {
+      await backupCryptoMod.decryptBackupFile(
+        JSON.stringify(tamperedEnvelope),
+        'Sichere Test Passphrase 2026'
+      );
+    } catch (error) { tamperError = error.message; }
+    check('Verschluesseltes Backup: manipulierte Metadaten brechen Authentifizierung',
+      tamperError.includes('beschaedigt'));
     const navmod = fs.existsSync(navigationPath)
       ? await import('file://' + navigationPath)
       : null;
@@ -497,6 +768,12 @@ const realFifoCheck = (async () => {
       : null;
     const safetyDialogMod = fs.existsSync(safetyBackupDialogPath)
       ? await import('file://' + safetyBackupDialogPath)
+      : null;
+    const storageMigrationDialogMod = fs.existsSync(storageMigrationDialogPath)
+      ? await import('file://' + storageMigrationDialogPath)
+      : null;
+    const encryptedBackupDialogMod = fs.existsSync(encryptedBackupDialogPath)
+      ? await import('file://' + encryptedBackupDialogPath)
       : null;
     const metricsviewmod = fs.existsSync(metricsViewPath)
       ? await import('file://' + metricsViewPath)
@@ -590,6 +867,55 @@ const realFifoCheck = (async () => {
       global.window = previousSafetyWindow;
       global.document = previousSafetyDocument;
       safetyDialogDom.window.close();
+    }
+    const storageDialogDom = new JSDOM(html, { runScripts: 'outside-only', pretendToBeVisual: true });
+    const previousStorageWindow = global.window;
+    const previousStorageDocument = global.document;
+    global.window = storageDialogDom.window;
+    global.document = storageDialogDom.window.document;
+    try {
+      if (storageMigrationDialogMod) {
+        storageMigrationDialogMod.openStorageMigrationDialog(migrationComparison);
+      }
+      const localFacts = storageDialogDom.window.document
+        .getElementById('storage-migration-local-summary').textContent;
+      check('Speicherwechsel-Dialog: beide Staende und Handwerte werden sichtbar gerendert',
+        !!storageMigrationDialogMod &&
+        storageDialogDom.window.document.getElementById('storage-migration-overlay').classList.contains('open') &&
+        localFacts.includes('Dieses Geraet') && localFacts.includes('2') &&
+        localFacts.includes('100,00') &&
+        storageDialogDom.window.document.getElementById('storage-migration-note').textContent.includes('Beide Seiten'));
+      if (storageMigrationDialogMod) storageMigrationDialogMod.setStorageMigrationBusy(true, 'Testlauf');
+      check('Speicherwechsel-Dialog: laufende Uebernahme sperrt alle Ausgaenge',
+        ['storage-migration-local', 'storage-migration-drive', 'storage-migration-cancel']
+          .every(id => storageDialogDom.window.document.getElementById(id).disabled) &&
+        storageDialogDom.window.document.getElementById('storage-migration-note').textContent === 'Testlauf');
+      if (storageMigrationDialogMod) storageMigrationDialogMod.closeStorageMigrationDialog();
+
+      if (encryptedBackupDialogMod) encryptedBackupDialogMod.openEncryptedBackupDialog();
+      storageDialogDom.window.document.getElementById('encrypted-backup-export-password').value = 'Passphrase Nummer Eins';
+      storageDialogDom.window.document.getElementById('encrypted-backup-export-confirm').value = 'Passphrase Nummer Eins';
+      const passwordFields = encryptedBackupDialogMod
+        ? encryptedBackupDialogMod.readEncryptedExportPasswords()
+        : {};
+      check('Backup-Dialog: Passphrasen werden gelesen und beim Oeffnen kein Klartext vorbelegt',
+        passwordFields.password === 'Passphrase Nummer Eins' &&
+        passwordFields.confirmation === 'Passphrase Nummer Eins' &&
+        storageDialogDom.window.document.getElementById('encrypted-backup-import-password').value === '');
+      if (encryptedBackupDialogMod) encryptedBackupDialogMod.setEncryptedBackupBusy(true);
+      const closedWhileBusy = encryptedBackupDialogMod
+        ? encryptedBackupDialogMod.closeEncryptedBackupDialog()
+        : true;
+      check('Backup-Dialog: laufende Kryptografie verhindert Schliessen und doppelte Aktionen',
+        closedWhileBusy === false &&
+        storageDialogDom.window.document.getElementById('encrypted-backup-overlay').classList.contains('open') &&
+        storageDialogDom.window.document.getElementById('encrypted-backup-export').disabled &&
+        storageDialogDom.window.document.getElementById('encrypted-backup-restore').disabled);
+      if (encryptedBackupDialogMod) encryptedBackupDialogMod.closeEncryptedBackupDialog(true);
+    } finally {
+      global.window = previousStorageWindow;
+      global.document = previousStorageDocument;
+      storageDialogDom.window.close();
     }
     check('navigation: alle Desktop- und Mobilfunktionen exportiert',
       !!navmod && ['showTab', 'handleMainTabKey', 'setStatsView', 'handleStatsViewKey', 'mobileTab',

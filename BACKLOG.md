@@ -48,6 +48,65 @@ Wartbarkeit bzw. Komfort.
   HTTP-Headern erforderlich. Der angemeldete Google-Popup- und Drive-Ablauf
   bleibt nach dem Deploy einmal manuell im echten Browser zu pruefen.
 
+### Lokaler Geraetemodus und sicherer Wechsel zu Google Drive
+
+- **Status:** Erledigt in v72.
+- **Ziel:** Die App kann ohne Google-Konto vollstaendig auf genau einem Geraet
+  verwendet werden. Fachlogik und Datenformat bleiben identisch; nur die
+  Persistenz wechselt zwischen lokalem Browser-Speicher und Google Drive.
+- **Lokaler Speicher:** Der vollstaendige App-Zustand wird asynchron in
+  IndexedDB gespeichert. Die App fordert, soweit vom Browser unterstuetzt,
+  persistenten Speicher an. Das verringert automatische Bereinigung, ersetzt
+  aber kein externes Backup: Browserdaten, App-Deinstallation oder ein
+  Geraetedefekt koennen den lokalen Stand weiterhin entfernen.
+- **Startauswahl:** Beim ersten Start stehen `Mit Google Drive starten` und
+  `Nur auf diesem Geraet` gleichwertig zur Auswahl. Ein bereits gewaehlter
+  lokaler Modus startet ohne Anmeldung und funktioniert offline.
+- **Drive-Verbindung:** Im lokalen Modus fuehrt `Mit Google Drive verbinden`
+  zuerst eine rein lesende Bestandsaufnahme beider Seiten durch. Sind lokal
+  und in Drive Daten vorhanden, zeigt ein Dialog Zeitraum, Trade-Anzahl,
+  Netto-P&L, offene Positionen und letzte bekannte Sicherung beider Staende.
+- **Keine stille Zusammenfuehrung:** Der Nutzer waehlt ausdruecklich, ob der
+  lokale oder der Drive-Stand weitergefuehrt wird. Ein automatischer Merge ist
+  wegen Import-Ledger, manuellen Trades, offenen Lots und Ausschlussereignissen
+  verboten, bis dafuer eine eigene fachliche Merge-Logik existiert.
+- **Rueckweg und Konfliktschutz:** Vor dem Ersetzen wird der verworfene Stand
+  als Safety-Snapshot in den Zielbestand aufgenommen. Drive-Schreibvorgaenge
+  verwenden weiterhin das geladene starke ETag; bei einer parallelen Aenderung
+  wird die Migration abgebrochen. Der bisherige lokale Stand bleibt zusaetzlich
+  als Geraete-Rueckfall erhalten.
+- **Sicherung:** Lokale Persistenz, gemeinsames Datenmodell, Vergleich und
+  Dialog sind getrennte Module. Tests pruefen echte IndexedDB-Lese- und
+  Schreibgrenzen, korrupte lokale Daten, beide Uebernahmerichtungen,
+  ausgeblendete offene Positionen, den ETag-Schreibschutz und die mobile UI.
+- **Bekannte Grenze:** Der lokale Modus ist fuer einen aktiven App-Stand auf
+  einem Geraet gedacht. Mehrere gleichzeitig geoeffnete lokale Tabs besitzen
+  noch keinen tabuebergreifenden Versionsvergleich; innerhalb eines Tabs
+  bleiben Schreibauftraege geordnet. Fuer Desktop-Handy-Sync ist Drive oder
+  der manuelle verschluesselte Datei-Transfer erforderlich.
+
+### Verschluesselte externe Backups
+
+- **Status:** Erledigt in v72.
+- **Ziel:** Der komplette Datenstand kann auf Desktop und Handy als
+  passwortgeschuetzte Datei exportiert und wiederhergestellt werden. Die Datei
+  ist ein manuelles Backup beziehungsweise Transportmittel, kein automatisch
+  synchronisierter Hauptspeicher.
+- **Format:** Authentifizierte AES-GCM-Verschluesselung mit zufaelligem Salt und
+  Nonce. Der Schluessel wird im Browser aus einer Passphrase abgeleitet; weder
+  Passwort noch Klartextdaten werden in der Backup-Datei gespeichert.
+- **Wiederherstellung:** Falsches Passwort, manipulierte Datei, unbekannte
+  Formatversion und ungueltige App-Daten werden vor jeder Mutation abgelehnt.
+  Vor erfolgreichem Restore wird der aktuelle Stand automatisch gesichert.
+- **Grenze:** Ein vergessenes Passwort kann technisch nicht zurueckgesetzt
+  werden. Die vorhandene unverschluesselte JSON-Wiederherstellung bleibt fuer
+  alte Sicherungen verfuegbar, wird aber klar als unverschluesselt bezeichnet.
+- **Umsetzung:** Das versionierte Dateiformat verwendet PBKDF2-HMAC-SHA-256 mit
+  600.000 Iterationen, zufaelligem 16-Byte-Salt sowie AES-256-GCM mit
+  zufaelliger 12-Byte-Nonce. Metadaten sind authentifiziert; Passwortfehler,
+  Manipulationen, unbekannte Versionen und ungueltige App-Daten werden vor dem
+  Speichern abgelehnt. Export und Restore stehen auf Desktop und Mobil bereit.
+
 ### Drive-Konflikte zwischen Tabs und Geraeten erkennen
 
 - **Status:** Erledigt in v42.
@@ -317,7 +376,8 @@ Wartbarkeit bzw. Komfort.
   Offline-Reload bleibt offen.
 - **Verifiziert:** Manifest, Service-Worker-Registrierung, App-Shell-Cache und
   Navigations-Fallback sind im Browser vorhanden. Google-Anmeldung und
-  Drive-Synchronisierung bleiben bewusst onlineabhaengig.
+  Drive-Synchronisierung bleiben bewusst onlineabhaengig. Der lokale Modus
+  benoetigt nach geladener App-Huelle dagegen weder Google noch Netzwerk.
 - **Browsergrenze:** Der verwendete In-App-Browser bietet keinen echten
   Netzwerk-Offline-Schalter; ein Reload ohne Netz konnte deshalb noch nicht
   simuliert werden.
@@ -385,7 +445,7 @@ Wartbarkeit bzw. Komfort.
 - **Status:** Erledigt in v69 fuer Desktop-Web und mobile PWA.
 - **Ziel:** Fokusfuehrung in Dialogen, Escape-Taste, eindeutige Labels,
   Tastaturnavigation und Kontraste systematisch verbessern.
-- **Dialoge:** Alle neun Dialoge besitzen Rolle, Modalstatus und einen
+- **Dialoge:** Alle elf Dialoge besitzen Rolle, Modalstatus und einen
   erreichbaren Titel. Eine gemeinsame Steuerung setzt den Startfokus, haelt
   Tab und Umschalt+Tab im obersten Dialog, schliesst per Escape, sperrt den
   Hintergrund-Scroll und gibt den Fokus an den Ausloeser zurueck.
@@ -396,7 +456,8 @@ Wartbarkeit bzw. Komfort.
 - **Mobile PWA:** Touchziele sind mindestens 44 Pixel hoch, Eingaben verhindern
   den automatischen iOS-Zoom und Bottom-Bar, Aktionsmenue sowie Bottom-Sheets
   beruecksichtigen die Safe-Area. Das Aktionsmenue meldet seinen offenen Zustand
-  und kann per Escape geschlossen werden.
+  und kann per Escape geschlossen werden. Es bleibt bei geringer Displayhoehe
+  scrollbar und verwendet den kontrastreichen App-Hintergrund.
 - **Lesbarkeit:** Der gedimmte Textkontrast wurde angehoben, Formularfelder
   verwenden den dunklen App-Hintergrund und alle interaktiven Elemente erhalten
   einen sichtbaren Tastaturfokus. Status- und Ergebniswechsel werden als
@@ -418,16 +479,31 @@ Wartbarkeit bzw. Komfort.
   Stand kann nach einer Sicherheitsabfrage wiederhergestellt werden.
 - **Datenintegritaet:** Snapshots enthalten Trades, offene Lots, Kapital,
   Import-Ledger und ausgeblendete Positionen, aber niemals rekursiv weitere
-  Snapshots. Datenwechsel und neue Sicherung werden gemeinsam ueber den
-  bestehenden ETag-geschuetzten Drive-Schreibvorgang gespeichert.
-- **Bekannte Grenze:** Die Sicherungen liegen in derselben Drive-Datei. Sie
+  Snapshots. Datenwechsel und neue Sicherung werden gemeinsam im aktiven
+  Speichermodus gespeichert; Drive nutzt dabei den bestehenden ETag-Schutz.
+- **Bekannte Grenze:** Die Sicherungen liegen im selben Datenbestand. Sie
   schuetzen vor fehlerhaftem Import, Restore und Reset, aber nicht vor dem
-  Loeschen der gesamten Drive-Datei oder dem Verlust des Google-Kontos.
+  Verlust des lokalen Browser-Speichers, dem Loeschen der gesamten Drive-Datei
+  oder dem Verlust des Google-Kontos. Dagegen hilft das externe verschluesselte
+  Backup aus v72.
 
 ### Dashboard konfigurierbar machen
 
 - **Status:** Warteliste mit niedriger Prioritaet.
 - **Ziel:** Kennzahlenkarten ausblenden und individuell anordnen.
+
+### Privater automatischer Sync ohne Google
+
+- **Status:** Warteliste; nicht Teil des lokalen Geraetemodus.
+- **Ziel:** Optionaler eigener Sync-Dienst, der nur Ende-zu-Ende
+  verschluesselte Daten speichert. Desktop und Handy werden ueber einen
+  Wiederherstellungsschluessel oder QR-Code gekoppelt; der Server kennt den
+  Klartext und den Entschluesselungsschluessel nicht.
+- **Voraussetzungen:** Eigene Hosting- und Authentifizierungsentscheidung,
+  versionierte Schreibvorgaenge, Konfliktbehandlung, Schluesselrotation,
+  Recovery-Konzept und Betriebsmonitoring. Ohne diese Infrastruktur bleibt
+  geraeteuebergreifender Sync entweder Google Drive oder manueller
+  verschluesselter Datei-Transfer.
 
 ## Erledigte Grundlagen
 

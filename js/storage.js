@@ -6,7 +6,7 @@
 // Der State (DATA, accessToken, driveFileId) bleibt in app.js.
 
 import { DATA_FILENAME } from './config.js';
-import { normalizeSafetyBackups } from './safety-backups.js';
+import { normalizeAppData } from './app-data.js';
 
 // Ein 412 ist kein normaler Netzwerkfehler: Drive hat den Schreibvorgang
 // atomar abgelehnt, weil seit dem letzten Laden eine neuere Dateiversion
@@ -84,18 +84,7 @@ export async function downloadData(accessToken, fileId) {
   const text = await r.text();
   try {
     const parsed = JSON.parse(text);
-    return {
-      trades: Array.isArray(parsed.trades) ? parsed.trades : [],
-      openLots: Array.isArray(parsed.openLots) ? parsed.openLots : [],
-      capital: typeof parsed.capital === 'number' ? parsed.capital : 0,
-      importRows: Array.isArray(parsed.importRows) ? parsed.importRows : [],
-      importBaseOpenLots: Array.isArray(parsed.importBaseOpenLots) ? parsed.importBaseOpenLots : null,
-      // Diese Ereignisse und Sicherungen gehoeren zum persistenten Datenmodell.
-      // Werden sie hier verworfen, erscheinen entfernte Positionen nach einem
-      // Reload erneut und ein vorhandener Rueckweg ist in der UI unsichtbar.
-      hiddenOpenPositions: Array.isArray(parsed.hiddenOpenPositions) ? parsed.hiddenOpenPositions : [],
-      safetyBackups: normalizeSafetyBackups(parsed.safetyBackups)
-    };
+    return normalizeAppData(parsed);
   } catch (e) {
     throw new Error('Datendatei in Google Drive ist ung\u00fcltig und wurde nicht geladen.');
   }

@@ -4,15 +4,19 @@ Hinterlegte Standards für dieses Repo. Gilt für jede Session, jeden Assistente
 
 ## Projekt
 
-Persönlicher Trade-Kalender als PWA. Vanilla JS (ES-Module, kein Framework, keine Build-Pipeline), GitHub Pages. Datenquelle: Scalable-Capital-CSV (Semikolon, deutsches Zahlenformat). Persistenz: `trade-kalender.json` in Google Drive (drive.file-Scope). Kernlogik: FIFO-Matching + deutsche Abgeltungsteuer (26,375%).
+Persönlicher Trade-Kalender als PWA. Vanilla JS (ES-Module, kein Framework, keine Build-Pipeline), GitHub Pages. Datenquelle: Scalable-Capital-CSV (Semikolon, deutsches Zahlenformat). Persistenz: wahlweise IndexedDB auf einem Gerät oder `trade-kalender.json` in Google Drive (drive.file-Scope). Kernlogik: FIFO-Matching + deutsche Abgeltungsteuer (26,375%).
 
 ```
 js/config.js    Konstanten + APP_VERSION
+js/app-data.js  Kanonisches persistentes Datenmodell und Normalisierung (pure)
+js/backup-crypto.js Versioniertes AES-GCM-Backupformat (pure, Web Crypto injizierbar)
+js/encrypted-backup-dialog.js Dialog fuer verschluesselte Datei-Backups
 js/helpers.js   Formatierung, Datum (toLocalDateStr, normalizeXlsxDate)
 js/fifo.js      FIFO-Matching, Steuer, buyDate/buyTime   [KERN — Golden Values!]
 js/views.js     Aggregation, Statistik, Insights, Diagnosen (pure)
 js/import.js    CSV-Parsing + Validierung (pure)
 js/import-dialogs.js CSV-Auswahl, Importvorschau und Kontrollberichte
+js/local-storage.js Lokale IndexedDB-Persistenz und Speichermodus
 js/safety-backups.js Automatische Zustands-Snapshots (pure)
 js/safety-backup-dialog.js Sicherungsverlauf und Wiederherstellungsdialog
 js/navigation.js Haupttabs, Statistik-Untertabs und mobile Navigation
@@ -20,6 +24,8 @@ js/position-dialog.js Formular und Vorschau zum Schliessen einer Position
 js/trade-dialogs.js Formulare und Vorschau fuer Hinzufuegen/Bearbeiten
 js/trade-search.js Filterformular und rein lesende Suchergebnisse
 js/storage.js   Google-Drive-API (zustandslos, Token als Parameter)
+js/storage-migration.js Vergleich und sicherer Speicherwechsel (pure)
+js/storage-migration-dialog.js Lokaler-Stand-vs.-Drive-Dialog
 js/app.js       UI-Verdrahtung, Rendering, Auth-Flow
 sw.js           Service Worker (CACHE-Name = Version)
 test/           Test-Harness (siehe test/README.md)
@@ -76,6 +82,17 @@ als Test-Fixture eingecheckt werden.
 - **Script-CSP:** Inline-Event-Handler sind verboten. UI-Ereignisse werden in
   `app.js` per `addEventListener` verdrahtet; `script-src-attr 'none'` und die
   Security-Tests sperren Rueckfaelle.
+- **Speichermodus:** IndexedDB und Drive verwenden immer `app-data.js` als
+  gemeinsamen Datenvertrag. Ein lokaler Stand wird nie still mit Drive
+  zusammengefuehrt; erst vergleichen, dann genau einen fuehrenden Stand
+  waehlen und den ersetzten Stand als Safety-Snapshot sichern.
+- **Lokale Daten:** `navigator.storage.persist()` reduziert nur das Risiko
+  automatischer Browser-Bereinigung. Es ersetzt kein externes Backup und
+  synchronisiert weder andere Browser noch andere Geraete. Gleichzeitige
+  lokale Tabs besitzen noch keinen Versionsvergleich.
+- **Verschluesselte Backups:** Passphrasen werden nie gespeichert. Dateien nur
+  ueber `backup-crypto.js` entschluesseln, Format und App-Daten vor Mutation
+  validieren und den aktuellen Stand vor Restore als Safety-Snapshot sichern.
 - **Skript-Einfügungen:** Rückgabewerte von find/match IMMER prüfen (`assert`) bevor sie weiterverwendet werden.
 
 ## Konventionen

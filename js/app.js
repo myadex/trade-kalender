@@ -4,6 +4,7 @@
 // app.js — Haupt-Einstiegspunkt (verbindet alle Module)
 // ============================================================
 import { CLIENT_ID, SCOPE, APP_VERSION } from './config.js';
+import { emptyAppData, isAppDataDocument, normalizeAppData } from './app-data.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml, csvCell } from './helpers.js';
 import {
   showTab, handleMainTabKey, setStatsView, handleStatsViewKey,
@@ -30,7 +31,7 @@ import {
   handleImportDrop, readImportFile, showImportError, renderImportMigration,
   renderImportPreview, showSavedImportReport
 } from './import-dialogs.js';
-import { addSafetyBackup, restoreSafetyBackup } from './safety-backups.js';
+import { addSafetyBackup, addSafetyBackupFrom, restoreSafetyBackup } from './safety-backups.js';
 import {
   openSafetyBackupDialog, closeSafetyBackupDialog, renderSafetyBackupDialog
 } from './safety-backup-dialog.js';
@@ -46,6 +47,23 @@ import {
   activeHiddenOpenPositions, restoreHiddenOpenPosition
 } from './fifo.js';
 import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, createData, updateData, createWriteQueue } from './storage.js';
+import {
+  STORAGE_MODE_LOCAL, STORAGE_MODE_DRIVE,
+  loadLocalData, saveLocalData, loadStorageMode, saveStorageMode,
+  requestPersistentLocalStorage
+} from './local-storage.js';
+import { classifyStorageMigration, prepareStorageMigration } from './storage-migration.js';
+import {
+  openStorageMigrationDialog, closeStorageMigrationDialog,
+  setStorageMigrationBusy
+} from './storage-migration-dialog.js';
+import { encryptBackupFile, decryptBackupFile } from './backup-crypto.js';
+import {
+  openEncryptedBackupDialog, closeEncryptedBackupDialog,
+  readEncryptedExportPasswords, readEncryptedImport,
+  showEncryptedBackupFileName, setEncryptedBackupStatus,
+  setEncryptedBackupBusy
+} from './encrypted-backup-dialog.js';
 import {
   aggregateWeeks, aggregateMonths, computeStats, computeTradingMetrics,
   computeTradingLevelRecord, computeEquityCurve,
@@ -63,18 +81,20 @@ import {
    ============================================================ */
 let tokenClient = null;
 let accessToken = null;
+let storageMode = null;
+let authIntent = 'open-drive';
+let localStoragePersistent = false;
 let driveFileId = null;          // id of trade-kalender.json in Drive
 let driveEtag = null;            // geladene Serverversion fuer atomare If-Match-Updates
-const emptyData = () => ({
-  trades: [], openLots: [], capital: 0, importRows: [],
-  importBaseOpenLots: null, hiddenOpenPositions: [], safetyBackups: []
-});
+const emptyData = emptyAppData;
 let DATA = emptyData();
 let pendingImport = [];
 let pendingOpenLots = [];
 let pendingImportRows = null;
 let pendingImportBaseOpenLots = null;
 let pendingImportReport = null;
+let pendingDriveData = null;
+let migrationCommitInProgress = false;
 const enqueuePersist = createWriteQueue();
 let currentDetailDate = null;
 // Aktuell angezeigter Monat im Kalender (Jahr + Monat 0-11). Standard: aktueller Monat.
@@ -91,7 +111,7 @@ function initAuth() {
     scope: SCOPE,
     callback: (resp) => {
       if (resp.error) {
-        setStatus('Login fehlgeschlagen: ' + resp.error, true);
+        reportAuthError('Login fehlgeschlagen: ' + resp.error);
         return;
       }
       accessToken = resp.access_token;
@@ -102,8 +122,53 @@ function initAuth() {
 }
 
 function signIn() {
-  if (!tokenClient) { setStatus('Auth noch nicht bereit, bitte neu laden.', true); return; }
+  authIntent = 'open-drive';
+  requestGoogleAccess();
+}
+
+function connectDrive() {
+  authIntent = 'connect-local';
+  requestGoogleAccess();
+}
+
+function requestGoogleAccess() {
+  if (!tokenClient) { reportAuthError('Auth noch nicht bereit, bitte neu laden.'); return; }
   tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+}
+
+function setLoginStatus(message = '') {
+  const element = $('login-status');
+  if (element) element.textContent = message;
+}
+
+function reportAuthError(message) {
+  if ($('login-screen').style.display !== 'none') setLoginStatus(message);
+  else setStatus(message, true);
+}
+
+function updateStorageUi() {
+  const local = storageMode === STORAGE_MODE_LOCAL;
+  const badge = $('storage-badge');
+  if (badge) {
+    badge.textContent = local
+      ? 'Nur auf diesem Geraet' + (localStoragePersistent ? ' · persistent' : '')
+      : 'Google Drive';
+  }
+  $('btn-connect-drive').style.display = local ? 'inline-block' : 'none';
+  $('btn-connect-drive-m').style.display = local ? 'block' : 'none';
+  $('btn-logout').style.display = storageMode === STORAGE_MODE_DRIVE ? 'inline-block' : 'none';
+}
+
+function showApp() {
+  $('login-screen').style.display = 'none';
+  $('app-main').style.display = 'block';
+  updateStorageUi();
+}
+
+function showLogin() {
+  $('app-main').style.display = 'none';
+  $('login-screen').style.display = 'flex';
+  $('btn-logout').style.display = 'none';
 }
 
 function signOut() {
@@ -113,23 +178,62 @@ function signOut() {
   accessToken = null;
   driveFileId = null;
   driveEtag = null;
+  storageMode = STORAGE_MODE_DRIVE;
   DATA = emptyData();
-  $('app-main').style.display = 'none';
-  $('login-screen').style.display = 'flex';
-  $('btn-logout').style.display = 'none';
+  showLogin();
 }
 
 async function onSignedIn() {
-  $('login-screen').style.display = 'none';
-  $('app-main').style.display = 'block';
-  $('btn-logout').style.display = 'inline-block';
+  if (authIntent === 'connect-local' && storageMode === STORAGE_MODE_LOCAL) {
+    await inspectDriveConnection();
+    return;
+  }
+  storageMode = STORAGE_MODE_DRIVE;
+  showApp();
   setStatus('Lade Daten aus Google Drive \u2026');
   try {
     await loadFromDrive();
+    await saveStorageMode(STORAGE_MODE_DRIVE).catch(() => {});
     setStatus('');
+    updateStorageUi();
     rebuildAll();
   } catch (e) {
     setStatus('Fehler beim Laden: ' + e.message, true);
+  }
+}
+
+async function startLocalMode() {
+  setLoginStatus('Lokaler Datenstand wird geladen \u2026');
+  try {
+    DATA = await loadLocalData();
+    await saveStorageMode(STORAGE_MODE_LOCAL);
+    localStoragePersistent = await requestPersistentLocalStorage();
+    storageMode = STORAGE_MODE_LOCAL;
+    driveFileId = null;
+    driveEtag = null;
+    setLoginStatus('');
+    showApp();
+    setStatus('');
+    rebuildAll();
+  } catch (error) {
+    storageMode = null;
+    setLoginStatus('Lokaler Modus konnte nicht gestartet werden: ' + error.message);
+  }
+}
+
+async function resumeStoredMode() {
+  try {
+    const savedMode = await loadStorageMode();
+    if (savedMode === STORAGE_MODE_LOCAL) {
+      await startLocalMode();
+    } else {
+      storageMode = savedMode;
+      showLogin();
+    }
+  } catch (error) {
+    storageMode = null;
+    showLogin();
+    setLoginStatus('Lokaler Browser-Speicher ist nicht verfuegbar. Google Drive kann weiterhin verwendet werden.');
   }
 }
 
@@ -156,6 +260,102 @@ async function loadFromDrive() {
   driveEtag = loaded.etag;
 }
 
+async function inspectDriveConnection() {
+  setStatus('Pruefe lokalen Stand und Google Drive \u2026');
+  try {
+    driveFileId = await findDataFile(accessToken);
+    let driveData = emptyData();
+    driveEtag = null;
+    if (driveFileId) {
+      const loaded = await downloadVersionedData(accessToken, driveFileId);
+      driveData = loaded.data;
+      driveEtag = loaded.etag;
+    }
+    pendingDriveData = driveData;
+    migrationCommitInProgress = false;
+    const migrationComparison = classifyStorageMigration(DATA, driveData);
+    setStatus('');
+    openStorageMigrationDialog(migrationComparison);
+  } catch (error) {
+    setStatus('Drive konnte nicht geprueft werden: ' + error.message, true);
+  }
+}
+
+function cancelStorageMigration() {
+  if (migrationCommitInProgress) return;
+  closeStorageMigrationDialog();
+  pendingDriveData = null;
+  driveFileId = null;
+  driveEtag = null;
+  if (accessToken && window.google?.accounts?.oauth2) {
+    google.accounts.oauth2.revoke(accessToken, () => {});
+  }
+  accessToken = null;
+  setStatus('Drive-Verbindung abgebrochen. Lokale Daten bleiben unveraendert.');
+}
+
+async function reloadMigrationComparison(message) {
+  if (!driveFileId) return;
+  const loaded = await downloadVersionedData(accessToken, driveFileId);
+  pendingDriveData = loaded.data;
+  driveEtag = loaded.etag;
+  openStorageMigrationDialog(classifyStorageMigration(DATA, pendingDriveData));
+  setStorageMigrationBusy(false, message);
+}
+
+async function confirmStorageMigration(choice) {
+  if (!pendingDriveData || storageMode !== STORAGE_MODE_LOCAL) return;
+  const localChoice = choice === 'local';
+  const question = localChoice
+    ? 'Lokalen Stand zu Google Drive uebertragen? Der bisherige Drive-Stand wird als Sicherung aufgenommen.'
+    : 'Drive-Stand auf diesem Geraet verwenden? Der bisherige lokale Stand wird als Sicherung aufgenommen.';
+  if (!confirm(question)) return;
+
+  const target = prepareStorageMigration(DATA, pendingDriveData, choice);
+  migrationCommitInProgress = true;
+  setStorageMigrationBusy(true, 'Auswahl wird ETag-geschuetzt in Google Drive gespeichert \u2026');
+  try {
+    if (driveFileId) {
+      driveEtag = await updateData(accessToken, driveFileId, target, driveEtag);
+    } else {
+      // Zwischen Bestandsaufnahme und Erstellung koennte ein anderer Tab eine
+      // Datei angelegt haben. In diesem Fall wird neu verglichen statt eine
+      // zweite konkurrierende Drive-Datei zu erzeugen.
+      const appearedFileId = await findDataFile(accessToken);
+      if (appearedFileId) {
+        driveFileId = appearedFileId;
+        await reloadMigrationComparison('Drive wurde parallel geaendert. Beide Staende wurden neu geladen; bitte erneut waehlen.');
+        migrationCommitInProgress = false;
+        return;
+      }
+      driveFileId = await createData(accessToken, target);
+      driveEtag = await getDataEtag(accessToken, driveFileId);
+    }
+
+    DATA = target;
+    storageMode = STORAGE_MODE_DRIVE;
+    localStoragePersistent = false;
+    await saveStorageMode(STORAGE_MODE_DRIVE).catch(() => {});
+    pendingDriveData = null;
+    migrationCommitInProgress = false;
+    closeStorageMigrationDialog();
+    updateStorageUi();
+    rebuildAll();
+    setStatus('Mit Google Drive verbunden. Der ausgewaehlte Stand ist synchronisiert.');
+  } catch (error) {
+    migrationCommitInProgress = false;
+    if (error instanceof DriveConflictError && driveFileId) {
+      try {
+        await reloadMigrationComparison('Drive wurde parallel geaendert. Beide Staende wurden neu geladen; bitte erneut waehlen.');
+      } catch (reloadError) {
+        setStorageMigrationBusy(false, 'Konflikt erkannt; Neuladen fehlgeschlagen: ' + reloadError.message);
+      }
+      return;
+    }
+    setStorageMigrationBusy(false, 'Uebernahme fehlgeschlagen: ' + error.message);
+  }
+}
+
 async function saveToDrive(isCreate, data = DATA) {
   if (!driveFileId || isCreate) {
     driveFileId = await createData(accessToken, data);
@@ -171,6 +371,21 @@ function persist() {
   // falschen Schreibauftrag gelangen.
   const snapshot = JSON.parse(JSON.stringify(DATA));
   return enqueuePersist(async () => {
+    if (storageMode === 'local') {
+      setStatus('Speichere auf diesem Geraet \u2026');
+      try {
+        await saveLocalData(snapshot);
+        setStatus('');
+        return { ok: true, conflict: false };
+      } catch (error) {
+        setStatus('Lokales Speichern fehlgeschlagen: ' + error.message, true);
+        return { ok: false, conflict: false };
+      }
+    }
+    if (storageMode !== STORAGE_MODE_DRIVE || !accessToken) {
+      setStatus('Speichern fehlgeschlagen: Kein aktiver Speichermodus.', true);
+      return { ok: false, conflict: false };
+    }
     setStatus('Speichere in Google Drive \u2026');
     try {
       await saveToDrive(false, snapshot);
@@ -1497,6 +1712,89 @@ async function resetAllData() {
   alert('Alle Daten gel\u00f6scht. Der vorherige Stand liegt unter Sicherungen.');
 }
 
+function storageDestinationLabel() {
+  return storageMode === STORAGE_MODE_LOCAL ? 'auf diesem Geraet' : 'in Google Drive';
+}
+
+function downloadTextFile(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function openEncryptedBackups() {
+  closeMobileActions();
+  openEncryptedBackupDialog();
+}
+
+async function createEncryptedBackup() {
+  const { password, confirmation } = readEncryptedExportPasswords();
+  if (password !== confirmation) {
+    setEncryptedBackupStatus('Die beiden Passphrasen stimmen nicht ueberein.', true);
+    return;
+  }
+  setEncryptedBackupBusy(true);
+  setEncryptedBackupStatus('Backup wird lokal verschluesselt \u2026');
+  try {
+    const encrypted = await encryptBackupFile(DATA, password);
+    downloadTextFile(
+      encrypted,
+      'trade-kalender-backup-' + toLocalDateStr(new Date()) + '.json.enc',
+      'application/octet-stream'
+    );
+    closeEncryptedBackupDialog(true);
+    alert('Verschluesseltes Backup wurde erstellt. Bewahre Datei und Passphrase getrennt auf.');
+  } catch (error) {
+    setEncryptedBackupBusy(false);
+    setEncryptedBackupStatus(error.message, true);
+  }
+}
+
+async function restoreEncryptedBackup() {
+  const { file, password } = readEncryptedImport();
+  if (!file) {
+    setEncryptedBackupStatus('Bitte zuerst eine verschluesselte Backup-Datei auswaehlen.', true);
+    return;
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    setEncryptedBackupStatus('Backup-Datei ist zu gross.', true);
+    return;
+  }
+  setEncryptedBackupBusy(true);
+  setEncryptedBackupStatus('Backup wird lokal entschluesselt und geprueft \u2026');
+  try {
+    const restored = await decryptBackupFile(await file.text(), password);
+    if (!isAppDataDocument(restored)) {
+      throw new Error('Backup enthaelt keinen gueltigen App-Datenstand.');
+    }
+    const normalized = normalizeAppData(restored);
+    if (!confirm(normalized.trades.length + ' Trades aus dem verschluesselten Backup ' +
+      storageDestinationLabel() + ' wiederherstellen? Der aktuelle Stand wird vorher gesichert.')) {
+      setEncryptedBackupBusy(false);
+      setEncryptedBackupStatus('Wiederherstellung abgebrochen.');
+      return;
+    }
+    const nextData = addSafetyBackupFrom(normalized, DATA, 'encrypted-restore');
+    if (!(await persistReplacement(nextData)).ok) {
+      setEncryptedBackupBusy(false);
+      setEncryptedBackupStatus('Wiederherstellung konnte nicht gespeichert werden.', true);
+      return;
+    }
+    closeEncryptedBackupDialog(true);
+    rebuildAll();
+    alert(nextData.trades.length + ' Trades aus dem verschluesselten Backup wiederhergestellt.');
+  } catch (error) {
+    setEncryptedBackupBusy(false);
+    setEncryptedBackupStatus(error.message, true);
+  }
+}
+
 function openRestoreJson() {
   $('json-input').value = '';
   $('json-input').click();
@@ -1513,12 +1811,13 @@ async function handleJsonRestore(file) {
       alert('Datei ist kein g\u00fcltiges JSON.');
       return;
     }
-    if (!parsed || !Array.isArray(parsed.trades)) {
+    if (!isAppDataDocument(parsed)) {
       alert('Die Datei enth\u00e4lt kein g\u00fcltiges trades-Array.');
       return;
     }
     const n = parsed.trades.length;
-    if (!confirm(n + ' Trades aus der Datei \u00fcbernehmen und in Google Drive speichern? Der aktuelle Stand wird vorher automatisch gesichert.')) return;
+    if (!confirm(n + ' Trades aus der unverschluesselten Datei ' + storageDestinationLabel() +
+      ' wiederherstellen? Der aktuelle Stand wird vorher automatisch gesichert.')) return;
     const protectedData = addSafetyBackup(DATA, 'json-restore');
     const nextData = {
       trades: parsed.trades,
@@ -1531,7 +1830,7 @@ async function handleJsonRestore(file) {
     };
     if (!(await persistReplacement(nextData)).ok) return;
     rebuildAll();
-    alert(n + ' Trades erfolgreich wiederhergestellt und in Drive gespeichert.');
+    alert(n + ' Trades erfolgreich ' + storageDestinationLabel() + ' wiederhergestellt.');
   };
   reader.readAsText(file);
 }
@@ -1624,7 +1923,9 @@ function closeDialogById(id) {
     'close-pos-overlay': closeClosePosModal,
     'import-overlay': closeImportModal,
     'import-migration-overlay': closeImportMigration,
-    'safety-backup-overlay': closeSafetyBackupDialog
+    'safety-backup-overlay': closeSafetyBackupDialog,
+    'storage-migration-overlay': cancelStorageMigration,
+    'encrypted-backup-overlay': closeEncryptedBackupDialog
   };
   if (closers[id]) closers[id]();
 }
@@ -1665,13 +1966,16 @@ function bootApp() {
   // Ereignisse werden ausschliesslich hier verdrahtet. Inline-Handler im HTML
   // waeren fuer eine wirksame Script-CSP nur mit unsafe-inline ausfuehrbar.
   bind('btn-login', 'click', signIn);
+  bind('btn-local-mode', 'click', startLocalMode);
   bind('btn-logout', 'click', signOut);
+  bind('btn-connect-drive', 'click', connectDrive);
   bind('btn-add', 'click', openAddModal);
   bind('btn-search', 'click', openTradeSearch);
   bind('btn-import', 'click', openImportModal);
   bind('btn-export', 'click', exportCSV);
   bind('btn-restore', 'click', openRestoreJson);
   bind('btn-backups', 'click', openSafetyBackups);
+  bind('btn-encrypted-backup', 'click', openEncryptedBackups);
   bind('btn-reset', 'click', resetAllData);
 
   bind('main-nav', 'keydown', handleMainTabKey);
@@ -1735,6 +2039,15 @@ function bootApp() {
   bind('json-input', 'change', event => handleJsonRestore(event.currentTarget.files[0]));
   bind('safety-backup-close', 'click', closeSafetyBackupDialog);
   bindBackdrop('safety-backup-overlay', closeSafetyBackupDialog);
+  bind('storage-migration-cancel', 'click', cancelStorageMigration);
+  bind('storage-migration-local', 'click', () => confirmStorageMigration('local'));
+  bind('storage-migration-drive', 'click', () => confirmStorageMigration('drive'));
+  bindBackdrop('storage-migration-overlay', cancelStorageMigration);
+  bind('encrypted-backup-close', 'click', closeEncryptedBackupDialog);
+  bind('encrypted-backup-export', 'click', createEncryptedBackup);
+  bind('encrypted-backup-restore', 'click', restoreEncryptedBackup);
+  bind('encrypted-backup-file', 'change', showEncryptedBackupFileName);
+  bindBackdrop('encrypted-backup-overlay', closeEncryptedBackupDialog);
 
   bind('metrics-from', 'change', buildTradingMetrics);
   bind('metrics-to', 'change', buildTradingMetrics);
@@ -1750,6 +2063,8 @@ function bootApp() {
   bindMobileAction('btn-export-m', exportCSV);
   bindMobileAction('btn-restore-m', openRestoreJson);
   bindMobileAction('btn-backups-m', openSafetyBackups);
+  bindMobileAction('btn-encrypted-backup-m', openEncryptedBackups);
+  bindMobileAction('btn-connect-drive-m', connectDrive);
   bindMobileAction('btn-reset-m', resetAllData);
 
   bind('google-gis-script', 'load', initAuthWhenReady);
@@ -1763,6 +2078,10 @@ function bootApp() {
   });
   bind('s-capital-card', 'click', setCapital);
   bind('s-rendite-card', 'click', setCapital);
+
+  // Ein lokal gewaehlter Modus kann ohne Google und ohne Netz sofort starten.
+  // Drive bleibt wegen des bewusst interaktiven OAuth-Dialogs auf dem Login.
+  resumeStoredMode();
 
   // Register service worker with automatic update + reload
   if ('serviceWorker' in navigator) {

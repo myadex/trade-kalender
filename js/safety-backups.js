@@ -11,7 +11,10 @@ const ALLOWED_REASONS = new Set([
   'csv-import',
   'json-restore',
   'reset',
-  'backup-restore'
+  'backup-restore',
+  'drive-replaced',
+  'local-replaced',
+  'encrypted-restore'
 ]);
 
 function cloneJson(value) {
@@ -72,6 +75,13 @@ function uniqueBackupId(backups, createdAt) {
 }
 
 export function addSafetyBackup(data, reason, createdAt = Date.now()) {
+  return addSafetyBackupFrom(data, data, reason, createdAt);
+}
+
+// Bei einem Speicherwechsel ist der zu sichernde Stand nicht der neue
+// Zielstand. Deshalb kann die Quelle explizit uebergeben werden, ohne die
+// bestehenden Sicherungen des Zielstands zu verlieren.
+export function addSafetyBackupFrom(data, sourceData, reason, createdAt = Date.now()) {
   if (!ALLOWED_REASONS.has(reason)) {
     throw new Error('Unbekannter Sicherungsgrund: ' + reason);
   }
@@ -82,12 +92,13 @@ export function addSafetyBackup(data, reason, createdAt = Date.now()) {
 
   const existing = normalizeSafetyBackups(data && data.safetyBackups);
   const current = snapshotSafetyData(data);
+  const source = snapshotSafetyData(sourceData);
   const entry = {
     schemaVersion: 1,
     id: uniqueBackupId(existing, timestamp),
     createdAt: timestamp,
     reason,
-    data: current
+    data: source
   };
 
   return Object.assign({}, current, {

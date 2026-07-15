@@ -320,12 +320,14 @@ function buildCalendar() {
   nav.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:.5rem;';
   const btnPrev = document.createElement('button');
   btnPrev.type = 'button';
+  btnPrev.className = 'calendar-month-button';
   btnPrev.textContent = '\u2039';
   btnPrev.setAttribute('aria-label', 'Vorheriger Monat');
   btnPrev.style.cssText = 'font-size:1.4rem;line-height:1;background:none;border:1px solid var(--border);border-radius:8px;width:40px;height:40px;cursor:pointer;color:var(--ink);flex-shrink:0;';
   btnPrev.onclick = () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } buildCalendar(); };
   const btnNext = document.createElement('button');
   btnNext.type = 'button';
+  btnNext.className = 'calendar-month-button';
   btnNext.textContent = '\u203a';
   btnNext.setAttribute('aria-label', 'Nächster Monat');
   btnNext.style.cssText = btnPrev.style.cssText;

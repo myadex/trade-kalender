@@ -357,9 +357,25 @@ Wartbarkeit bzw. Komfort.
 
 ### Bedienbarkeit und Barrierefreiheit pruefen
 
-- **Status:** Offen.
+- **Status:** Erledigt in v69 fuer Desktop-Web und mobile PWA.
 - **Ziel:** Fokusfuehrung in Dialogen, Escape-Taste, eindeutige Labels,
   Tastaturnavigation und Kontraste systematisch verbessern.
+- **Dialoge:** Alle acht Dialoge besitzen Rolle, Modalstatus und einen
+  erreichbaren Titel. Eine gemeinsame Steuerung setzt den Startfokus, haelt
+  Tab und Umschalt+Tab im obersten Dialog, schliesst per Escape, sperrt den
+  Hintergrund-Scroll und gibt den Fokus an den Ausloeser zurueck.
+- **Formulare und Navigation:** Sichtbare Labels sind technisch mit ihren
+  Feldern verbunden. Haupt- und Statistik-Tabs unterstuetzen ARIA-Zustaende
+  sowie Pfeil-, Pos1- und Ende-Tasten. Kalendertage und CSV-Auswahl sind echte
+  Tastatur-Bedienelemente; reine Symbolbuttons besitzen zugängliche Namen.
+- **Mobile PWA:** Touchziele sind mindestens 44 Pixel hoch, Eingaben verhindern
+  den automatischen iOS-Zoom und Bottom-Bar, Aktionsmenue sowie Bottom-Sheets
+  beruecksichtigen die Safe-Area. Das Aktionsmenue meldet seinen offenen Zustand
+  und kann per Escape geschlossen werden.
+- **Lesbarkeit:** Der gedimmte Textkontrast wurde angehoben, Formularfelder
+  verwenden den dunklen App-Hintergrund und alle interaktiven Elemente erhalten
+  einen sichtbaren Tastaturfokus. Status- und Ergebniswechsel werden als
+  Live-Regionen angekuendigt.
 
 ### Trading-Journal und Regel-Tracking
 

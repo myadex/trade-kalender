@@ -475,7 +475,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     background: var(--paper);
     border-top: 1px solid var(--border);
     z-index: 95;
-    padding: .5rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+    padding: .5rem 1rem 1rem;
     flex-direction: column;
     gap: .5rem;
   }
@@ -511,7 +511,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 
   /* Touchziele nach WCAG und 16px-Eingaben gegen iOS-Zoom. */
   .btn,.gbtn,.detail-close,.btn-edit,.btn-del,.btn-close-pos,.btn-del-pos,
-  .add-day-btn,.ts-mode-btn,.stats-view-nav-btn,.search-result-open,
+  .add-day-btn,.calendar-month-button,.ts-mode-btn,.stats-view-nav-btn,.search-result-open,
   .period-review-select,.trading-level-select,.form-group input,
   .form-group select,.metrics-field input { min-height:44px; }
   .form-group input,.form-group select,.metrics-field input,
@@ -1023,13 +1023,13 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 </nav>
 
 <!-- MOBILE ACTION SHEET -->
-<div id="mobile-actions" role="menu" aria-label="Aktionen">
-  <button type="button" role="menuitem" onclick="closeMobileActions();openAddModal()">+ Trade hinzuf&uuml;gen</button>
-  <button type="button" role="menuitem" id="btn-search-m">&#128269; Trades suchen</button>
-  <button type="button" role="menuitem" onclick="closeMobileActions();openImportModal()">&uarr; CSV importieren</button>
-  <button type="button" role="menuitem" onclick="closeMobileActions();exportCSV()">&darr; Export CSV</button>
-  <button type="button" role="menuitem" id="btn-restore-m">&#8593; JSON wiederherstellen</button>
-  <button type="button" role="menuitem" class="danger" onclick="closeMobileActions();resetAllData()">&#8635; Alle Daten l&ouml;schen</button>
+<div id="mobile-actions" role="group" aria-label="Aktionen">
+  <button type="button" onclick="closeMobileActions();openAddModal()">+ Trade hinzuf&uuml;gen</button>
+  <button type="button" id="btn-search-m">&#128269; Trades suchen</button>
+  <button type="button" onclick="closeMobileActions();openImportModal()">&uarr; CSV importieren</button>
+  <button type="button" onclick="closeMobileActions();exportCSV()">&darr; Export CSV</button>
+  <button type="button" id="btn-restore-m">&#8593; JSON wiederherstellen</button>
+  <button type="button" class="danger" onclick="closeMobileActions();resetAllData()">&#8635; Alle Daten l&ouml;schen</button>
 </div>
 
 <input type="file" id="json-input" accept=".json,application/json" style="display:none">

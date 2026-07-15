@@ -70,6 +70,12 @@ const dialogAccessibilityPath = DIR + '/js/dialog-accessibility.js';
 check('Barrierefreiheit: Dialogsteuerung liegt in einem gemeinsamen UI-Modul',
   fs.existsSync(dialogAccessibilityPath) &&
   appControllerJs.includes("from './dialog-accessibility.js'"));
+const safetyBackupsPath = DIR + '/js/safety-backups.js';
+const safetyBackupDialogPath = DIR + '/js/safety-backup-dialog.js';
+check('Safety: Sicherungslogik und Dialog sind getrennte Module',
+  fs.existsSync(safetyBackupsPath) && fs.existsSync(safetyBackupDialogPath) &&
+  appControllerJs.includes("from './safety-backups.js'") &&
+  appControllerJs.includes("from './safety-backup-dialog.js'"));
 // Der Service Worker wird aus index.html mit './sw.js' registriert. Er muss
 // deshalb im Projekt-Root liegen: Unter js/ haette er nur den Scope /js/ und
 // koennte weder die App-Seite noch die PWA-Root-Route kontrollieren.
@@ -99,6 +105,7 @@ const offlineAssets = [
   './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
   './js/dialog-accessibility.js', './js/import-dialogs.js', './js/import.js', './js/navigation.js',
   './js/metrics-view.js', './js/position-dialog.js', './js/storage.js',
+  './js/safety-backup-dialog.js', './js/safety-backups.js',
   './js/trade-dialogs.js', './js/trade-search.js', './js/views.js'
 ];
 check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
@@ -133,7 +140,7 @@ check('CI: Node-Version und npm-Cache sind explizit festgelegt',
 console.log('\n=== 1b. IMPORT/EXPORT-KONSISTENZ (Modul-Vertraege) ===');
 // Prueft per AST: Jeder `import { X } from './mod.js'` muss in mod.js
 // ein `export` fuer X haben. Faengt den "does not provide an export"-Fehler
-// VOR dem Deployment. Zusaetzlich: HTML-onload-Callbacks muessen auf window stehen.
+// VOR dem Deployment.
 (function () {
   const path = require('path');
   const moduleFiles = fs.readdirSync(path.join(DIR, 'js')).filter(f => f.endsWith('.js'));
@@ -186,32 +193,15 @@ console.log('\n=== 1b. IMPORT/EXPORT-KONSISTENZ (Modul-Vertraege) ===');
   check('alle Modul-Imports haben passende Exports', importErrors.length === 0);
   if (importErrors.length) importErrors.forEach(e => console.log('     -> ' + e));
 
-  // HTML-onload-Callbacks (z.B. gisLoaded) muessen via window.X exponiert sein
   const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
-  const onloadCallbacks = [...html.matchAll(/onload="(\w+)\(\)"/g)].map(m => m[1]);
-  for (const cb of onloadCallbacks) {
-    check("HTML-onload-Callback '" + cb + "' auf window exponiert",
-      appJs.includes('window.' + cb + ' = ') || appJs.includes(cb + ':') && appJs.includes('Object.assign(window'));
-  }
-
-  // Das Google-Script ist async und kann vor dem ES-Modul fertig sein. Der
-  // HTML-Callback muss deshalb auch mit einem noch leeren window funktionieren;
-  // eine spaetere Modulpruefung uebernimmt danach die Initialisierung.
   const gisTag = html.match(/<script[^>]+accounts\.google\.com\/gsi\/client[^>]*>/);
-  const gisOnload = gisTag && gisTag[0].match(/onload="([^"]+)"/);
-  let earlyGisCallbackSafe = false;
-  if (gisOnload) {
-    try {
-      require('vm').runInNewContext(gisOnload[1], { window: {} });
-      earlyGisCallbackSafe = true;
-    } catch (_) {}
-  }
-  check('Google-Callback bleibt sicher, wenn das async Script vor dem ES-Modul laedt',
-    earlyGisCallbackSafe);
+  check('Google-Auth braucht keinen CSP-widrigen HTML-onload-Callback',
+    !!gisTag && gisTag[0].includes('id="google-gis-script"') && !gisTag[0].includes('onload=') &&
+    appControllerJs.includes("bind('google-gis-script', 'load', initAuthWhenReady)"));
   check('Google-Auth wird nach fruehem Script-Load beim Modulstart nachgeholt',
-    appJs.includes('if (window.google && window.google.accounts && window.google.accounts.oauth2)') &&
-    appJs.indexOf('window.gisLoaded = gisLoaded') <
-      appJs.indexOf('if (window.google && window.google.accounts && window.google.accounts.oauth2)'));
+    appControllerJs.includes('function initAuthWhenReady()') &&
+    appControllerJs.includes('if (window.google && window.google.accounts && window.google.accounts.oauth2)') &&
+    appControllerJs.includes('initAuthWhenReady();'));
 })();
 
 console.log('\n=== 2. ID REFERENCES ===');
@@ -227,7 +217,7 @@ const accessibilityDom = new JSDOM(html);
 const accessibilityDocument = accessibilityDom.window.document;
 const dialogOverlays = Array.from(accessibilityDocument.querySelectorAll('.modal-overlay, .detail-overlay'));
 check('A11y: alle Dialoge besitzen Rolle, Modalstatus und erreichbaren Titel',
-  dialogOverlays.length === 8 && dialogOverlays.every(overlay => {
+  dialogOverlays.length === 9 && dialogOverlays.every(overlay => {
     const titleId = overlay.getAttribute('aria-labelledby');
     return overlay.getAttribute('role') === 'dialog' &&
       overlay.getAttribute('aria-modal') === 'true' && titleId &&
@@ -274,40 +264,58 @@ try {
 } catch (e) {}
 check('Laufzeit-Datensnapshot ist nicht im Git-Index', !runtimeDataTracked);
 
-console.log('\n=== 3. EVENT HANDLERS ===');
-const handlers = new Set();
-const r3 = /on(?:click|input|change)="(\w+)\(/g; while ((m = r3.exec(html))) handlers.add(m[1]);
-const missingFns = [...handlers].filter(fn => fn !== 'if' && !appJs.includes('function ' + fn + '('));
-check('all ' + handlers.size + ' inline handlers defined', missingFns.length === 0);
-if (missingFns.length) console.log('     missing: ' + missingFns.join(', '));
+console.log('\n=== 2c. WEB-HAERTUNG ===');
+const cspMeta = accessibilityDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
+const cspContent = cspMeta ? cspMeta.getAttribute('content') : '';
+const cspDirectives = {};
+cspContent.split(';').map(part => part.trim()).filter(Boolean).forEach(part => {
+  const pieces = part.split(/\s+/);
+  cspDirectives[pieces.shift()] = pieces;
+});
+const headResources = Array.from(accessibilityDocument.head.querySelectorAll('link,style,script'));
+check('Security: CSP steht vor allen ladbaren Head-Ressourcen',
+  !!cspMeta && headResources.every(resource =>
+    cspMeta.compareDocumentPosition(resource) & accessibilityDom.window.Node.DOCUMENT_POSITION_FOLLOWING));
+check('Security: Script-CSP erlaubt nur App und Google GIS ohne unsafe-inline/eval',
+  Array.isArray(cspDirectives['script-src']) &&
+  cspDirectives['script-src'].includes("'self'") &&
+  cspDirectives['script-src'].includes('https://accounts.google.com/gsi/client') &&
+  !cspDirectives['script-src'].includes("'unsafe-inline'") &&
+  !cspDirectives['script-src'].includes("'unsafe-eval'") &&
+  cspDirectives['script-src-attr']?.includes("'none'"));
+check('Security: CSP begrenzt Drive, GIS, Frames, Objekte und Basis-URLs',
+  cspDirectives['connect-src']?.includes('https://www.googleapis.com') &&
+  cspDirectives['connect-src']?.includes('https://accounts.google.com/gsi/') &&
+  cspDirectives['frame-src']?.includes('https://accounts.google.com/gsi/') &&
+  cspDirectives['object-src']?.includes("'none'") &&
+  cspDirectives['base-uri']?.includes("'none'") &&
+  cspDirectives['form-action']?.includes("'none'") &&
+  !Object.prototype.hasOwnProperty.call(cspDirectives, 'frame-ancestors'));
+check('Security: Referrer-Policy bleibt mit Google GIS und localhost kompatibel',
+  accessibilityDocument.querySelector('meta[name="referrer"]')?.getAttribute('content') === 'no-referrer-when-downgrade');
+const inlineEventAttributes = html.match(/\son[a-z]+\s*=/gi) || [];
+check('Security: HTML enthaelt keine Inline-Event-Handler mehr', inlineEventAttributes.length === 0);
+check('Security: UI-Funktionen werden nicht mehr fuer HTML-Handler global exponiert',
+  !appControllerJs.includes('Object.assign(window') &&
+  !/window\.(gisLoaded|setTsMode|setWeekdayMode|setStatsView|buildTradeSearch)\s*=/.test(appControllerJs));
 
-console.log('\n=== 3b. MODULE: INLINE-HANDLER AUF WINDOW ===');
-// In ES-Modulen sind Funktionen nicht global. Jede per onclick/oninput/ondrop
-// im HTML aufgerufene Funktion MUSS ans window gehängt sein, sonst bricht die App.
+console.log('\n=== 3. EVENT HANDLERS ===');
+check('Kritische UI-Aktionen sind im Controller verdrahtet',
+  ["bind('btn-login', 'click', signIn)", "bind('add-save-btn', 'click', saveTrade)",
+    "bind('edit-save-btn', 'click', saveEdit)", "bind('close-pos-save-btn', 'click', confirmClosePos)",
+    "bind('import-confirm-btn', 'click', confirmImport)", "bindMobileAction('btn-reset-m', resetAllData)"]
+    .every(contract => appControllerJs.includes(contract)));
+
+console.log('\n=== 3b. MODULE: CSP-KOMPATIBLE VERDRAHTUNG ===');
 {
-  const inlineFns = new Set();
-  let mm;
-  const reH = /on(?:click|input|change|drop|dragover|dragleave)="(\w+)\(/g;
-  while ((mm = reH.exec(html))) if (mm[1] !== 'if') inlineFns.add(mm[1]);
-  // window-Exposition finden: Object.assign(window, { ... }) + window.x =
-  const exposed = new Set();
-  const assignMatch = appJs.match(/Object\.assign\(window,\s*\{([\s\S]*?)\}\)/);
-  if (assignMatch) {
-    assignMatch[1].split(',').forEach(s => {
-      const name = s.trim().split(/[:\s]/)[0];
-      if (name) exposed.add(name);
-    });
-  }
-  let wm;
-  const reW = /window\.(\w+)\s*=/g;
-  while ((wm = reW.exec(appJs))) exposed.add(wm[1]);
-  const notExposed = [...inlineFns].filter(fn => !exposed.has(fn));
-  check('alle ' + inlineFns.size + ' Inline-Handler ans window geh\u00e4ngt', notExposed.length === 0);
+  check('Event-Helfer verwenden addEventListener statt globale HTML-Callbacks',
+    appControllerJs.includes('function bind(id, eventName, handler)') &&
+    appControllerJs.includes('element.addEventListener(eventName, handler)') &&
+    !appControllerJs.includes('Object.assign(window'));
   // ES-Module laufen deferred -> Boot darf NICHT nur an DOMContentLoaded hängen,
   // sonst läuft der Startcode nie (Event ist beim Modul-Start oft schon vorbei).
   check('Boot behandelt bereits geladenes DOM (readyState-Check)',
     appJs.includes("document.readyState === 'loading'") && appJs.includes('bootApp'));
-  if (notExposed.length) console.log('     nicht exponiert: ' + notExposed.join(', '));
 }
 
 console.log('\n=== 4. CSS ORDERING (media query must win) ===');
@@ -420,6 +428,58 @@ const realFifoCheck = (async () => {
     // views.js: Aggregation muss die Gesamtsumme erhalten
     const vmod = await import('file://' + DIR + '/js/views.js');
     const fmod = await import('file://' + DIR + '/js/fifo.js');
+    const safetyMod = await import('file://' + DIR + '/js/safety-backups.js');
+    check('Safety: pure Sicherungsfunktionen sind exportiert',
+      typeof safetyMod.addSafetyBackup === 'function' &&
+      typeof safetyMod.restoreSafetyBackup === 'function' &&
+      typeof safetyMod.normalizeSafetyBackups === 'function');
+
+    const safetySource = {
+      trades: [{ uid: 'old', pnl: 120 }],
+      openLots: [{ isin: 'TEST', remainingShares: 2 }],
+      capital: 5000,
+      importRows: [{ sourceRowId: 'row-1' }],
+      importBaseOpenLots: [],
+      hiddenOpenPositions: [{ id: 'hide-1' }],
+      safetyBackups: []
+    };
+    const safetyBefore = JSON.stringify(safetySource);
+    const protectedState = safetyMod.addSafetyBackup(safetySource, 'reset', 1000);
+    safetySource.trades[0].pnl = 999;
+    check('Safety: Snapshot friert den kompletten alten Datenstand ohne Mutation ein',
+      JSON.stringify(Object.assign({}, safetySource, { trades: [{ uid: 'old', pnl: 120 }] })) === safetyBefore &&
+      protectedState.safetyBackups[0].data.trades[0].pnl === 120 &&
+      protectedState.safetyBackups[0].data.hiddenOpenPositions.length === 1 &&
+      protectedState.safetyBackups[0].data.importRows.length === 1);
+
+    let rotated = Object.assign({}, protectedState, { safetyBackups: [] });
+    for (let i = 0; i < 12; i++) {
+      rotated = safetyMod.addSafetyBackup(rotated, 'csv-import', 2000 + i);
+    }
+    check('Safety: Verlauf behaelt exakt die zehn neuesten Sicherungen',
+      rotated.safetyBackups.length === 10 &&
+      rotated.safetyBackups[0].createdAt === 2011 &&
+      rotated.safetyBackups[9].createdAt === 2002);
+
+    const oldState = {
+      trades: [{ uid: 'restore-me', pnl: 10 }], openLots: [], capital: 100,
+      importRows: [], importBaseOpenLots: null, hiddenOpenPositions: [], safetyBackups: []
+    };
+    const withOldBackup = safetyMod.addSafetyBackup(oldState, 'json-restore', 3000);
+    const currentState = Object.assign({}, withOldBackup, {
+      trades: [{ uid: 'current', pnl: -50 }], capital: 200
+    });
+    const restoredState = safetyMod.restoreSafetyBackup(
+      currentState,
+      withOldBackup.safetyBackups[0].id,
+      4000
+    );
+    check('Safety: Wiederherstellung stellt Daten her und sichert den abgeloesten Stand',
+      restoredState.trades[0].uid === 'restore-me' && restoredState.capital === 100 &&
+      restoredState.safetyBackups[0].reason === 'backup-restore' &&
+      restoredState.safetyBackups[0].data.trades[0].uid === 'current');
+    check('Safety: unbekannte Sicherung veraendert keine Daten',
+      safetyMod.restoreSafetyBackup(currentState, 'fehlt', 5000) === null);
     const navmod = fs.existsSync(navigationPath)
       ? await import('file://' + navigationPath)
       : null;
@@ -434,6 +494,9 @@ const realFifoCheck = (async () => {
       : null;
     const importdialogsmod = fs.existsSync(importDialogsPath)
       ? await import('file://' + importDialogsPath)
+      : null;
+    const safetyDialogMod = fs.existsSync(safetyBackupDialogPath)
+      ? await import('file://' + safetyBackupDialogPath)
       : null;
     const metricsviewmod = fs.existsSync(metricsViewPath)
       ? await import('file://' + metricsViewPath)
@@ -493,6 +556,40 @@ const realFifoCheck = (async () => {
       global.window = previousA11yWindow;
       global.document = previousA11yDocument;
       dialogA11yDom.window.close();
+    }
+    const safetyDialogDom = new JSDOM(
+      '<!doctype html><html><body><button id="safety-trigger">Sicherungen</button>' +
+      '<div id="safety-backup-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="safety-backup-title">' +
+      '<div class="modal"><h2 id="safety-backup-title">Sicherungen</h2>' +
+      '<strong id="safety-backup-count"></strong><div id="safety-backup-empty"></div>' +
+      '<div id="safety-backup-list"></div><button id="safety-backup-close" data-dialog-initial-focus>Schliessen</button>' +
+      '</div></div></body></html>',
+      { pretendToBeVisual: true }
+    );
+    const previousSafetyWindow = global.window;
+    const previousSafetyDocument = global.document;
+    global.window = safetyDialogDom.window;
+    global.document = safetyDialogDom.window.document;
+    try {
+      let requestedBackup = '';
+      safetyDialogDom.window.document.getElementById('safety-trigger').focus();
+      if (safetyDialogMod) safetyDialogMod.openSafetyBackupDialog(
+        protectedState.safetyBackups,
+        id => { requestedBackup = id; }
+      );
+      const restoreButton = safetyDialogDom.window.document.querySelector('.safety-backup-restore');
+      if (restoreButton) restoreButton.click();
+      check('Safety-Dialog: Verlauf rendert Werte und reicht die gewaehlte ID zurueck',
+        !!safetyDialogMod &&
+        safetyDialogDom.window.document.getElementById('safety-backup-overlay').classList.contains('open') &&
+        safetyDialogDom.window.document.querySelectorAll('.safety-backup-row').length === 1 &&
+        safetyDialogDom.window.document.getElementById('safety-backup-count').textContent === '1 von 10 Sicherungen' &&
+        requestedBackup === protectedState.safetyBackups[0].id);
+      if (safetyDialogMod) safetyDialogMod.closeSafetyBackupDialog();
+    } finally {
+      global.window = previousSafetyWindow;
+      global.document = previousSafetyDocument;
+      safetyDialogDom.window.close();
     }
     check('navigation: alle Desktop- und Mobilfunktionen exportiert',
       !!navmod && ['showTab', 'handleMainTabKey', 'setStatsView', 'handleStatsViewKey', 'mobileTab',
@@ -1469,6 +1566,16 @@ const realFifoCheck = (async () => {
       catch (e) { corruptDataError = e.message; }
       check('storage: kaputte Drive-JSON wird nicht als leere Daten akzeptiert', corruptDataError.includes('ung\u00fcltig'));
 
+      global.fetch = async () => new Response(JSON.stringify({
+        trades: [],
+        hiddenOpenPositions: [{ id: 'hide-1' }],
+        safetyBackups: [{ id: 'backup-1', createdAt: 1, reason: 'reset', data: { trades: [] } }]
+      }), { status: 200 });
+      const extendedData = await smod.downloadData('test-token', 'file-id');
+      check('storage: sicherheitsrelevante Zusatzdaten bleiben nach Drive-Reload erhalten',
+        extendedData.hiddenOpenPositions.length === 1 &&
+        extendedData.safetyBackups.length === 1);
+
       const versionApiReady =
         typeof smod.getDataEtag === 'function' &&
         typeof smod.downloadVersionedData === 'function' &&
@@ -1808,6 +1915,13 @@ check('App laedt bei Drive-Konflikt den neuesten Stand und informiert den Nutzer
   appJs.includes('e instanceof DriveConflictError') &&
   appJs.includes('Daten wurden in einem anderen Tab oder Ger') &&
   /DriveConflictError[\s\S]{0,700}await loadFromDrive\(\)/.test(appJs));
+check('Safety: CSV-Import, JSON-Restore und Reset erzeugen automatisch Sicherungen',
+  /function confirmImport[\s\S]{0,1400}addSafetyBackup\([^,]+, 'csv-import'\)/.test(appControllerJs) &&
+  /function resetAllData[\s\S]{0,900}addSafetyBackup\([^,]+, 'reset'\)/.test(appControllerJs) &&
+  /function handleJsonRestore[\s\S]{0,1800}addSafetyBackup\([^,]+, 'json-restore'\)/.test(appControllerJs));
+check('Safety: Sicherungsverlauf ist auf Desktop und Mobil erreichbar',
+  html.includes('id="safety-backup-overlay"') && html.includes('id="safety-backup-list"') &&
+  html.includes('id="btn-backups"') && html.includes('id="btn-backups-m"'));
 check('import.js: parseScalableCsv vorhanden', appJs.includes('export function parseScalableCsv'));
 check('import.js: deutsche Zahlen-Parser', appJs.includes('export function parseGermanNumber'));
 check('import.js: Pflichtspalten-Pruefung', appJs.includes("const REQUIRED_COLUMNS = ['type', 'status', 'isin'"));
@@ -1875,10 +1989,14 @@ check('Trading-Level-UI: neun eigene Pixelstufen und kein alter Maximalname',
   !metricsViewJs.includes('Leuchtende Klinge'));
 check('Trading-Level-UI: erklaerender Gimmick-Hinweis ist entfernt',
   !html.includes('Nur dein eigener Verlauf, kein Vergleich mit anderen.'));
-check('Statistik-UI: Bereichswechsel ist verdrahtet und global erreichbar',
-  appJs.includes('function setStatsView(view)') && appJs.includes('window.setStatsView = setStatsView'));
+check('Statistik-UI: Bereichswechsel ist ohne globale Exposition verdrahtet',
+  appJs.includes('function setStatsView(view)') &&
+  appControllerJs.includes("document.querySelectorAll('.stats-view-nav-btn')") &&
+  appControllerJs.includes("setStatsView(button.id.slice('stats-nav-'.length))") &&
+  !appControllerJs.includes('window.setStatsView'));
 check('Statistik-UI: interne Tabs sind per Pfeiltasten erreichbar',
-  html.includes('onkeydown="handleStatsViewKey(event)"') &&
+  html.includes('id="stats-view-nav"') &&
+  appControllerJs.includes("bind('stats-view-nav', 'keydown', handleStatsViewKey)") &&
   appJs.includes('function handleStatsViewKey(event)') &&
   appJs.includes("'ArrowLeft', 'ArrowRight', 'Home', 'End'"));
 check('Statistik-UI: Untermenue bleibt auf kleinen Displays horizontal bedienbar',

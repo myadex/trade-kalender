@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; worker-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer-when-downgrade">
 <meta name="theme-color" content="#1a1814">
 <title>Trade Kalender</title>
 <link rel="manifest" href="manifest.json">
@@ -347,6 +349,16 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .migration-steps{margin:.75rem 0 0 1.25rem;padding:0;font-size:.74rem;line-height:1.5;color:var(--ink);}
 .migration-steps li{padding-left:.2rem;margin-bottom:.42rem;}
 .migration-note{font-size:.66rem;line-height:1.45;color:var(--muted);margin-top:.65rem;}
+.safety-backup-modal{max-width:680px;}
+.safety-backup-lead{font-size:.76rem;line-height:1.55;color:var(--muted);margin-bottom:.8rem;}
+.safety-backup-status{display:flex;justify-content:space-between;gap:.7rem;padding:.6rem .7rem;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);}
+.safety-backup-list{display:grid;gap:.55rem;margin-top:.7rem;}
+.safety-backup-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:.8rem;padding:.72rem .78rem;border:1px solid var(--border);border-radius:9px;background:var(--bg);}
+.safety-backup-copy{display:grid;gap:.18rem;min-width:0;}
+.safety-backup-reason{font-size:.78rem;color:var(--ink);}
+.safety-backup-time,.safety-backup-meta{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);overflow-wrap:anywhere;}
+.safety-backup-empty{margin-top:.7rem;padding:1rem;border:1px dashed var(--border);border-radius:9px;text-align:center;font-size:.72rem;line-height:1.5;color:var(--muted);}
+@media(max-width:520px){.safety-backup-row{grid-template-columns:1fr;}.safety-backup-restore{width:100%;}}
 .search-modal{max-width:960px;height:min(760px,90vh);display:flex;flex-direction:column;overflow:hidden;}
 .search-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem;}
 .search-header h3{margin:0 0 .2rem;}.search-header p{font-family:'JetBrains Mono',monospace;font-size:.58rem;line-height:1.45;color:var(--muted);}
@@ -565,21 +577,22 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     <button class="btn" id="btn-import">&uarr; CSV importieren</button>
     <button class="btn" id="btn-export">&darr; Export CSV</button>
     <button class="btn" id="btn-restore">&#8593; JSON wiederherstellen</button>
+    <button class="btn" id="btn-backups">&#128737; Sicherungen</button>
     <button class="btn" id="btn-reset" style="border-color:var(--red-mid);color:var(--red)">&#8635; Reset</button>
     <button class="btn" id="btn-logout" style="display:none">Abmelden</button>
   </div>
 
-  <div class="nav" role="tablist" aria-label="Hauptbereich ausw&auml;hlen" onkeydown="handleMainTabKey(event)">
+  <div class="nav" id="main-nav" role="tablist" aria-label="Hauptbereich ausw&auml;hlen">
     <button id="main-tab-calendar" class="nav-tab active" type="button" role="tab" data-tab="calendar"
-      aria-selected="true" aria-controls="tab-calendar" tabindex="0" onclick="showTab('calendar')">Kalender</button>
+      aria-selected="true" aria-controls="tab-calendar" tabindex="0">Kalender</button>
     <button id="main-tab-weekly" class="nav-tab" type="button" role="tab" data-tab="weekly"
-      aria-selected="false" aria-controls="tab-weekly" tabindex="-1" onclick="showTab('weekly')">W&ouml;chentlich</button>
+      aria-selected="false" aria-controls="tab-weekly" tabindex="-1">W&ouml;chentlich</button>
     <button id="main-tab-monthly" class="nav-tab" type="button" role="tab" data-tab="monthly"
-      aria-selected="false" aria-controls="tab-monthly" tabindex="-1" onclick="showTab('monthly')">Monatlich</button>
+      aria-selected="false" aria-controls="tab-monthly" tabindex="-1">Monatlich</button>
     <button id="main-tab-open" class="nav-tab" type="button" role="tab" data-tab="open"
-      aria-selected="false" aria-controls="tab-open" tabindex="-1" onclick="showTab('open')">Offene Positionen</button>
+      aria-selected="false" aria-controls="tab-open" tabindex="-1">Offene Positionen</button>
     <button id="main-tab-timestats" class="nav-tab" type="button" role="tab" data-tab="timestats"
-      aria-selected="false" aria-controls="tab-timestats" tabindex="-1" onclick="showTab('timestats')">Statistik</button>
+      aria-selected="false" aria-controls="tab-timestats" tabindex="-1">Statistik</button>
   </div>
 
   <div id="tab-calendar" class="section active" role="tabpanel" aria-labelledby="main-tab-calendar"><div id="cal-container"></div></div>
@@ -624,20 +637,15 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <div id="tab-open" class="section" role="tabpanel" aria-labelledby="main-tab-open" hidden><div id="open-pos-wrap"></div><div id="hidden-pos-wrap"></div></div>
 
 <div id="tab-timestats" class="section" role="tabpanel" aria-labelledby="main-tab-timestats" hidden>
-  <div class="stats-view-nav" role="tablist" aria-label="Statistikbereich ausw&auml;hlen"
-    onkeydown="handleStatsViewKey(event)">
+  <div class="stats-view-nav" id="stats-view-nav" role="tablist" aria-label="Statistikbereich ausw&auml;hlen">
     <button id="stats-nav-metrics" class="stats-view-nav-btn active" type="button" role="tab"
-      aria-selected="true" aria-controls="stats-view-metrics" tabindex="0"
-      onclick="setStatsView('metrics')">Kennzahlen</button>
+      aria-selected="true" aria-controls="stats-view-metrics" tabindex="0">Kennzahlen</button>
     <button id="stats-nav-performance" class="stats-view-nav-btn" type="button" role="tab"
-      aria-selected="false" aria-controls="stats-view-performance" tabindex="-1"
-      onclick="setStatsView('performance')">Performance</button>
+      aria-selected="false" aria-controls="stats-view-performance" tabindex="-1">Performance</button>
     <button id="stats-nav-timing" class="stats-view-nav-btn" type="button" role="tab"
-      aria-selected="false" aria-controls="stats-view-timing" tabindex="-1"
-      onclick="setStatsView('timing')">Timing</button>
+      aria-selected="false" aria-controls="stats-view-timing" tabindex="-1">Timing</button>
     <button id="stats-nav-behavior" class="stats-view-nav-btn" type="button" role="tab"
-      aria-selected="false" aria-controls="stats-view-behavior" tabindex="-1"
-      onclick="setStatsView('behavior')">Verhalten</button>
+      aria-selected="false" aria-controls="stats-view-behavior" tabindex="-1">Verhalten</button>
   </div>
 
   <section id="stats-view-metrics" class="stats-view active" role="tabpanel"
@@ -726,8 +734,8 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
         <div class="ts-sub">Welche Richtung lieferte pro Handelstag das bessere durchschnittliche Netto-P&amp;L?</div>
       </div>
       <div class="ts-mode-row">
-        <button id="weekday-mode-buy" type="button" class="ts-mode-btn active" aria-pressed="true" onclick="setWeekdayMode('buy')">Nach Einstieg</button>
-        <button id="weekday-mode-sell" type="button" class="ts-mode-btn" aria-pressed="false" onclick="setWeekdayMode('sell')">Nach Ausstieg</button>
+        <button id="weekday-mode-buy" type="button" class="ts-mode-btn active" aria-pressed="true">Nach Einstieg</button>
+        <button id="weekday-mode-sell" type="button" class="ts-mode-btn" aria-pressed="false">Nach Ausstieg</button>
       </div>
       <div id="weekday-note" class="weekday-note"></div>
       <div id="weekday-grid" class="weekday-grid"></div>
@@ -739,8 +747,8 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       </div>
       <div id="ts-insights"></div>
       <div class="ts-mode-row">
-        <button id="ts-mode-sell" type="button" class="ts-mode-btn active" aria-pressed="true" onclick="setTsMode('sell')">Nach Ausstieg</button>
-        <button id="ts-mode-buy" type="button" class="ts-mode-btn" aria-pressed="false" onclick="setTsMode('buy')">Nach Einstieg</button>
+        <button id="ts-mode-sell" type="button" class="ts-mode-btn active" aria-pressed="true">Nach Ausstieg</button>
+        <button id="ts-mode-buy" type="button" class="ts-mode-btn" aria-pressed="false">Nach Einstieg</button>
       </div>
       <div id="ts-note" style="display:none"></div>
       <div id="ts-overnight"></div>
@@ -787,46 +795,45 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 </div>
 
 <!-- TRADE SEARCH -->
-<div class="modal-overlay" id="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title"
-  onclick="if(event.target===this)closeTradeSearch()">
+<div class="modal-overlay" id="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title">
   <div class="modal search-modal" tabindex="-1">
     <div class="search-header">
       <div>
         <h3 id="search-title">Trades suchen</h3>
         <p>Filter werden nur auf die aktuelle Ansicht angewendet und ver&auml;ndern keine gespeicherten Trades.</p>
       </div>
-      <button type="button" class="detail-close" aria-label="Suche schlie&szlig;en" onclick="closeTradeSearch()">&times;</button>
+      <button type="button" class="detail-close" id="search-close-btn" aria-label="Suche schlie&szlig;en">&times;</button>
     </div>
     <div class="search-filter-grid">
       <div class="form-group search-filter-product">
         <label for="search-query">Produkt oder ISIN</label>
-        <input type="search" id="search-query" autocomplete="off" placeholder="z.B. DAX Short oder DE000&hellip;" oninput="buildTradeSearch()">
+        <input type="search" id="search-query" autocomplete="off" placeholder="z.B. DAX Short oder DE000&hellip;">
       </div>
       <div class="form-group">
         <label for="search-from">Ausstieg von</label>
-        <input type="date" id="search-from" onchange="buildTradeSearch()">
+        <input type="date" id="search-from">
       </div>
       <div class="form-group">
         <label for="search-to">Ausstieg bis</label>
-        <input type="date" id="search-to" onchange="buildTradeSearch()">
+        <input type="date" id="search-to">
       </div>
       <div class="form-group">
         <label for="search-direction">Richtung</label>
-        <select id="search-direction" onchange="buildTradeSearch()">
+        <select id="search-direction">
           <option value="all">Alle</option><option value="long">Long / Call</option>
           <option value="short">Short / Put</option><option value="neutral">Neutral / Aktie</option>
         </select>
       </div>
       <div class="form-group">
         <label for="search-result">Ergebnis</label>
-        <select id="search-result" onchange="buildTradeSearch()">
+        <select id="search-result">
           <option value="all">Alle</option><option value="win">Gewinn</option>
           <option value="loss">Verlust</option><option value="flat">Neutral</option>
         </select>
       </div>
       <div class="form-group">
         <label for="search-hold">Haltedauer</label>
-        <select id="search-hold" onchange="buildTradeSearch()">
+        <select id="search-hold">
           <option value="all">Alle</option><option value="under60">Unter 1 Stunde</option>
           <option value="1to4h">1 bis 4 Stunden</option><option value="over4h">&Uuml;ber 4 Std. intraday</option>
           <option value="overnight">Overnight</option><option value="unknown">Unbekannt / Alt-Daten</option>
@@ -835,7 +842,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </div>
     <div class="search-filter-actions">
       <span class="search-filter-note">Zeitraum = realisierter Ausstiegstag. Haltezeiten ohne vollst&auml;ndige Einstiegsdaten werden als unbekannt ausgewiesen.</span>
-      <button type="button" class="btn" onclick="resetTradeSearch()">Filter zur&uuml;cksetzen</button>
+      <button type="button" class="btn" id="search-reset-btn">Filter zur&uuml;cksetzen</button>
     </div>
     <div id="search-summary" class="search-summary" role="status" aria-live="polite"></div>
     <div id="search-results" class="search-results"></div>
@@ -844,7 +851,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 
 <!-- DAY DETAIL -->
 <div class="detail-overlay" id="detail-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="detail-date" onclick="if(event.target===this)closeDetail()">
+  aria-labelledby="detail-date">
   <div class="detail-panel" tabindex="-1">
     <div class="detail-header">
       <div>
@@ -853,17 +860,17 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       </div>
       <div style="display:flex;align-items:center;gap:.5rem">
         <div class="detail-pnl" id="detail-pnl-hdr"></div>
-        <button id="detail-close-btn" type="button" class="detail-close" aria-label="Tagesdetails schlie&szlig;en" onclick="closeDetail()">&times;</button>
+        <button id="detail-close-btn" type="button" class="detail-close" aria-label="Tagesdetails schlie&szlig;en">&times;</button>
       </div>
     </div>
     <div id="detail-trades"></div>
-    <button type="button" class="add-day-btn" id="add-day-btn" onclick="openAddModalForDate()">+ Trade f&uuml;r diesen Tag</button>
+    <button type="button" class="add-day-btn" id="add-day-btn">+ Trade f&uuml;r diesen Tag</button>
   </div>
 </div>
 
 <!-- ADD MODAL -->
 <div class="modal-overlay" id="add-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="add-title" onclick="if(event.target===this)closeAddModal()">
+  aria-labelledby="add-title">
   <div class="modal" tabindex="-1" data-dialog-initial-focus>
     <h3 id="add-title">Trade hinzuf&uuml;gen</h3>
     <div class="form-row full"><div class="form-group"><label for="f-date">Datum</label><input type="date" id="f-date"></div></div>
@@ -873,21 +880,21 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       <div class="form-group"><label for="f-shares">St&uuml;ckzahl</label><input type="number" id="f-shares" placeholder="0"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label for="f-buy">Kaufbetrag &euro;</label><input type="number" id="f-buy" step="0.01" oninput="updatePnlPreview()"></div>
-      <div class="form-group"><label for="f-sell">Verkaufsbetrag &euro;</label><input type="number" id="f-sell" step="0.01" oninput="updatePnlPreview()"></div>
+      <div class="form-group"><label for="f-buy">Kaufbetrag &euro;</label><input type="number" id="f-buy" step="0.01"></div>
+      <div class="form-group"><label for="f-sell">Verkaufsbetrag &euro;</label><input type="number" id="f-sell" step="0.01"></div>
     </div>
-    <div class="form-row full"><div class="form-group"><label for="f-tax">Steuer &euro;</label><input type="number" id="f-tax" step="0.01" oninput="updatePnlPreview()"></div></div>
+    <div class="form-row full"><div class="form-group"><label for="f-tax">Steuer &euro;</label><input type="number" id="f-tax" step="0.01"></div></div>
     <div class="pnl-preview" id="pnl-preview" aria-live="polite">P&amp;L: &mdash; &euro;</div>
     <div class="modal-actions">
-      <button type="button" class="btn" onclick="closeAddModal()">Abbrechen</button>
-      <button type="button" class="btn primary" onclick="saveTrade()">Speichern</button>
+      <button type="button" class="btn" id="add-cancel-btn">Abbrechen</button>
+      <button type="button" class="btn primary" id="add-save-btn">Speichern</button>
     </div>
   </div>
 </div>
 
 <!-- EDIT MODAL -->
 <div class="modal-overlay" id="edit-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="edit-title" onclick="if(event.target===this)closeEditModal()">
+  aria-labelledby="edit-title">
   <div class="modal" tabindex="-1" data-dialog-initial-focus>
     <h3 id="edit-title">Trade bearbeiten</h3>
     <div id="e-import-note" style="display:none;color:var(--muted);font-size:.7rem;line-height:1.45;margin-bottom:.8rem">Dieser Trade wird aus einer Broker-Verkaufszeile abgeleitet. Einstand und P&amp;L werden nach dem Speichern per FIFO neu berechnet.</div>
@@ -899,21 +906,21 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       <div class="form-group"><label for="e-shares">St&uuml;ckzahl</label><input type="number" id="e-shares" step="0.000001"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label for="e-buy">Kaufbetrag &euro;</label><input type="number" id="e-buy" step="0.01" oninput="updateEditPreview()"></div>
-      <div class="form-group"><label for="e-sell">Verkaufsbetrag &euro;</label><input type="number" id="e-sell" step="0.01" oninput="updateEditPreview()"></div>
+      <div class="form-group"><label for="e-buy">Kaufbetrag &euro;</label><input type="number" id="e-buy" step="0.01"></div>
+      <div class="form-group"><label for="e-sell">Verkaufsbetrag &euro;</label><input type="number" id="e-sell" step="0.01"></div>
     </div>
-    <div class="form-row full"><div class="form-group"><label for="e-tax">Steuer &euro;</label><input type="number" id="e-tax" step="0.01" oninput="updateEditPreview()"></div></div>
+    <div class="form-row full"><div class="form-group"><label for="e-tax">Steuer &euro;</label><input type="number" id="e-tax" step="0.01"></div></div>
     <div class="pnl-preview" id="edit-pnl-preview" aria-live="polite">P&amp;L: &mdash; &euro;</div>
     <div class="modal-actions">
-      <button type="button" class="btn" onclick="closeEditModal()">Abbrechen</button>
-      <button type="button" class="btn primary" onclick="saveEdit()">Speichern</button>
+      <button type="button" class="btn" id="edit-cancel-btn">Abbrechen</button>
+      <button type="button" class="btn primary" id="edit-save-btn">Speichern</button>
     </div>
   </div>
 </div>
 
 <!-- CLOSE POSITION MODAL -->
 <div class="modal-overlay" id="close-pos-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="close-pos-title" onclick="if(event.target===this)closeClosePosModal()">
+  aria-labelledby="close-pos-title">
   <div class="modal" tabindex="-1" data-dialog-initial-focus>
     <h3 id="close-pos-title">Position schlie&szlig;en</h3>
     <div style="font-size:.85rem;font-weight:500;margin-bottom:.2rem" id="cp-name"></div>
@@ -921,31 +928,47 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     <input type="hidden" id="cp-cost">
     <div class="form-row full"><div class="form-group"><label for="cp-date">Datum</label><input type="date" id="cp-date"></div></div>
     <div class="form-row">
-      <div class="form-group"><label for="cp-sell">Verkaufswert &euro;</label><input type="number" id="cp-sell" step="0.01" placeholder="0.00" oninput="updateClosePreview()"></div>
-      <div class="form-group"><label for="cp-tax">Steuer &euro; (auto)</label><input type="number" id="cp-tax" step="0.01" placeholder="0.00" oninput="onCloseTaxInput()"></div>
+      <div class="form-group"><label for="cp-sell">Verkaufswert &euro;</label><input type="number" id="cp-sell" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label for="cp-tax">Steuer &euro; (auto)</label><input type="number" id="cp-tax" step="0.01" placeholder="0.00"></div>
     </div>
-    <button type="button" class="btn" style="width:100%;border-color:var(--red-mid);color:var(--red);margin-bottom:.4rem" onclick="setCloseTotalLoss()">&#9888; Totalverlust (Verkauf = 0 &euro;)</button>
+    <button type="button" class="btn" id="close-pos-total-loss" style="width:100%;border-color:var(--red-mid);color:var(--red);margin-bottom:.4rem">&#9888; Totalverlust (Verkauf = 0 &euro;)</button>
     <div style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);margin-bottom:.4rem">Steuer wird automatisch berechnet (26,375%). Bei Verlust = Erstattung. Feld manuell &uuml;berschreibbar.</div>
     <div class="pnl-preview" id="cp-preview" aria-live="polite">P&amp;L: &mdash; &euro;</div>
     <div class="modal-actions">
-      <button type="button" class="btn" onclick="closeClosePosModal()">Abbrechen</button>
-      <button type="button" class="btn primary" onclick="confirmClosePos()">Position schlie&szlig;en</button>
+      <button type="button" class="btn" id="close-pos-cancel-btn">Abbrechen</button>
+      <button type="button" class="btn primary" id="close-pos-save-btn">Position schlie&szlig;en</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTOMATISCHE SICHERUNGEN -->
+<div class="modal-overlay" id="safety-backup-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="safety-backup-title">
+  <div class="modal safety-backup-modal" tabindex="-1">
+    <h3 id="safety-backup-title">Safety-Sicherungen</h3>
+    <p class="safety-backup-lead">Vor CSV-Import, JSON-Wiederherstellung und Reset sichert die App automatisch den aktuellen Stand in deiner Drive-Datei. Auch eine Wiederherstellung bekommt vorher einen R&uuml;ckweg.</p>
+    <div class="safety-backup-status">
+      <span>Automatische Rotation</span>
+      <strong id="safety-backup-count">0 von 10 Sicherungen</strong>
+    </div>
+    <div id="safety-backup-empty" class="safety-backup-empty">Noch keine Sicherung vorhanden. Die erste entsteht automatisch vor einer riskanten Aktion.</div>
+    <div id="safety-backup-list" class="safety-backup-list" role="list" aria-live="polite"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn" id="safety-backup-close" data-dialog-initial-focus>Schlie&szlig;en</button>
     </div>
   </div>
 </div>
 
 <!-- IMPORT MODAL -->
 <div class="modal-overlay" id="import-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="import-title" onclick="if(event.target===this)closeImportModal()">
+  aria-labelledby="import-title">
   <div class="modal import-modal" tabindex="-1" data-dialog-initial-focus>
     <h3 id="import-title">CSV importieren</h3>
-    <button type="button" class="drop-zone" id="drop-zone"
-      ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)"
-      onclick="document.getElementById('csv-input').click()">
+    <button type="button" class="drop-zone" id="drop-zone">
       <p>CSV hier reinziehen oder klicken</p>
       <p style="margin-top:.4rem;font-size:.58rem">Scalable Capital Export &middot; Buy/Sell &middot; Executed</p>
     </button>
-    <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFileSelect(this.files[0])">
+    <input type="file" id="csv-input" accept=".csv" style="display:none">
     <div class="import-preview" id="import-preview" style="display:none">
       <table><thead><tr><th>Datum</th><th>Produkt</th><th>St&uuml;ck</th><th class="r">Kauf</th><th class="r">Verkauf</th><th class="r">P&amp;L</th><th>Status</th></tr></thead>
       <tbody id="import-tbody"></tbody></table>
@@ -967,15 +990,15 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </div>
     <div class="import-summary" id="import-summary" role="status" aria-live="polite" style="display:none"></div>
     <div class="modal-actions">
-      <button type="button" class="btn" onclick="closeImportModal()">Schlie&szlig;en</button>
-      <button type="button" class="btn primary" id="import-confirm-btn" style="display:none" onclick="confirmImport()">Importieren</button>
+      <button type="button" class="btn" id="import-close-btn">Schlie&szlig;en</button>
+      <button type="button" class="btn primary" id="import-confirm-btn" style="display:none">Importieren</button>
     </div>
   </div>
 </div>
 
 <!-- ERSTER LEDGER-IMPORT: BESTEHENDE HISTORIE -->
 <div class="modal-overlay import-migration-overlay" id="import-migration-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="import-migration-title" onclick="if(event.target===this)closeImportMigration()">
+  aria-labelledby="import-migration-title">
   <div class="modal import-migration-modal" tabindex="-1" data-dialog-initial-focus>
     <div class="migration-kicker">Import sicher angehalten</div>
     <h3 id="import-migration-title">Bestehende Historie erkannt</h3>
@@ -999,37 +1022,37 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </ol>
     <p class="migration-note" id="migration-same-day-note">Gab es am Stichtag nach deinem bisherigen Datenstand noch weitere Buchungen, pr&uuml;fe diese Zeilen manuell. Ein reiner Datumsfilter kann Buchungen desselben Tages nicht sicher trennen.</p>
     <div class="modal-actions">
-      <button class="btn" type="button" onclick="closeImportMigration()">Zur&uuml;ck</button>
-      <button class="btn primary" type="button" onclick="chooseImportMigrationFile()">Andere CSV ausw&auml;hlen</button>
+      <button class="btn" id="import-migration-cancel-btn" type="button">Zur&uuml;ck</button>
+      <button class="btn primary" id="import-migration-choose-btn" type="button">Andere CSV ausw&auml;hlen</button>
     </div>
   </div>
 </div>
 
 <script type="module" src="js/app.js"></script>
-<!-- Das Google-Script kann vor dem ES-Modul fertig sein. Der bedingte Aufruf
-     verhindert dann einen ReferenceError; app.js holt die Initialisierung
-     nach, sobald das Modul geladen und window.google bereits vorhanden ist. -->
-<script src="https://accounts.google.com/gsi/client" onload="window.gisLoaded && window.gisLoaded()" async defer></script>
+<!-- app.js behandelt beide async-Reihenfolgen per load-Listener und prueft
+     zusaetzlich, ob Google GIS beim Boot bereits verfuegbar ist. -->
+<script id="google-gis-script" src="https://accounts.google.com/gsi/client" async defer></script>
 
 <!-- MOBILE BOTTOM TAB BAR -->
 <nav id="bottom-bar" aria-label="Mobile Hauptnavigation">
-  <button type="button" data-tab="calendar" class="active" aria-current="page" onclick="mobileTab('calendar')"><span class="bb-icon" aria-hidden="true">&#128197;</span>Kalender</button>
-  <button type="button" data-tab="weekly" onclick="mobileTab('weekly')"><span class="bb-icon" aria-hidden="true">&#128202;</span>Woche</button>
-  <button type="button" data-tab="monthly" onclick="mobileTab('monthly')"><span class="bb-icon" aria-hidden="true">&#128200;</span>Monat</button>
-  <button type="button" data-tab="open" onclick="mobileTab('open')"><span class="bb-icon" aria-hidden="true">&#128193;</span>Offen</button>
-  <button type="button" data-tab="timestats" onclick="mobileTab('timestats')"><span class="bb-icon" aria-hidden="true">&#9202;</span>Statistik</button>
+  <button type="button" data-tab="calendar" class="active" aria-current="page"><span class="bb-icon" aria-hidden="true">&#128197;</span>Kalender</button>
+  <button type="button" data-tab="weekly"><span class="bb-icon" aria-hidden="true">&#128202;</span>Woche</button>
+  <button type="button" data-tab="monthly"><span class="bb-icon" aria-hidden="true">&#128200;</span>Monat</button>
+  <button type="button" data-tab="open"><span class="bb-icon" aria-hidden="true">&#128193;</span>Offen</button>
+  <button type="button" data-tab="timestats"><span class="bb-icon" aria-hidden="true">&#9202;</span>Statistik</button>
   <button id="mobile-actions-toggle" type="button" class="accent" aria-expanded="false"
-    aria-controls="mobile-actions" onclick="toggleMobileActions()"><span class="bb-icon" aria-hidden="true">&#43;</span>Aktion</button>
+    aria-controls="mobile-actions"><span class="bb-icon" aria-hidden="true">&#43;</span>Aktion</button>
 </nav>
 
 <!-- MOBILE ACTION SHEET -->
 <div id="mobile-actions" role="group" aria-label="Aktionen">
-  <button type="button" onclick="closeMobileActions();openAddModal()">+ Trade hinzuf&uuml;gen</button>
+  <button type="button" id="btn-add-m">+ Trade hinzuf&uuml;gen</button>
   <button type="button" id="btn-search-m">&#128269; Trades suchen</button>
-  <button type="button" onclick="closeMobileActions();openImportModal()">&uarr; CSV importieren</button>
-  <button type="button" onclick="closeMobileActions();exportCSV()">&darr; Export CSV</button>
+  <button type="button" id="btn-import-m">&uarr; CSV importieren</button>
+  <button type="button" id="btn-export-m">&darr; Export CSV</button>
   <button type="button" id="btn-restore-m">&#8593; JSON wiederherstellen</button>
-  <button type="button" class="danger" onclick="closeMobileActions();resetAllData()">&#8635; Alle Daten l&ouml;schen</button>
+  <button type="button" id="btn-backups-m">&#128737; Sicherungen</button>
+  <button type="button" class="danger" id="btn-reset-m">&#8635; Alle Daten l&ouml;schen</button>
 </div>
 
 <input type="file" id="json-input" accept=".json,application/json" style="display:none">

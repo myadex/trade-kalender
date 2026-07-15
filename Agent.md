@@ -13,6 +13,8 @@ js/fifo.js      FIFO-Matching, Steuer, buyDate/buyTime   [KERN — Golden Values
 js/views.js     Aggregation, Statistik, Insights, Diagnosen (pure)
 js/import.js    CSV-Parsing + Validierung (pure)
 js/import-dialogs.js CSV-Auswahl, Importvorschau und Kontrollberichte
+js/safety-backups.js Automatische Zustands-Snapshots (pure)
+js/safety-backup-dialog.js Sicherungsverlauf und Wiederherstellungsdialog
 js/navigation.js Haupttabs, Statistik-Untertabs und mobile Navigation
 js/position-dialog.js Formular und Vorschau zum Schliessen einer Position
 js/trade-dialogs.js Formulare und Vorschau fuer Hinzufuegen/Bearbeiten
@@ -71,7 +73,9 @@ als Test-Fixture eingecheckt werden.
 - **UIDs:** kanonisches Format `ISIN_DATUM_SELL_SHARES` — Duplikat-Erkennung bei Re-Imports hängt daran.
 - **Deploy ist atomar:** ALLE js/-Dateien + index.html + sw.js zusammen pushen. Eine veraltete Datei bricht die ganze ES-Modul-Kette (Symptome: „does not provide an export", `gisLoaded is not defined`).
 - **HTML-Einbau:** Tabs sind `<div class="section" id="tab-*">`-Geschwister in EINEM Container. Neue Sektionen dort einhängen; Struktur-Checks (DOCTYPE, Geschwister, kein Streutext) sind in der Suite.
-- **Inline-Handler:** in HTML referenzierte Funktionen müssen auf `window` exponiert sein (ES-Module!) — testgeprüft.
+- **Script-CSP:** Inline-Event-Handler sind verboten. UI-Ereignisse werden in
+  `app.js` per `addEventListener` verdrahtet; `script-src-attr 'none'` und die
+  Security-Tests sperren Rueckfaelle.
 - **Skript-Einfügungen:** Rückgabewerte von find/match IMMER prüfen (`assert`) bevor sie weiterverwendet werden.
 
 ## Konventionen

@@ -30,6 +30,10 @@ import {
   handleImportDrop, readImportFile, showImportError, renderImportMigration,
   renderImportPreview, showSavedImportReport
 } from './import-dialogs.js';
+import { addSafetyBackup, restoreSafetyBackup } from './safety-backups.js';
+import {
+  openSafetyBackupDialog, closeSafetyBackupDialog, renderSafetyBackupDialog
+} from './safety-backup-dialog.js';
 import {
   readTradingMetricRange, clearTradingMetricRange, renderTradingMetrics,
   readTradingLevelPeriod, renderTradingLevel,
@@ -61,7 +65,10 @@ let tokenClient = null;
 let accessToken = null;
 let driveFileId = null;          // id of trade-kalender.json in Drive
 let driveEtag = null;            // geladene Serverversion fuer atomare If-Match-Updates
-const emptyData = () => ({ trades: [], openLots: [], capital: 0, importRows: [], importBaseOpenLots: null, hiddenOpenPositions: [] });
+const emptyData = () => ({
+  trades: [], openLots: [], capital: 0, importRows: [],
+  importBaseOpenLots: null, hiddenOpenPositions: [], safetyBackups: []
+});
 let DATA = emptyData();
 let pendingImport = [];
 let pendingOpenLots = [];
@@ -78,6 +85,7 @@ let calMonth = new Date().getMonth();
    GOOGLE AUTH (Google Identity Services, token flow)
    ============================================================ */
 function initAuth() {
+  if (tokenClient) return;
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPE,
@@ -188,6 +196,18 @@ function persist() {
       return { ok: false, conflict: false };
     }
   });
+}
+
+// Destruktive Aktionen bauen zuerst einen vollstaendigen Folgezustand. Bei
+// einem normalen Speicherfehler bleibt der bisherige lokale Stand erhalten;
+// bei einem Drive-Konflikt hat persist() bereits den neuesten Serverstand
+// geladen und dieser darf nicht wieder ueberschrieben werden.
+async function persistReplacement(nextData) {
+  const previousData = DATA;
+  DATA = nextData;
+  const result = await persist();
+  if (!result.ok && !result.conflict) DATA = previousData;
+  return result;
 }
 
 /* ============================================================
@@ -1442,11 +1462,14 @@ async function confirmImport() {
     delete o.isDup;
     return o;
   });
-  DATA.importRows = pendingImportRows;
-  DATA.importBaseOpenLots = pendingImportBaseOpenLots;
-  DATA.trades = legacyTrades().concat(importedTrades);
-  DATA.openLots = pendingOpenLots;
-  if (!(await persist()).ok) return;
+  const protectedData = addSafetyBackup(DATA, 'csv-import');
+  const nextData = Object.assign({}, protectedData, {
+    importRows: pendingImportRows,
+    importBaseOpenLots: pendingImportBaseOpenLots,
+    trades: legacyTrades().concat(importedTrades),
+    openLots: pendingOpenLots
+  });
+  if (!(await persistReplacement(nextData)).ok) return;
   rebuildAll();
   showSavedImportReport(pendingImportReport);
 }
@@ -1466,11 +1489,12 @@ function recomputeOpenLots() {
    EXPORT CSV
    ============================================================ */
 async function resetAllData() {
-  if (!confirm('Wirklich ALLE Trades l\u00f6schen? Die Datei in Google Drive wird geleert (alles auf 0). Kann nicht r\u00fcckg\u00e4ngig gemacht werden.')) return;
-  DATA = emptyData();
-  if (!(await persist()).ok) return;
+  if (!confirm('Wirklich ALLE Trades l\u00f6schen? Vor dem Leeren wird automatisch eine Sicherung angelegt.')) return;
+  const protectedData = addSafetyBackup(DATA, 'reset');
+  const nextData = Object.assign(emptyData(), { safetyBackups: protectedData.safetyBackups });
+  if (!(await persistReplacement(nextData)).ok) return;
   rebuildAll();
-  alert('Alle Daten gel\u00f6scht. Du kannst jetzt neu importieren.');
+  alert('Alle Daten gel\u00f6scht. Der vorherige Stand liegt unter Sicherungen.');
 }
 
 function openRestoreJson() {
@@ -1494,20 +1518,39 @@ async function handleJsonRestore(file) {
       return;
     }
     const n = parsed.trades.length;
-    if (!confirm(n + ' Trades aus der Datei \u00fcbernehmen und in Google Drive speichern? Die aktuellen Daten werden ersetzt.')) return;
-    DATA = {
+    if (!confirm(n + ' Trades aus der Datei \u00fcbernehmen und in Google Drive speichern? Der aktuelle Stand wird vorher automatisch gesichert.')) return;
+    const protectedData = addSafetyBackup(DATA, 'json-restore');
+    const nextData = {
       trades: parsed.trades,
       openLots: Array.isArray(parsed.openLots) ? parsed.openLots : [],
       capital: typeof parsed.capital === 'number' ? parsed.capital : 0,
       importRows: Array.isArray(parsed.importRows) ? parsed.importRows : [],
       importBaseOpenLots: Array.isArray(parsed.importBaseOpenLots) ? parsed.importBaseOpenLots : null,
-      hiddenOpenPositions: Array.isArray(parsed.hiddenOpenPositions) ? parsed.hiddenOpenPositions : []
+      hiddenOpenPositions: Array.isArray(parsed.hiddenOpenPositions) ? parsed.hiddenOpenPositions : [],
+      safetyBackups: protectedData.safetyBackups
     };
-    if (!(await persist()).ok) return;
+    if (!(await persistReplacement(nextData)).ok) return;
     rebuildAll();
     alert(n + ' Trades erfolgreich wiederhergestellt und in Drive gespeichert.');
   };
   reader.readAsText(file);
+}
+
+function openSafetyBackups() {
+  openSafetyBackupDialog(DATA.safetyBackups, restoreSafetyBackupById);
+}
+
+async function restoreSafetyBackupById(backupId) {
+  if (!confirm('Diesen gesicherten Stand wiederherstellen? Der aktuelle Stand wird vorher ebenfalls gesichert.')) return;
+  const nextData = restoreSafetyBackup(DATA, backupId);
+  if (!nextData) {
+    alert('Die Sicherung ist nicht mehr vorhanden. Bitte den Verlauf neu oeffnen.');
+    return;
+  }
+  if (!(await persistReplacement(nextData)).ok) return;
+  rebuildAll();
+  renderSafetyBackupDialog(DATA.safetyBackups, restoreSafetyBackupById);
+  alert(nextData.trades.length + ' Trades aus der Sicherung wiederhergestellt.');
 }
 
 function exportCSV() {
@@ -1580,9 +1623,34 @@ function closeDialogById(id) {
     'edit-overlay': closeEditModal,
     'close-pos-overlay': closeClosePosModal,
     'import-overlay': closeImportModal,
-    'import-migration-overlay': closeImportMigration
+    'import-migration-overlay': closeImportMigration,
+    'safety-backup-overlay': closeSafetyBackupDialog
   };
   if (closers[id]) closers[id]();
+}
+
+function bind(id, eventName, handler) {
+  const element = $(id);
+  if (element) element.addEventListener(eventName, handler);
+}
+
+function bindBackdrop(id, close) {
+  bind(id, 'click', event => {
+    if (event.target === event.currentTarget) close();
+  });
+}
+
+function bindMobileAction(id, action) {
+  bind(id, 'click', () => {
+    closeMobileActions();
+    action();
+  });
+}
+
+function initAuthWhenReady() {
+  if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+    initAuth();
+  }
 }
 
 /* ============================================================
@@ -1594,36 +1662,98 @@ function bootApp() {
   if (vEl) vEl.textContent = APP_VERSION;
   const lvEl = $('login-version');
   if (lvEl) lvEl.textContent = 'Version ' + APP_VERSION;
-  // Wire up buttons
-  $('btn-login').onclick = signIn;
-  $('btn-logout').onclick = signOut;
-  $('btn-add').onclick = openAddModal;
-  $('btn-search').onclick = openTradeSearch;
-  $('btn-import').onclick = openImportModal;
-  $('btn-export').onclick = exportCSV;
-  $('btn-reset').onclick = resetAllData;
-  const btnRestore = $('btn-restore');
-  if (btnRestore) btnRestore.onclick = openRestoreJson;
-  const jsonInput = $('json-input');
-  if (jsonInput) jsonInput.onchange = function () { handleJsonRestore(this.files[0]); };
-  const btnRestoreM = $('btn-restore-m');
-  if (btnRestoreM) btnRestoreM.onclick = function () { closeMobileActions(); openRestoreJson(); };
-  const metricsFrom = $('metrics-from');
-  const metricsTo = $('metrics-to');
-  const metricsReset = $('metrics-reset');
-  const tradingLevelPeriod = $('trading-level-period');
-  const tradingLevelArsenalBtn = $('trading-level-arsenal-btn');
-  const tradingLevelArsenalClose = $('trading-level-arsenal-close');
-  const tradingLevelArsenalOverlay = $('trading-level-arsenal-overlay');
-  if (metricsFrom) metricsFrom.onchange = buildTradingMetrics;
-  if (metricsTo) metricsTo.onchange = buildTradingMetrics;
-  if (metricsReset) metricsReset.onclick = resetTradingMetrics;
-  if (tradingLevelPeriod) tradingLevelPeriod.onchange = buildTradingLevel;
-  if (tradingLevelArsenalBtn) tradingLevelArsenalBtn.onclick = openTradingLevelArsenal;
-  if (tradingLevelArsenalClose) tradingLevelArsenalClose.onclick = closeTradingLevelArsenal;
-  if (tradingLevelArsenalOverlay) tradingLevelArsenalOverlay.onclick = event => {
-    if (event.target === tradingLevelArsenalOverlay) closeTradingLevelArsenal();
-  };
+  // Ereignisse werden ausschliesslich hier verdrahtet. Inline-Handler im HTML
+  // waeren fuer eine wirksame Script-CSP nur mit unsafe-inline ausfuehrbar.
+  bind('btn-login', 'click', signIn);
+  bind('btn-logout', 'click', signOut);
+  bind('btn-add', 'click', openAddModal);
+  bind('btn-search', 'click', openTradeSearch);
+  bind('btn-import', 'click', openImportModal);
+  bind('btn-export', 'click', exportCSV);
+  bind('btn-restore', 'click', openRestoreJson);
+  bind('btn-backups', 'click', openSafetyBackups);
+  bind('btn-reset', 'click', resetAllData);
+
+  bind('main-nav', 'keydown', handleMainTabKey);
+  document.querySelectorAll('.nav-tab[data-tab]').forEach(button => {
+    button.addEventListener('click', () => showTab(button.dataset.tab));
+  });
+  bind('stats-view-nav', 'keydown', handleStatsViewKey);
+  document.querySelectorAll('.stats-view-nav-btn').forEach(button => {
+    button.addEventListener('click', () => setStatsView(button.id.slice('stats-nav-'.length)));
+  });
+  document.querySelectorAll('#bottom-bar button[data-tab]').forEach(button => {
+    button.addEventListener('click', () => mobileTab(button.dataset.tab));
+  });
+  bind('mobile-actions-toggle', 'click', toggleMobileActions);
+
+  bind('weekday-mode-buy', 'click', () => setWeekdayMode('buy'));
+  bind('weekday-mode-sell', 'click', () => setWeekdayMode('sell'));
+  bind('ts-mode-buy', 'click', () => setTsMode('buy'));
+  bind('ts-mode-sell', 'click', () => setTsMode('sell'));
+
+  bind('search-close-btn', 'click', closeTradeSearch);
+  bind('search-query', 'input', buildTradeSearch);
+  ['search-from', 'search-to', 'search-direction', 'search-result', 'search-hold']
+    .forEach(id => bind(id, 'change', buildTradeSearch));
+  bind('search-reset-btn', 'click', resetTradeSearch);
+  bindBackdrop('search-overlay', closeTradeSearch);
+
+  bind('detail-close-btn', 'click', closeDetail);
+  bind('add-day-btn', 'click', openAddModalForDate);
+  bindBackdrop('detail-overlay', closeDetail);
+
+  ['f-buy', 'f-sell', 'f-tax'].forEach(id => bind(id, 'input', updatePnlPreview));
+  bind('add-cancel-btn', 'click', closeAddModal);
+  bind('add-save-btn', 'click', saveTrade);
+  bindBackdrop('add-overlay', closeAddModal);
+
+  ['e-buy', 'e-sell', 'e-tax'].forEach(id => bind(id, 'input', updateEditPreview));
+  bind('edit-cancel-btn', 'click', closeEditModal);
+  bind('edit-save-btn', 'click', saveEdit);
+  bindBackdrop('edit-overlay', closeEditModal);
+
+  bind('cp-sell', 'input', updateClosePreview);
+  bind('cp-tax', 'input', onCloseTaxInput);
+  bind('close-pos-total-loss', 'click', setCloseTotalLoss);
+  bind('close-pos-cancel-btn', 'click', closeClosePosModal);
+  bind('close-pos-save-btn', 'click', confirmClosePos);
+  bindBackdrop('close-pos-overlay', closeClosePosModal);
+
+  bind('drop-zone', 'click', () => $('csv-input').click());
+  bind('drop-zone', 'dragover', handleDragOver);
+  bind('drop-zone', 'dragleave', handleDragLeave);
+  bind('drop-zone', 'drop', handleDrop);
+  bind('csv-input', 'change', event => handleFileSelect(event.currentTarget.files[0]));
+  bind('import-close-btn', 'click', closeImportModal);
+  bind('import-confirm-btn', 'click', confirmImport);
+  bindBackdrop('import-overlay', closeImportModal);
+  bind('import-migration-cancel-btn', 'click', closeImportMigration);
+  bind('import-migration-choose-btn', 'click', chooseImportMigrationFile);
+  bindBackdrop('import-migration-overlay', closeImportMigration);
+
+  bind('json-input', 'change', event => handleJsonRestore(event.currentTarget.files[0]));
+  bind('safety-backup-close', 'click', closeSafetyBackupDialog);
+  bindBackdrop('safety-backup-overlay', closeSafetyBackupDialog);
+
+  bind('metrics-from', 'change', buildTradingMetrics);
+  bind('metrics-to', 'change', buildTradingMetrics);
+  bind('metrics-reset', 'click', resetTradingMetrics);
+  bind('trading-level-period', 'change', buildTradingLevel);
+  bind('trading-level-arsenal-btn', 'click', openTradingLevelArsenal);
+  bind('trading-level-arsenal-close', 'click', closeTradingLevelArsenal);
+  bindBackdrop('trading-level-arsenal-overlay', closeTradingLevelArsenal);
+
+  bindMobileAction('btn-add-m', openAddModal);
+  bind('btn-search-m', 'click', openTradeSearch);
+  bindMobileAction('btn-import-m', openImportModal);
+  bindMobileAction('btn-export-m', exportCSV);
+  bindMobileAction('btn-restore-m', openRestoreJson);
+  bindMobileAction('btn-backups-m', openSafetyBackups);
+  bindMobileAction('btn-reset-m', resetAllData);
+
+  bind('google-gis-script', 'load', initAuthWhenReady);
+  initAuthWhenReady();
   document.addEventListener('keydown', event => {
     if (handleAccessibleDialogKey(event, closeDialogById)) return;
     if (event.key === 'Escape' && $('mobile-actions')?.classList.contains('open')) {
@@ -1631,12 +1761,8 @@ function bootApp() {
       closeMobileActions(true);
     }
   });
-  const btnSearchM = $('btn-search-m');
-  if (btnSearchM) btnSearchM.onclick = openTradeSearch;
-  const capCard = $('s-capital-card');
-  if (capCard) capCard.onclick = setCapital;
-  const renditeCard = $('s-rendite-card');
-  if (renditeCard) renditeCard.onclick = setCapital;
+  bind('s-capital-card', 'click', setCapital);
+  bind('s-rendite-card', 'click', setCapital);
 
   // Register service worker with automatic update + reload
   if ('serviceWorker' in navigator) {
@@ -1675,42 +1801,3 @@ if (document.readyState === 'loading') {
 } else {
   bootApp();
 }
-
-// Called by the GIS script onload (see index.html)
-// Da ES-Module verzögert laden, kann Googles Script früher fertig sein.
-// Deshalb prüfen wir beim Modul-Start auch selbst, ob google schon da ist.
-function gisLoaded() {
-  initAuth();
-}
-window.gisLoaded = gisLoaded;
-window.setTsMode = setTsMode;
-window.setWeekdayMode = setWeekdayMode;
-window.handleMainTabKey = handleMainTabKey;
-window.setStatsView = setStatsView;
-window.handleStatsViewKey = handleStatsViewKey;
-window.closeTradeSearch = closeTradeSearch;
-window.resetTradeSearch = resetTradeSearch;
-window.buildTradeSearch = buildTradeSearch;
-
-// Falls das Google-Script schon geladen war, bevor dieses Modul lief:
-if (window.google && window.google.accounts && window.google.accounts.oauth2) {
-  initAuth();
-}
-
-// ============================================================
-// HTML-Inline-Handler global verfügbar machen
-// ============================================================
-// Die index.html ruft Funktionen direkt per onclick="..." auf.
-// In einem ES-Modul sind Funktionen NICHT automatisch global,
-// daher hängen wir die benötigten hier ans window-Objekt.
-// (Später können diese durch addEventListener im JS ersetzt werden.)
-Object.assign(window, {
-  showTab, mobileTab, toggleMobileActions, closeMobileActions,
-  openAddModalForDate, closeAddModal, saveTrade, updatePnlPreview,
-  closeEditModal, saveEdit, updateEditPreview,
-  closeDetail,
-  closeImportModal, closeImportMigration, chooseImportMigrationFile,
-  confirmImport, handleFileSelect,
-  handleDragOver, handleDragLeave, handleDrop,
-  closeClosePosModal, confirmClosePos, setCloseTotalLoss, updateClosePreview, onCloseTaxInput
-});

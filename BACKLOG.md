@@ -23,6 +23,31 @@ Wartbarkeit bzw. Komfort.
   weiterhin direkt per SHA. GitHub Support muss die gecachten Ansichten und
   verwaisten Objekte serverseitig entfernen.
 
+### Web-Haertung und Content Security Policy
+
+- **Status:** Erledigt in v71.
+- **Loesung:** Eine frueh im Dokument gesetzte Content Security Policy erlaubt
+  App-Skripte nur noch aus der eigenen Herkunft und vom offiziellen Google-
+  Identity-Endpunkt. `unsafe-inline` und `unsafe-eval` sind fuer Skripte
+  gesperrt; Objekte, fremde Basis-URLs, Formularziele und nicht benoetigte
+  Medienquellen sind ebenfalls blockiert.
+- **UI-Verdrahtung:** Alle HTML-Eventhandler wurden entfernt und zentral in
+  `app.js` per `addEventListener` angebunden. Dadurch kann
+  `script-src-attr 'none'` aktiv bleiben, ohne Funktionen global auf `window`
+  freizugeben.
+- **Google-Kompatibilitaet:** Drive-, OAuth- und Google-Identity-Verbindungen
+  sind explizit freigegeben. Die Referrer-Policy bleibt mit dem lokalen
+  HTTP-Test und Google Identity Services kompatibel.
+- **Sicherung:** Tests pruefen Position und Inhalt der CSP, verbotene Inline-
+  Handler, die zentrale Ereignisverdrahtung und das Ausbleiben global
+  exponierter UI-Funktionen.
+- **Bekannte Grenzen:** Vorhandene Inline-Styles erfordern vorerst
+  `style-src 'unsafe-inline'`. Die Meta-CSP kann keine Response-Header wie
+  `frame-ancestors`, `Permissions-Policy`, `X-Content-Type-Options` oder eine
+  Report-Only-CSP setzen; dafuer waere eine Hosting-Schicht mit konfigurierbaren
+  HTTP-Headern erforderlich. Der angemeldete Google-Popup- und Drive-Ablauf
+  bleibt nach dem Deploy einmal manuell im echten Browser zu pruefen.
+
 ### Drive-Konflikte zwischen Tabs und Geraeten erkennen
 
 - **Status:** Erledigt in v42.
@@ -360,7 +385,7 @@ Wartbarkeit bzw. Komfort.
 - **Status:** Erledigt in v69 fuer Desktop-Web und mobile PWA.
 - **Ziel:** Fokusfuehrung in Dialogen, Escape-Taste, eindeutige Labels,
   Tastaturnavigation und Kontraste systematisch verbessern.
-- **Dialoge:** Alle acht Dialoge besitzen Rolle, Modalstatus und einen
+- **Dialoge:** Alle neun Dialoge besitzen Rolle, Modalstatus und einen
   erreichbaren Titel. Eine gemeinsame Steuerung setzt den Startfokus, haelt
   Tab und Umschalt+Tab im obersten Dialog, schliesst per Escape, sperrt den
   Hintergrund-Scroll und gibt den Fokus an den Ausloeser zurueck.
@@ -385,8 +410,19 @@ Wartbarkeit bzw. Komfort.
 
 ### Backup-Verlauf
 
-- **Status:** Warteliste mit niedriger Prioritaet.
-- **Ziel:** Wiederherstellbare Staende vor groesseren Importen verwalten.
+- **Status:** Erledigt in v70.
+- **Loesung:** Vor CSV-Import, JSON-Wiederherstellung, komplettem Reset und
+  Wiederherstellung einer aelteren Sicherung wird automatisch der aktuelle
+  Datenstand eingefroren. Desktop-Web und mobile PWA zeigen die maximal zehn
+  neuesten Staende mit Zeitpunkt, Anlass, Trade-Anzahl und Netto-P&L; jeder
+  Stand kann nach einer Sicherheitsabfrage wiederhergestellt werden.
+- **Datenintegritaet:** Snapshots enthalten Trades, offene Lots, Kapital,
+  Import-Ledger und ausgeblendete Positionen, aber niemals rekursiv weitere
+  Snapshots. Datenwechsel und neue Sicherung werden gemeinsam ueber den
+  bestehenden ETag-geschuetzten Drive-Schreibvorgang gespeichert.
+- **Bekannte Grenze:** Die Sicherungen liegen in derselben Drive-Datei. Sie
+  schuetzen vor fehlerhaftem Import, Restore und Reset, aber nicht vor dem
+  Loeschen der gesamten Drive-Datei oder dem Verlust des Google-Kontos.
 
 ### Dashboard konfigurierbar machen
 

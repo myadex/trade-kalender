@@ -1,4 +1,4 @@
-const CACHE = 'trade-kalender-v60';
+const CACHE = 'trade-kalender-v68';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const ASSETS = [
   './js/helpers.js',
   './js/import-dialogs.js',
   './js/import.js',
+  './js/metrics-view.js',
   './js/navigation.js',
   './js/position-dialog.js',
   './js/storage.js',

@@ -9,9 +9,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0a0e14;--paper:#0d1420;--ink:#e2e8f0;--muted:#64748b;--border:#1c2433;--green:#22c55e;--green-bg:#0f2318;--green-mid:#1a5233;--red:#ef4444;--red-bg:#2a1416;--red-mid:#5c2528;--amber:#f59e0b;--amber-bg:#2a2110;--amber-mid:#5c4517;--blue:#3b82f6;--blue-bg:#0f1e33;}
+:root{--bg:#0a0e14;--paper:#0d1420;--ink:#e2e8f0;--muted:#94a3b8;--border:#1c2433;--green:#22c55e;--green-bg:#0f2318;--green-mid:#1a5233;--red:#ef4444;--red-bg:#2a1416;--red-mid:#5c2528;--amber:#f59e0b;--amber-bg:#2a2110;--amber-mid:#5c4517;--blue:#3b82f6;--blue-bg:#0f1e33;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--ink);font-family:'Chakra Petch',sans-serif;min-height:100vh;padding:1.5rem 1rem;-webkit-tap-highlight-color:transparent;}
+body.dialog-open{overflow:hidden;}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
 
 /* LOGIN */
 #login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;text-align:center;gap:1.5rem;}
@@ -35,9 +37,11 @@ body{background:var(--bg);color:var(--ink);font-family:'Chakra Petch',sans-serif
 .stats-bar{max-width:1100px;margin:0 auto 1.25rem;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
 @media(min-width:760px){.stats-bar{grid-template-columns:repeat(5,1fr);}}
 .stat{background:var(--paper);padding:.6rem .8rem;}
-.stat-lbl{font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;}
+.stat-lbl{display:block;font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;}
 .stat-val{font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:500;}
 .stat-val.pos{color:var(--green);}.stat-val.neg{color:var(--red);}
+.stat-action{border:0;color:inherit;text-align:left;cursor:pointer;}
+.stat-action:hover{background:var(--blue-bg);}
 
 /* TOOLBAR */
 .toolbar{max-width:1100px;margin:0 auto 1rem;display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap;}
@@ -108,7 +112,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 /* DETAIL PANEL */
 .detail-overlay{display:none;position:fixed;inset:0;background:rgba(26,24,20,.35);z-index:100;align-items:flex-end;justify-content:center;}
 .detail-overlay.open{display:flex;}
-.detail-panel{background:var(--paper);border-radius:16px 16px 0 0;width:100%;max-width:680px;padding:1.5rem;max-height:80vh;overflow-y:auto;}
+.detail-panel{background:var(--paper);border-radius:16px 16px 0 0;width:100%;max-width:680px;padding:1.5rem;max-height:80vh;overflow-y:auto;overscroll-behavior:contain;}
 .detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;border-bottom:1px solid var(--border);padding-bottom:.75rem;}
 .detail-date{font-family:'Chakra Petch',sans-serif;font-size:1.7rem;letter-spacing:.06em;}
 .detail-summary{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted);margin-top:.15rem;}
@@ -130,6 +134,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .op-btns{display:flex;gap:.4rem;align-items:center;flex-shrink:0;}
 .btn-del-pos{font-family:'JetBrains Mono',monospace;font-size:.72rem;padding:.4rem .55rem;border-radius:6px;cursor:pointer;border:1px solid var(--border);background:none;color:var(--muted);flex-shrink:0;line-height:1;}
 .btn-del-pos:hover{border-color:var(--red-mid);color:var(--red);background:var(--red-bg);}
+.calendar-day-button{appearance:none;color:inherit;text-align:left;font:inherit;}
 .stats-view-nav{display:flex;gap:.35rem;overflow-x:auto;position:sticky;top:.5rem;z-index:20;margin-bottom:1.35rem;padding:.35rem;border:1px solid var(--border);border-radius:10px;background:rgba(13,20,32,.96);scrollbar-width:thin;-webkit-overflow-scrolling:touch;}
 .stats-view-nav-btn{flex:1 0 150px;font-family:'JetBrains Mono',monospace;font-size:.62rem;font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:.6rem .85rem;border:1px solid transparent;border-radius:7px;background:none;color:var(--muted);cursor:pointer;white-space:nowrap;}
 .stats-view-nav-btn:hover{color:var(--ink);background:var(--bg);}.stats-view-nav-btn.active{color:var(--ink);border-color:var(--green-mid);background:var(--green-bg);}
@@ -138,6 +143,74 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .stats-view{min-height:240px;}
 .stats-content-section{margin-bottom:2rem;padding-bottom:1.6rem;border-bottom:1px solid var(--border);}
 .stats-view>.stats-content-section:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none;}
+.metrics-section{margin-bottom:0;padding-bottom:0;border-bottom:none;}
+.metrics-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin:.9rem 0 .55rem;padding:.8rem;border:1px solid var(--border);border-radius:10px;background:var(--paper);}
+.metrics-range{display:flex;align-items:flex-end;gap:.55rem;flex-wrap:wrap;}
+.metrics-field{display:flex;flex-direction:column;gap:.25rem;}
+.metrics-field label{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
+.metrics-field input{min-width:155px;border:1px solid var(--border);border-radius:7px;padding:.46rem .6rem;background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:.62rem;color-scheme:dark;}
+.metrics-summary{font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);line-height:1.5;margin-bottom:.75rem;}
+.metrics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.55rem;}
+.metrics-card{min-width:0;border:1px solid var(--border);border-radius:9px;padding:.72rem;background:var(--paper);}
+.metrics-card-label{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.metrics-card-value{font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:600;margin-top:.28rem;overflow-wrap:anywhere;}
+.metrics-card-value.pos{color:var(--green);}.metrics-card-value.neg{color:var(--red);}
+.metrics-card-meta{font-family:'JetBrains Mono',monospace;font-size:.49rem;color:var(--muted);line-height:1.4;margin-top:.28rem;overflow-wrap:anywhere;}
+.metrics-note{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);line-height:1.5;margin-top:.7rem;}
+.metrics-empty{grid-column:1/-1;padding:1.2rem;text-align:center;border:1px dashed var(--border);border-radius:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.6rem;}
+.trading-level-card{margin:.9rem 0 1rem;border:1px solid var(--green-mid);border-radius:12px;padding:1rem;background:linear-gradient(135deg,var(--paper),var(--green-bg));overflow:hidden;}
+.trading-level-card[data-level="sacred-candle-blade"]{border-color:#fbbf24;background:radial-gradient(circle at 12% 28%,rgba(74,222,128,.2),transparent 28%),radial-gradient(circle at 88% 16%,rgba(251,191,36,.18),transparent 26%),linear-gradient(135deg,#101827,#172517);box-shadow:0 0 28px rgba(74,222,128,.2),inset 0 0 32px rgba(251,191,36,.08);}
+.trading-level-head{display:flex;align-items:flex-end;justify-content:space-between;gap:.8rem;margin-bottom:.85rem;}
+.trading-level-eyebrow{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--green);text-transform:uppercase;letter-spacing:.09em;}
+.trading-level-period-label{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);margin-top:.18rem;}
+.trading-level-actions{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;justify-content:flex-end;}
+.trading-level-select{border:1px solid var(--green-mid);border-radius:7px;padding:.45rem .6rem;background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:.58rem;}
+.level-arsenal-btn{border-color:var(--green-mid);color:var(--green);}
+.trading-level-body{display:grid;grid-template-columns:112px minmax(0,1fr);gap:1rem;align-items:center;}
+.pixel-stage{width:112px;height:112px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:10px;background:rgba(10,14,20,.7);box-shadow:inset 0 0 24px rgba(0,0,0,.35);}
+.pixel-art{display:grid;grid-template-columns:repeat(16,6px);grid-template-rows:repeat(16,6px);gap:1px;width:max-content;height:max-content;image-rendering:pixelated;}
+.pixel-cell{display:block;width:6px;height:6px;}
+.pixel-cell.pixel-empty{background:transparent;}.pixel-cell.pixel-shadow{background:#334155;}.pixel-cell.pixel-wood{background:#a16207;}.pixel-cell.pixel-metal{background:#94a3b8;}.pixel-cell.pixel-iron{background:#64748b;}.pixel-cell.pixel-steel{background:#e2e8f0;}.pixel-cell.pixel-rune{background:#38bdf8;box-shadow:0 0 4px #38bdf8;}.pixel-cell.pixel-glow{background:#4ade80;box-shadow:0 0 6px #4ade80;animation:pixelPulse 1.8s ease-in-out infinite alternate;}.pixel-cell.pixel-crown{background:#fbbf24;box-shadow:0 0 7px #f59e0b;}.pixel-cell.pixel-spark{background:#fde68a;box-shadow:0 0 8px #fbbf24;animation:pixelSpark 1.25s steps(2,end) infinite alternate;}
+@keyframes pixelPulse{from{opacity:.55;transform:scale(.85);}to{opacity:1;transform:scale(1.15);}}
+@keyframes pixelSpark{from{opacity:.3;transform:translateY(1px) scale(.7);}to{opacity:1;transform:translateY(-1px) scale(1.25);}}
+.trading-level-name{font-family:'Chakra Petch',sans-serif;font-size:1.45rem;font-weight:700;letter-spacing:.04em;}
+.trading-level-description{font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);line-height:1.5;margin-top:.18rem;}
+.trading-level-progress-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.7rem;}
+.trading-level-progress-label,.trading-level-record{font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--ink);}
+.trading-level-progress-track{height:7px;border-radius:999px;background:var(--border);overflow:hidden;margin-top:.3rem;}
+.trading-level-progress{height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--green-mid),var(--green));transition:width .25s ease;}
+.trading-level-next{font-family:'JetBrains Mono',monospace;font-size:.48rem;color:var(--muted);line-height:1.5;margin-top:.48rem;}
+.trading-level-timeline-section{margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--border);}
+.trading-level-timeline-head{display:flex;align-items:baseline;justify-content:space-between;gap:.7rem;margin-bottom:.55rem;}
+.trading-level-timeline-title{font-family:'Chakra Petch',sans-serif;font-size:.9rem;font-weight:600;letter-spacing:.03em;}
+.trading-level-timeline-sub{font-family:'JetBrains Mono',monospace;font-size:.46rem;color:var(--muted);}
+.trading-level-timeline{display:flex;gap:.55rem;overflow-x:auto;padding:.15rem .05rem .55rem;scroll-snap-type:x proximity;scrollbar-width:thin;}
+.trading-level-event{position:relative;flex:0 0 142px;scroll-snap-align:start;border:1px solid var(--border);border-radius:9px;padding:.55rem;background:rgba(10,14,20,.68);}
+.trading-level-event.current{border-color:var(--green-mid);box-shadow:inset 0 0 14px rgba(34,197,94,.08);}
+.timeline-pixel-stage{height:56px;display:flex;align-items:center;justify-content:center;margin-bottom:.35rem;}
+.timeline-pixel-art{display:grid;grid-template-columns:repeat(16,3px);grid-template-rows:repeat(16,3px);gap:0;width:48px;height:48px;image-rendering:pixelated;}
+.timeline-pixel-art .pixel-cell{width:3px;height:3px;animation:none;box-shadow:none;}
+.trading-level-event-date{font-family:'JetBrains Mono',monospace;font-size:.44rem;color:var(--muted);}
+.trading-level-event-name{font-family:'Chakra Petch',sans-serif;font-size:.72rem;font-weight:600;line-height:1.2;margin-top:.18rem;min-height:2.4em;}
+.trading-level-event-direction{display:inline-block;margin-top:.35rem;padding:.12rem .32rem;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.42rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--border);}
+.trading-level-event.up .trading-level-event-direction{color:var(--green);background:var(--green-bg);}.trading-level-event.down .trading-level-event-direction{color:var(--amber);background:var(--amber-bg);}
+.trading-level-timeline-empty{width:100%;padding:.9rem;border:1px dashed var(--border);border-radius:8px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);}
+.level-arsenal-modal{width:min(960px,100%);max-width:960px;max-height:88vh;overflow-y:auto;}
+.level-arsenal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border);}
+.level-arsenal-header h3{font-family:'Chakra Petch',sans-serif;font-size:1.35rem;letter-spacing:.04em;}
+.level-arsenal-header p{font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--muted);line-height:1.45;margin-top:.2rem;}
+.level-arsenal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;}
+.level-arsenal-card{min-width:0;border:1px solid var(--border);border-radius:10px;padding:.75rem;background:var(--bg);}
+.level-arsenal-card.current{border-color:var(--green);box-shadow:inset 0 0 20px rgba(34,197,94,.08);}.level-arsenal-card.reached{border-color:var(--blue);}.level-arsenal-card.locked{opacity:.72;}
+.level-arsenal-card[data-level="sacred-candle-blade"]{border-color:#fbbf24;background:radial-gradient(circle at 50% 18%,rgba(251,191,36,.14),transparent 35%),var(--bg);}
+.level-arsenal-pixel{display:grid;grid-template-columns:repeat(16,4px);grid-template-rows:repeat(16,4px);gap:0;width:64px;height:64px;margin:0 auto .55rem;image-rendering:pixelated;}
+.level-arsenal-pixel .pixel-cell{width:4px;height:4px;animation:none;}
+.level-arsenal-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.4rem;}
+.level-arsenal-card-head h4{font-family:'Chakra Petch',sans-serif;font-size:.82rem;line-height:1.2;}
+.level-arsenal-status{flex-shrink:0;padding:.12rem .3rem;border-radius:4px;background:var(--border);color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.4rem;text-transform:uppercase;letter-spacing:.04em;}
+.level-arsenal-card.current .level-arsenal-status{color:var(--green);background:var(--green-bg);}.level-arsenal-card.reached .level-arsenal-status{color:var(--blue);background:var(--blue-bg);}
+.level-arsenal-description{font-family:'JetBrains Mono',monospace;font-size:.47rem;color:var(--muted);line-height:1.45;margin-top:.4rem;}
+.level-arsenal-requirements{font-family:'JetBrains Mono',monospace;font-size:.44rem;color:var(--ink);line-height:1.45;margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--border);}
 .equity-section{margin-bottom:0;padding-bottom:0;border-bottom:none;}
 .equity-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin-bottom:.8rem;}
 .equity-card{border:1px solid var(--border);border-radius:9px;padding:.65rem .7rem;background:var(--paper);min-width:0;}
@@ -216,7 +289,9 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .ts-on-table th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:.55rem;letter-spacing:.08em;padding:.35rem .5rem;border-bottom:1px solid var(--border);}
 .ts-on-table td{padding:.4rem .5rem;border-bottom:1px solid var(--border);color:var(--ink);}
 .ts-on-table td.r{text-align:right;}
-@media(max-width:640px){.ts-block{flex-direction:column;align-items:flex-start;gap:.4rem;}.ts-block-label{flex:none;}.equity-summary{grid-template-columns:repeat(2,minmax(0,1fr));}.equity-card:last-child{grid-column:1/-1;}.equity-chart{min-height:180px;}.equity-svg{min-height:170px;}.equity-card-value{font-size:.74rem;}}
+@media(max-width:900px){.metrics-grid{grid-template-columns:repeat(3,minmax(0,1fr));}.level-arsenal-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (prefers-reduced-motion: reduce){.pixel-cell.pixel-glow,.pixel-cell.pixel-spark{animation:none;}.trading-level-progress{transition:none;}}
+@media(max-width:640px){.ts-block{flex-direction:column;align-items:flex-start;gap:.4rem;}.ts-block-label{flex:none;}.trading-level-head{align-items:stretch;flex-direction:column;}.trading-level-actions{display:grid;grid-template-columns:1fr auto;}.trading-level-select{width:100%;}.trading-level-body{grid-template-columns:1fr;}.pixel-stage{margin:0 auto;}.level-arsenal-grid{grid-template-columns:1fr;}.metrics-toolbar{align-items:stretch;flex-direction:column;}.metrics-range{display:grid;grid-template-columns:1fr 1fr;}.metrics-field input{width:100%;min-width:0;}.metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.equity-summary{grid-template-columns:repeat(2,minmax(0,1fr));}.equity-card:last-child{grid-column:1/-1;}.equity-chart{min-height:180px;}.equity-svg{min-height:170px;}.equity-card-value{font-size:.74rem;}}
 .btn-del:hover{background:var(--red-bg);color:var(--red);}
 .btn-edit:hover{background:var(--blue-bg);color:var(--blue);}
 .add-day-btn{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;margin-top:.8rem;padding:.5rem;border:1px dashed var(--border);border-radius:6px;background:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.64rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}
@@ -225,18 +300,18 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 /* MODALS */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(26,24,20,.4);z-index:200;align-items:center;justify-content:center;padding:1rem;}
 .modal-overlay.open{display:flex;}
-.modal{background:var(--paper);border-radius:12px;padding:1.5rem;width:100%;max-width:440px;max-height:90vh;overflow-y:auto;}
+.modal{background:var(--paper);border-radius:12px;padding:1.5rem;width:100%;max-width:440px;max-height:90vh;overflow-y:auto;overscroll-behavior:contain;}
 .modal h3{font-family:'Chakra Petch',sans-serif;font-size:1.4rem;letter-spacing:.06em;margin-bottom:1rem;}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.6rem;}
 .form-row.full{grid-template-columns:1fr;}
 .form-group label{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:.25rem;}
-.form-group input,.form-group select{width:100%;padding:.45rem .6rem;border:1px solid var(--border);border-radius:6px;font-family:'Chakra Petch',sans-serif;font-size:.82rem;background:white;color:var(--ink);outline:none;}
+.form-group input,.form-group select{width:100%;padding:.45rem .6rem;border:1px solid var(--border);border-radius:6px;font-family:'Chakra Petch',sans-serif;font-size:.82rem;background:var(--bg);color:var(--ink);outline:none;color-scheme:dark;}
 .form-group input:focus,.form-group select:focus{border-color:var(--ink);}
 .form-group input:read-only,.form-group select:disabled{background:var(--paper);color:var(--muted);cursor:not-allowed;}
 .pnl-preview{font-family:'JetBrains Mono',monospace;font-size:.85rem;font-weight:500;text-align:center;padding:.5rem;border-radius:6px;margin:.6rem 0;}
 .pnl-preview.pos{background:var(--green-bg);color:var(--green);}.pnl-preview.neg{background:var(--red-bg);color:var(--red);}
 .modal-actions{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.8rem;}
-.drop-zone{border:2px dashed var(--border);border-radius:10px;padding:2rem;text-align:center;cursor:pointer;margin-bottom:1rem;}
+.drop-zone{display:block;width:100%;border:2px dashed var(--border);border-radius:10px;padding:2rem;text-align:center;cursor:pointer;margin-bottom:1rem;background:none;color:var(--ink);}
 .drop-zone:hover,.drop-zone.dragover{border-color:var(--amber);}
 .drop-zone p{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
 .import-preview{overflow:auto;margin-bottom:.8rem;max-height:300px;}
@@ -300,7 +375,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
    MOBILE LAYOUT (max-width 720px)
    ============================================================ */
 @media (max-width: 720px) {
-  body { padding: 0 0 64px 0; }
+  body { padding: 0 0 calc(64px + env(safe-area-inset-bottom, 0px)) 0; }
 
   /* HEADER compact */
   .header { margin: 0; padding: 1rem 1rem .8rem; border-bottom: 1px solid var(--border); align-items: center; }
@@ -365,7 +440,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     display: flex;
     position: fixed;
     bottom: 0; left: 0; right: 0;
-    height: 60px;
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
     background: var(--paper);
     border-top: 1px solid var(--border);
     z-index: 90;
@@ -396,11 +471,11 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   #mobile-actions {
     display: none;
     position: fixed;
-    bottom: 60px; left: 0; right: 0;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0;
     background: var(--paper);
     border-top: 1px solid var(--border);
     z-index: 95;
-    padding: .5rem 1rem 1rem;
+    padding: .5rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
     flex-direction: column;
     gap: .5rem;
   }
@@ -420,8 +495,9 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   #mobile-actions button.danger { color: var(--red); border-color: var(--red-mid); }
 
   /* Modals full-height friendly */
-  .modal { max-width: 100%; border-radius: 12px 12px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-height: 92vh; }
+  .modal { max-width: 100%; border-radius: 12px 12px 0 0; position: fixed; bottom: 0; left: 0; right: 0; max-height: 92vh; padding-bottom:calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
   .modal-overlay { align-items: flex-end; padding: 0; }
+  .detail-panel { padding-bottom:calc(1.5rem + env(safe-area-inset-bottom, 0px)); }
   .search-modal { height: 92vh; padding: 1rem; }
   .search-filter-grid { grid-template-columns: 1fr 1fr; }
   .search-filter-grid .search-filter-product { grid-column: 1 / -1; }
@@ -432,6 +508,14 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   .search-result-product { grid-column: 1 / -1; grid-row: 2; }
   .search-result-meta { grid-column: 1; grid-row: 3; }
   .search-result-open { grid-column: 2; grid-row: 3; }
+
+  /* Touchziele nach WCAG und 16px-Eingaben gegen iOS-Zoom. */
+  .btn,.gbtn,.detail-close,.btn-edit,.btn-del,.btn-close-pos,.btn-del-pos,
+  .add-day-btn,.ts-mode-btn,.stats-view-nav-btn,.search-result-open,
+  .period-review-select,.trading-level-select,.form-group input,
+  .form-group select,.metrics-field input { min-height:44px; }
+  .form-group input,.form-group select,.metrics-field input,
+  .period-review-select,.trading-level-select { font-size:16px; }
 }
 
 
@@ -443,7 +527,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <div id="login-screen">
   <h1>Trade Kalender</h1>
   <p>Deine Trades werden sicher in deinem eigenen Google Drive gespeichert (Datei <strong>trade-kalender.json</strong>). Die App sieht nur diese eine Datei.</p>
-  <button class="gbtn" id="btn-login">Mit Google anmelden</button>
+  <button class="gbtn" id="btn-login" type="button">Mit Google anmelden</button>
   <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6"></div>
 </div>
 
@@ -460,10 +544,10 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </div>
   </div>
 
-  <div id="status-bar"></div>
+  <div id="status-bar" role="status" aria-live="polite"></div>
 
   <div class="stats-bar">
-    <div class="stat"><div class="stat-lbl">Win Rate</div><div class="stat-val pos" id="s-winrate">0,0 %</div></div>
+    <div class="stat"><div class="stat-lbl">Win-Tage-Quote</div><div class="stat-val pos" id="s-winrate">0,0 %</div></div>
     <div class="stat"><div class="stat-lbl">Win Tage</div><div class="stat-val pos" id="s-wins">0</div></div>
     <div class="stat"><div class="stat-lbl">Loss Tage</div><div class="stat-val neg" id="s-losses">0</div></div>
     <div class="stat"><div class="stat-lbl">Trades</div><div class="stat-val" id="s-trades">0</div></div>
@@ -471,8 +555,8 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     <div class="stat"><div class="stat-lbl">&Oslash; Trade</div><div class="stat-val" id="s-avgtrade">+0</div></div>
     <div class="stat"><div class="stat-lbl">Win Streak</div><div class="stat-val" id="s-streak">0</div></div>
     <div class="stat"><div class="stat-lbl">Steuer</div><div class="stat-val" id="s-tax">0,00 &euro;</div></div>
-    <div class="stat" id="s-capital-card" style="cursor:pointer"><div class="stat-lbl">Einstand &#9998;</div><div class="stat-val" id="s-capital">&mdash;</div></div>
-    <div class="stat" id="s-rendite-card" style="cursor:pointer"><div class="stat-lbl">Rendite</div><div class="stat-val" id="s-rendite">&mdash;</div></div>
+    <button class="stat stat-action" id="s-capital-card" type="button"><span class="stat-lbl">Einstand &#9998;</span><span class="stat-val" id="s-capital">&mdash;</span></button>
+    <button class="stat stat-action" id="s-rendite-card" type="button"><span class="stat-lbl">Rendite</span><span class="stat-val" id="s-rendite">&mdash;</span></button>
   </div>
 
   <div class="toolbar">
@@ -485,17 +569,22 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     <button class="btn" id="btn-logout" style="display:none">Abmelden</button>
   </div>
 
-  <div class="nav">
-    <button class="nav-tab active" onclick="showTab('calendar')">Kalender</button>
-    <button class="nav-tab" onclick="showTab('weekly')">W&ouml;chentlich</button>
-    <button class="nav-tab" onclick="showTab('monthly')">Monatlich</button>
-    <button class="nav-tab" onclick="showTab('open')">Offene Positionen</button>
-    <button class="nav-tab" onclick="showTab('timestats')">Statistik</button>
+  <div class="nav" role="tablist" aria-label="Hauptbereich ausw&auml;hlen" onkeydown="handleMainTabKey(event)">
+    <button id="main-tab-calendar" class="nav-tab active" type="button" role="tab" data-tab="calendar"
+      aria-selected="true" aria-controls="tab-calendar" tabindex="0" onclick="showTab('calendar')">Kalender</button>
+    <button id="main-tab-weekly" class="nav-tab" type="button" role="tab" data-tab="weekly"
+      aria-selected="false" aria-controls="tab-weekly" tabindex="-1" onclick="showTab('weekly')">W&ouml;chentlich</button>
+    <button id="main-tab-monthly" class="nav-tab" type="button" role="tab" data-tab="monthly"
+      aria-selected="false" aria-controls="tab-monthly" tabindex="-1" onclick="showTab('monthly')">Monatlich</button>
+    <button id="main-tab-open" class="nav-tab" type="button" role="tab" data-tab="open"
+      aria-selected="false" aria-controls="tab-open" tabindex="-1" onclick="showTab('open')">Offene Positionen</button>
+    <button id="main-tab-timestats" class="nav-tab" type="button" role="tab" data-tab="timestats"
+      aria-selected="false" aria-controls="tab-timestats" tabindex="-1" onclick="showTab('timestats')">Statistik</button>
   </div>
 
-  <div id="tab-calendar" class="section active"><div id="cal-container"></div></div>
+  <div id="tab-calendar" class="section active" role="tabpanel" aria-labelledby="main-tab-calendar"><div id="cal-container"></div></div>
 
-  <div id="tab-weekly" class="section">
+  <div id="tab-weekly" class="section" role="tabpanel" aria-labelledby="main-tab-weekly" hidden>
     <section id="weekly-review" class="period-review" aria-labelledby="weekly-review-title">
       <div class="period-review-head">
         <div>
@@ -513,7 +602,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </table>
   </div>
 
-  <div id="tab-monthly" class="section">
+  <div id="tab-monthly" class="section" role="tabpanel" aria-labelledby="main-tab-monthly" hidden>
     <section id="monthly-review" class="period-review" aria-labelledby="monthly-review-title">
       <div class="period-review-head">
         <div>
@@ -532,13 +621,16 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </table>
   </div>
 
-  <div id="tab-open" class="section"><div id="open-pos-wrap"></div><div id="hidden-pos-wrap"></div></div>
+  <div id="tab-open" class="section" role="tabpanel" aria-labelledby="main-tab-open" hidden><div id="open-pos-wrap"></div><div id="hidden-pos-wrap"></div></div>
 
-<div id="tab-timestats" class="section">
+<div id="tab-timestats" class="section" role="tabpanel" aria-labelledby="main-tab-timestats" hidden>
   <div class="stats-view-nav" role="tablist" aria-label="Statistikbereich ausw&auml;hlen"
     onkeydown="handleStatsViewKey(event)">
-    <button id="stats-nav-performance" class="stats-view-nav-btn active" type="button" role="tab"
-      aria-selected="true" aria-controls="stats-view-performance" tabindex="0"
+    <button id="stats-nav-metrics" class="stats-view-nav-btn active" type="button" role="tab"
+      aria-selected="true" aria-controls="stats-view-metrics" tabindex="0"
+      onclick="setStatsView('metrics')">Kennzahlen</button>
+    <button id="stats-nav-performance" class="stats-view-nav-btn" type="button" role="tab"
+      aria-selected="false" aria-controls="stats-view-performance" tabindex="-1"
       onclick="setStatsView('performance')">Performance</button>
     <button id="stats-nav-timing" class="stats-view-nav-btn" type="button" role="tab"
       aria-selected="false" aria-controls="stats-view-timing" tabindex="-1"
@@ -548,8 +640,73 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       onclick="setStatsView('behavior')">Verhalten</button>
   </div>
 
-  <section id="stats-view-performance" class="stats-view active" role="tabpanel"
-    aria-labelledby="stats-nav-performance">
+  <section id="stats-view-metrics" class="stats-view active" role="tabpanel"
+    aria-labelledby="stats-nav-metrics">
+    <div class="metrics-section">
+      <div class="ts-head">
+        <h2 class="ts-title">Trading-Kennzahlen</h2>
+        <div class="ts-sub">Klassische Kennzahlen auf Ebene einzelner geschlossener Trades</div>
+      </div>
+      <section id="trading-level-card" class="trading-level-card" aria-labelledby="trading-level-name">
+        <div class="trading-level-head">
+          <div>
+            <div class="trading-level-eyebrow">Pers&ouml;nliches Trading-Level</div>
+            <div id="trading-level-period-label" class="trading-level-period-label"></div>
+          </div>
+          <div class="trading-level-actions">
+            <select id="trading-level-period" class="trading-level-select" aria-label="Zeitraum f&uuml;r Trading-Level">
+              <option value="season">Laufendes Kalenderjahr</option>
+              <option value="all">Gesamtzeitraum</option>
+            </select>
+            <button id="trading-level-arsenal-btn" type="button" class="btn level-arsenal-btn">Arsenal ansehen</button>
+          </div>
+        </div>
+        <div class="trading-level-body">
+          <div class="pixel-stage">
+            <div id="trading-level-art" class="pixel-art" role="img"></div>
+          </div>
+          <div>
+            <h3 id="trading-level-name" class="trading-level-name">Schmiede im Pre-Opening</h3>
+            <p id="trading-level-description" class="trading-level-description"></p>
+            <div class="trading-level-progress-row">
+              <span id="trading-level-progress-label" class="trading-level-progress-label"></span>
+              <span id="trading-level-record" class="trading-level-record"></span>
+            </div>
+            <div class="trading-level-progress-track" aria-hidden="true">
+              <div id="trading-level-progress" class="trading-level-progress"></div>
+            </div>
+            <p id="trading-level-next" class="trading-level-next"></p>
+          </div>
+        </div>
+        <div class="trading-level-timeline-section">
+          <div class="trading-level-timeline-head">
+            <h4 class="trading-level-timeline-title">Level-Zeitstrahl</h4>
+            <span class="trading-level-timeline-sub">Nur echte Wechsel nach realisiertem Tagesendstand</span>
+          </div>
+          <div id="trading-level-timeline" class="trading-level-timeline" aria-live="polite"></div>
+        </div>
+      </section>
+      <div class="metrics-toolbar">
+        <div class="metrics-range">
+          <div class="metrics-field">
+            <label for="metrics-from">Ausstieg von</label>
+            <input type="date" id="metrics-from">
+          </div>
+          <div class="metrics-field">
+            <label for="metrics-to">Ausstieg bis</label>
+            <input type="date" id="metrics-to">
+          </div>
+        </div>
+        <button id="metrics-reset" type="button" class="btn">Zeitraum zur&uuml;cksetzen</button>
+      </div>
+      <div id="metrics-summary" class="metrics-summary"></div>
+      <div id="metrics-grid" class="metrics-grid"></div>
+      <p id="metrics-note" class="metrics-note"></p>
+    </div>
+  </section>
+
+  <section id="stats-view-performance" class="stats-view" role="tabpanel"
+    aria-labelledby="stats-nav-performance" hidden>
     <div class="equity-section">
       <div class="ts-head">
         <h2 class="ts-title">Equity &amp; Drawdown</h2>
@@ -569,8 +726,8 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
         <div class="ts-sub">Welche Richtung lieferte pro Handelstag das bessere durchschnittliche Netto-P&amp;L?</div>
       </div>
       <div class="ts-mode-row">
-        <button id="weekday-mode-buy" class="ts-mode-btn active" aria-pressed="true" onclick="setWeekdayMode('buy')">Nach Einstieg</button>
-        <button id="weekday-mode-sell" class="ts-mode-btn" aria-pressed="false" onclick="setWeekdayMode('sell')">Nach Ausstieg</button>
+        <button id="weekday-mode-buy" type="button" class="ts-mode-btn active" aria-pressed="true" onclick="setWeekdayMode('buy')">Nach Einstieg</button>
+        <button id="weekday-mode-sell" type="button" class="ts-mode-btn" aria-pressed="false" onclick="setWeekdayMode('sell')">Nach Ausstieg</button>
       </div>
       <div id="weekday-note" class="weekday-note"></div>
       <div id="weekday-grid" class="weekday-grid"></div>
@@ -582,8 +739,8 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       </div>
       <div id="ts-insights"></div>
       <div class="ts-mode-row">
-        <button id="ts-mode-sell" class="ts-mode-btn active" onclick="setTsMode('sell')">Nach Ausstieg</button>
-        <button id="ts-mode-buy" class="ts-mode-btn" onclick="setTsMode('buy')">Nach Einstieg</button>
+        <button id="ts-mode-sell" type="button" class="ts-mode-btn active" aria-pressed="true" onclick="setTsMode('sell')">Nach Ausstieg</button>
+        <button id="ts-mode-buy" type="button" class="ts-mode-btn" aria-pressed="false" onclick="setTsMode('buy')">Nach Einstieg</button>
       </div>
       <div id="ts-note" style="display:none"></div>
       <div id="ts-overnight"></div>
@@ -613,16 +770,32 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 </div>
 </div>
 
+<!-- LEVEL-ARSENAL -->
+<div class="modal-overlay" id="trading-level-arsenal-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="trading-level-arsenal-title">
+  <div class="modal level-arsenal-modal" tabindex="-1">
+    <div class="level-arsenal-header">
+      <div>
+        <h3 id="trading-level-arsenal-title">Level-Arsenal</h3>
+        <p>Alle neun Stufen, dein aktueller Stand und die jeweiligen Voraussetzungen.</p>
+      </div>
+      <button id="trading-level-arsenal-close" type="button" class="detail-close"
+        aria-label="Level-Arsenal schlie&szlig;en">&times;</button>
+    </div>
+    <div id="trading-level-arsenal-grid" class="level-arsenal-grid"></div>
+  </div>
+</div>
+
 <!-- TRADE SEARCH -->
 <div class="modal-overlay" id="search-overlay" role="dialog" aria-modal="true" aria-labelledby="search-title"
   onclick="if(event.target===this)closeTradeSearch()">
-  <div class="modal search-modal">
+  <div class="modal search-modal" tabindex="-1">
     <div class="search-header">
       <div>
         <h3 id="search-title">Trades suchen</h3>
         <p>Filter werden nur auf die aktuelle Ansicht angewendet und ver&auml;ndern keine gespeicherten Trades.</p>
       </div>
-      <button type="button" class="detail-close" title="Suche schlie&szlig;en" onclick="closeTradeSearch()">&times;</button>
+      <button type="button" class="detail-close" aria-label="Suche schlie&szlig;en" onclick="closeTradeSearch()">&times;</button>
     </div>
     <div class="search-filter-grid">
       <div class="form-group search-filter-product">
@@ -664,14 +837,15 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       <span class="search-filter-note">Zeitraum = realisierter Ausstiegstag. Haltezeiten ohne vollst&auml;ndige Einstiegsdaten werden als unbekannt ausgewiesen.</span>
       <button type="button" class="btn" onclick="resetTradeSearch()">Filter zur&uuml;cksetzen</button>
     </div>
-    <div id="search-summary" class="search-summary"></div>
+    <div id="search-summary" class="search-summary" role="status" aria-live="polite"></div>
     <div id="search-results" class="search-results"></div>
   </div>
 </div>
 
 <!-- DAY DETAIL -->
-<div class="detail-overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
-  <div class="detail-panel">
+<div class="detail-overlay" id="detail-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="detail-date" onclick="if(event.target===this)closeDetail()">
+  <div class="detail-panel" tabindex="-1">
     <div class="detail-header">
       <div>
         <div class="detail-date" id="detail-date"></div>
@@ -679,94 +853,98 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       </div>
       <div style="display:flex;align-items:center;gap:.5rem">
         <div class="detail-pnl" id="detail-pnl-hdr"></div>
-        <button class="detail-close" onclick="closeDetail()">&times;</button>
+        <button id="detail-close-btn" type="button" class="detail-close" aria-label="Tagesdetails schlie&szlig;en" onclick="closeDetail()">&times;</button>
       </div>
     </div>
     <div id="detail-trades"></div>
-    <button class="add-day-btn" id="add-day-btn" onclick="openAddModalForDate()">+ Trade f&uuml;r diesen Tag</button>
+    <button type="button" class="add-day-btn" id="add-day-btn" onclick="openAddModalForDate()">+ Trade f&uuml;r diesen Tag</button>
   </div>
 </div>
 
 <!-- ADD MODAL -->
-<div class="modal-overlay" id="add-overlay" onclick="if(event.target===this)closeAddModal()">
-  <div class="modal">
-    <h3>Trade hinzuf&uuml;gen</h3>
-    <div class="form-row full"><div class="form-group"><label>Datum</label><input type="date" id="f-date"></div></div>
-    <div class="form-row full"><div class="form-group"><label>Produkt</label><input type="text" id="f-desc" placeholder="z.B. DAX Call 18.000,00 HSBC"></div></div>
+<div class="modal-overlay" id="add-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="add-title" onclick="if(event.target===this)closeAddModal()">
+  <div class="modal" tabindex="-1" data-dialog-initial-focus>
+    <h3 id="add-title">Trade hinzuf&uuml;gen</h3>
+    <div class="form-row full"><div class="form-group"><label for="f-date">Datum</label><input type="date" id="f-date"></div></div>
+    <div class="form-row full"><div class="form-group"><label for="f-desc">Produkt</label><input type="text" id="f-desc" placeholder="z.B. DAX Call 18.000,00 HSBC"></div></div>
     <div class="form-row">
-      <div class="form-group"><label>Broker</label><select id="f-broker"><option value="scalable">Scalable Capital</option><option value="tr">Trade Republic</option></select></div>
-      <div class="form-group"><label>St&uuml;ckzahl</label><input type="number" id="f-shares" placeholder="0"></div>
+      <div class="form-group"><label for="f-broker">Broker</label><select id="f-broker"><option value="scalable">Scalable Capital</option><option value="tr">Trade Republic</option></select></div>
+      <div class="form-group"><label for="f-shares">St&uuml;ckzahl</label><input type="number" id="f-shares" placeholder="0"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Kaufbetrag &euro;</label><input type="number" id="f-buy" step="0.01" oninput="updatePnlPreview()"></div>
-      <div class="form-group"><label>Verkaufsbetrag &euro;</label><input type="number" id="f-sell" step="0.01" oninput="updatePnlPreview()"></div>
+      <div class="form-group"><label for="f-buy">Kaufbetrag &euro;</label><input type="number" id="f-buy" step="0.01" oninput="updatePnlPreview()"></div>
+      <div class="form-group"><label for="f-sell">Verkaufsbetrag &euro;</label><input type="number" id="f-sell" step="0.01" oninput="updatePnlPreview()"></div>
     </div>
-    <div class="form-row full"><div class="form-group"><label>Steuer &euro;</label><input type="number" id="f-tax" step="0.01" oninput="updatePnlPreview()"></div></div>
-    <div class="pnl-preview" id="pnl-preview">P&amp;L: &mdash; &euro;</div>
+    <div class="form-row full"><div class="form-group"><label for="f-tax">Steuer &euro;</label><input type="number" id="f-tax" step="0.01" oninput="updatePnlPreview()"></div></div>
+    <div class="pnl-preview" id="pnl-preview" aria-live="polite">P&amp;L: &mdash; &euro;</div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeAddModal()">Abbrechen</button>
-      <button class="btn primary" onclick="saveTrade()">Speichern</button>
+      <button type="button" class="btn" onclick="closeAddModal()">Abbrechen</button>
+      <button type="button" class="btn primary" onclick="saveTrade()">Speichern</button>
     </div>
   </div>
 </div>
 
 <!-- EDIT MODAL -->
-<div class="modal-overlay" id="edit-overlay" onclick="if(event.target===this)closeEditModal()">
-  <div class="modal">
-    <h3>Trade bearbeiten</h3>
+<div class="modal-overlay" id="edit-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="edit-title" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal" tabindex="-1" data-dialog-initial-focus>
+    <h3 id="edit-title">Trade bearbeiten</h3>
     <div id="e-import-note" style="display:none;color:var(--muted);font-size:.7rem;line-height:1.45;margin-bottom:.8rem">Dieser Trade wird aus einer Broker-Verkaufszeile abgeleitet. Einstand und P&amp;L werden nach dem Speichern per FIFO neu berechnet.</div>
     <input type="hidden" id="e-uid">
-    <div class="form-row full"><div class="form-group"><label>Datum</label><input type="date" id="e-date"></div></div>
-    <div class="form-row full"><div class="form-group"><label>Produkt</label><input type="text" id="e-desc"></div></div>
+    <div class="form-row full"><div class="form-group"><label for="e-date">Datum</label><input type="date" id="e-date"></div></div>
+    <div class="form-row full"><div class="form-group"><label for="e-desc">Produkt</label><input type="text" id="e-desc"></div></div>
     <div class="form-row">
-      <div class="form-group"><label>Broker</label><select id="e-broker"><option value="scalable">Scalable Capital</option><option value="tr">Trade Republic</option></select></div>
-      <div class="form-group"><label>St&uuml;ckzahl</label><input type="number" id="e-shares" step="0.000001"></div>
+      <div class="form-group"><label for="e-broker">Broker</label><select id="e-broker"><option value="scalable">Scalable Capital</option><option value="tr">Trade Republic</option></select></div>
+      <div class="form-group"><label for="e-shares">St&uuml;ckzahl</label><input type="number" id="e-shares" step="0.000001"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Kaufbetrag &euro;</label><input type="number" id="e-buy" step="0.01" oninput="updateEditPreview()"></div>
-      <div class="form-group"><label>Verkaufsbetrag &euro;</label><input type="number" id="e-sell" step="0.01" oninput="updateEditPreview()"></div>
+      <div class="form-group"><label for="e-buy">Kaufbetrag &euro;</label><input type="number" id="e-buy" step="0.01" oninput="updateEditPreview()"></div>
+      <div class="form-group"><label for="e-sell">Verkaufsbetrag &euro;</label><input type="number" id="e-sell" step="0.01" oninput="updateEditPreview()"></div>
     </div>
-    <div class="form-row full"><div class="form-group"><label>Steuer &euro;</label><input type="number" id="e-tax" step="0.01" oninput="updateEditPreview()"></div></div>
-    <div class="pnl-preview" id="edit-pnl-preview">P&amp;L: &mdash; &euro;</div>
+    <div class="form-row full"><div class="form-group"><label for="e-tax">Steuer &euro;</label><input type="number" id="e-tax" step="0.01" oninput="updateEditPreview()"></div></div>
+    <div class="pnl-preview" id="edit-pnl-preview" aria-live="polite">P&amp;L: &mdash; &euro;</div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeEditModal()">Abbrechen</button>
-      <button class="btn primary" onclick="saveEdit()">Speichern</button>
+      <button type="button" class="btn" onclick="closeEditModal()">Abbrechen</button>
+      <button type="button" class="btn primary" onclick="saveEdit()">Speichern</button>
     </div>
   </div>
 </div>
 
 <!-- CLOSE POSITION MODAL -->
-<div class="modal-overlay" id="close-pos-overlay" onclick="if(event.target===this)closeClosePosModal()">
-  <div class="modal">
-    <h3>Position schlie&szlig;en</h3>
+<div class="modal-overlay" id="close-pos-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="close-pos-title" onclick="if(event.target===this)closeClosePosModal()">
+  <div class="modal" tabindex="-1" data-dialog-initial-focus>
+    <h3 id="close-pos-title">Position schlie&szlig;en</h3>
     <div style="font-size:.85rem;font-weight:500;margin-bottom:.2rem" id="cp-name"></div>
     <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);margin-bottom:1rem" id="cp-info"></div>
     <input type="hidden" id="cp-cost">
-    <div class="form-row full"><div class="form-group"><label>Datum</label><input type="date" id="cp-date"></div></div>
+    <div class="form-row full"><div class="form-group"><label for="cp-date">Datum</label><input type="date" id="cp-date"></div></div>
     <div class="form-row">
-      <div class="form-group"><label>Verkaufswert &euro;</label><input type="number" id="cp-sell" step="0.01" placeholder="0.00" oninput="updateClosePreview()"></div>
-      <div class="form-group"><label>Steuer &euro; (auto)</label><input type="number" id="cp-tax" step="0.01" placeholder="0.00" oninput="onCloseTaxInput()"></div>
+      <div class="form-group"><label for="cp-sell">Verkaufswert &euro;</label><input type="number" id="cp-sell" step="0.01" placeholder="0.00" oninput="updateClosePreview()"></div>
+      <div class="form-group"><label for="cp-tax">Steuer &euro; (auto)</label><input type="number" id="cp-tax" step="0.01" placeholder="0.00" oninput="onCloseTaxInput()"></div>
     </div>
-    <button class="btn" style="width:100%;border-color:var(--red-mid);color:var(--red);margin-bottom:.4rem" onclick="setCloseTotalLoss()">&#9888; Totalverlust (Verkauf = 0 &euro;)</button>
+    <button type="button" class="btn" style="width:100%;border-color:var(--red-mid);color:var(--red);margin-bottom:.4rem" onclick="setCloseTotalLoss()">&#9888; Totalverlust (Verkauf = 0 &euro;)</button>
     <div style="font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);margin-bottom:.4rem">Steuer wird automatisch berechnet (26,375%). Bei Verlust = Erstattung. Feld manuell &uuml;berschreibbar.</div>
-    <div class="pnl-preview" id="cp-preview">P&amp;L: &mdash; &euro;</div>
+    <div class="pnl-preview" id="cp-preview" aria-live="polite">P&amp;L: &mdash; &euro;</div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeClosePosModal()">Abbrechen</button>
-      <button class="btn primary" onclick="confirmClosePos()">Position schlie&szlig;en</button>
+      <button type="button" class="btn" onclick="closeClosePosModal()">Abbrechen</button>
+      <button type="button" class="btn primary" onclick="confirmClosePos()">Position schlie&szlig;en</button>
     </div>
   </div>
 </div>
 
 <!-- IMPORT MODAL -->
-<div class="modal-overlay" id="import-overlay" onclick="if(event.target===this)closeImportModal()">
-  <div class="modal import-modal">
-    <h3>CSV importieren</h3>
-    <div class="drop-zone" id="drop-zone"
+<div class="modal-overlay" id="import-overlay" role="dialog" aria-modal="true"
+  aria-labelledby="import-title" onclick="if(event.target===this)closeImportModal()">
+  <div class="modal import-modal" tabindex="-1" data-dialog-initial-focus>
+    <h3 id="import-title">CSV importieren</h3>
+    <button type="button" class="drop-zone" id="drop-zone"
       ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)"
       onclick="document.getElementById('csv-input').click()">
       <p>CSV hier reinziehen oder klicken</p>
       <p style="margin-top:.4rem;font-size:.58rem">Scalable Capital Export &middot; Buy/Sell &middot; Executed</p>
-    </div>
+    </button>
     <input type="file" id="csv-input" accept=".csv" style="display:none" onchange="handleFileSelect(this.files[0])">
     <div class="import-preview" id="import-preview" style="display:none">
       <table><thead><tr><th>Datum</th><th>Produkt</th><th>St&uuml;ck</th><th class="r">Kauf</th><th class="r">Verkauf</th><th class="r">P&amp;L</th><th>Status</th></tr></thead>
@@ -787,10 +965,10 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
       </div>
       <p class="import-report-note" id="import-report-note"></p>
     </div>
-    <div class="import-summary" id="import-summary" style="display:none"></div>
+    <div class="import-summary" id="import-summary" role="status" aria-live="polite" style="display:none"></div>
     <div class="modal-actions">
-      <button class="btn" onclick="closeImportModal()">Schlie&szlig;en</button>
-      <button class="btn primary" id="import-confirm-btn" style="display:none" onclick="confirmImport()">Importieren</button>
+      <button type="button" class="btn" onclick="closeImportModal()">Schlie&szlig;en</button>
+      <button type="button" class="btn primary" id="import-confirm-btn" style="display:none" onclick="confirmImport()">Importieren</button>
     </div>
   </div>
 </div>
@@ -798,7 +976,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <!-- ERSTER LEDGER-IMPORT: BESTEHENDE HISTORIE -->
 <div class="modal-overlay import-migration-overlay" id="import-migration-overlay" role="dialog" aria-modal="true"
   aria-labelledby="import-migration-title" onclick="if(event.target===this)closeImportMigration()">
-  <div class="modal import-migration-modal">
+  <div class="modal import-migration-modal" tabindex="-1" data-dialog-initial-focus>
     <div class="migration-kicker">Import sicher angehalten</div>
     <h3 id="import-migration-title">Bestehende Historie erkannt</h3>
     <p class="migration-lead">Der erste Ledger-Import wurde vor dem Speichern gestoppt. Deine vorhandenen Trades und offenen Positionen wurden nicht ver&auml;ndert.</p>
@@ -834,23 +1012,24 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <script src="https://accounts.google.com/gsi/client" onload="window.gisLoaded && window.gisLoaded()" async defer></script>
 
 <!-- MOBILE BOTTOM TAB BAR -->
-<div id="bottom-bar">
-  <button data-tab="calendar" class="active" onclick="mobileTab('calendar')"><span class="bb-icon">&#128197;</span>Kalender</button>
-  <button data-tab="weekly" onclick="mobileTab('weekly')"><span class="bb-icon">&#128202;</span>Woche</button>
-  <button data-tab="monthly" onclick="mobileTab('monthly')"><span class="bb-icon">&#128200;</span>Monat</button>
-  <button data-tab="open" onclick="mobileTab('open')"><span class="bb-icon">&#128193;</span>Offen</button>
-  <button data-tab="timestats" onclick="mobileTab('timestats')"><span class="bb-icon">&#9202;</span>Statistik</button>
-  <button class="accent" onclick="toggleMobileActions()"><span class="bb-icon">&#43;</span>Aktion</button>
-</div>
+<nav id="bottom-bar" aria-label="Mobile Hauptnavigation">
+  <button type="button" data-tab="calendar" class="active" aria-current="page" onclick="mobileTab('calendar')"><span class="bb-icon" aria-hidden="true">&#128197;</span>Kalender</button>
+  <button type="button" data-tab="weekly" onclick="mobileTab('weekly')"><span class="bb-icon" aria-hidden="true">&#128202;</span>Woche</button>
+  <button type="button" data-tab="monthly" onclick="mobileTab('monthly')"><span class="bb-icon" aria-hidden="true">&#128200;</span>Monat</button>
+  <button type="button" data-tab="open" onclick="mobileTab('open')"><span class="bb-icon" aria-hidden="true">&#128193;</span>Offen</button>
+  <button type="button" data-tab="timestats" onclick="mobileTab('timestats')"><span class="bb-icon" aria-hidden="true">&#9202;</span>Statistik</button>
+  <button id="mobile-actions-toggle" type="button" class="accent" aria-expanded="false"
+    aria-controls="mobile-actions" onclick="toggleMobileActions()"><span class="bb-icon" aria-hidden="true">&#43;</span>Aktion</button>
+</nav>
 
 <!-- MOBILE ACTION SHEET -->
-<div id="mobile-actions">
-  <button onclick="closeMobileActions();openAddModal()">+ Trade hinzuf&uuml;gen</button>
-  <button id="btn-search-m">&#128269; Trades suchen</button>
-  <button onclick="closeMobileActions();openImportModal()">&uarr; CSV importieren</button>
-  <button onclick="closeMobileActions();exportCSV()">&darr; Export CSV</button>
-  <button id="btn-restore-m">&#8593; JSON wiederherstellen</button>
-  <button class="danger" onclick="closeMobileActions();resetAllData()">&#8635; Alle Daten l&ouml;schen</button>
+<div id="mobile-actions" role="menu" aria-label="Aktionen">
+  <button type="button" role="menuitem" onclick="closeMobileActions();openAddModal()">+ Trade hinzuf&uuml;gen</button>
+  <button type="button" role="menuitem" id="btn-search-m">&#128269; Trades suchen</button>
+  <button type="button" role="menuitem" onclick="closeMobileActions();openImportModal()">&uarr; CSV importieren</button>
+  <button type="button" role="menuitem" onclick="closeMobileActions();exportCSV()">&darr; Export CSV</button>
+  <button type="button" role="menuitem" id="btn-restore-m">&#8593; JSON wiederherstellen</button>
+  <button type="button" role="menuitem" class="danger" onclick="closeMobileActions();resetAllData()">&#8635; Alle Daten l&ouml;schen</button>
 </div>
 
 <input type="file" id="json-input" accept=".json,application/json" style="display:none">

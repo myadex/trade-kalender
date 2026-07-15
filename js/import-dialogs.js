@@ -5,6 +5,7 @@
 // Parsing, FIFO-Replay, Pending-State, Datenmutation und Speichern bleiben in app.js.
 
 import { $, escapeHtml, fmtDE, fmtPlain } from './helpers.js';
+import { openAccessibleDialog, closeAccessibleDialog } from './dialog-accessibility.js';
 
 function dateLabel(value) {
   const parts = String(value || '').split('-');
@@ -12,7 +13,7 @@ function dateLabel(value) {
 }
 
 export function closeImportMigration() {
-  $('import-migration-overlay').classList.remove('open');
+  closeAccessibleDialog('import-migration-overlay');
 }
 
 export function openImportDialog() {
@@ -24,12 +25,12 @@ export function openImportDialog() {
   $('import-confirm-btn').style.display = 'none';
   $('drop-zone').style.display = 'block';
   $('csv-input').value = '';
-  $('import-overlay').classList.add('open');
+  openAccessibleDialog('import-overlay');
 }
 
 export function closeImportDialog() {
   closeImportMigration();
-  $('import-overlay').classList.remove('open');
+  closeAccessibleDialog('import-overlay');
 }
 
 export function chooseImportMigrationFile() {
@@ -134,7 +135,7 @@ export function renderImportMigration(migration) {
       '. Die Kopfzeile bleibt unver\u00e4ndert.'
     : 'Vergleiche die Datei mit deiner App und behalte nur Brokerzeilen, die dort noch nicht erfasst sind.';
   $('migration-same-day-note').style.display = migration.cutoff ? 'block' : 'none';
-  $('import-migration-overlay').classList.add('open');
+  openAccessibleDialog('import-migration-overlay');
 }
 
 export function renderImportReport(report, saved) {

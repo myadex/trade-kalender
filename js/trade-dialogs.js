@@ -6,6 +6,7 @@
 // bewusst im App-Controller.
 
 import { $, fmtDE, toLocalDateStr } from './helpers.js';
+import { openAccessibleDialog, closeAccessibleDialog } from './dialog-accessibility.js';
 
 function numberValue(id) {
   return parseFloat($(id).value) || 0;
@@ -40,11 +41,11 @@ export function openAddModal(preferredDate = '') {
   $('f-sell').value = '';
   $('f-tax').value = '';
   updatePnlPreview();
-  $('add-overlay').classList.add('open');
+  openAccessibleDialog('add-overlay');
 }
 
 export function closeAddModal() {
-  $('add-overlay').classList.remove('open');
+  closeAccessibleDialog('add-overlay');
 }
 
 export function readEditTradeForm() {
@@ -90,9 +91,9 @@ export function openEditTradeDialog(trade) {
   $('e-import-note').style.display = isImported ? 'block' : 'none';
   $('edit-overlay').dataset.imported = isImported ? 'true' : 'false';
   updateEditPreview();
-  $('edit-overlay').classList.add('open');
+  openAccessibleDialog('edit-overlay');
 }
 
 export function closeEditModal() {
-  $('edit-overlay').classList.remove('open');
+  closeAccessibleDialog('edit-overlay');
 }

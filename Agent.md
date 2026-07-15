@@ -57,9 +57,11 @@ als Test-Fixture eingecheckt werden.
   Standard. Fehlende Datumswerte und neutrale Produkte ehrlich ausschliessen.
   Eine Long-/Short-Tendenz erst ab n>=8 je Richtung und Wochentag ausweisen und
   dafuer das durchschnittliche Netto-P&L pro Trade vergleichen.
-- **Statistik-UI:** Neue Analysen einem der internen Bereiche `Performance`,
-  `Timing` oder `Verhalten` zuordnen. Keine weitere lange Statistikseite und
-  keine zusaetzlichen Haupttabs fuer einzelne Auswertungen einfuehren.
+- **Statistik-UI:** Neue Analysen einem der internen Bereiche `Kennzahlen`,
+  `Performance`, `Timing` oder `Verhalten` zuordnen. Keine weitere lange
+  Statistikseite und keine zusaetzlichen Haupttabs fuer einzelne Auswertungen
+  einfuehren. `Kennzahlen` bleibt die kompakte Einstiegsansicht; tiefe Analysen
+  gehoeren in die drei fachlichen Folgebereiche.
 - **Trade-Filter:** Suche bleibt rein lesend und verwendet die pure
   `views.filterTrades`-Logik. Zeitraum bedeutet Ausstiegstag; unbekannte
   Haltedauer bei Legacy-Daten muss sichtbar filterbar bleiben und darf nicht

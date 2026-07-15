@@ -60,6 +60,16 @@ check('UI-Controller: Importdialoge liegen in einem eigenen UI-Modul',
   fs.existsSync(importDialogsPath) && appControllerJs.includes("from './import-dialogs.js'") &&
   !appControllerJs.includes('function renderImportReport(') &&
   !appControllerJs.includes("$('import-tbody')"));
+const metricsViewPath = DIR + '/js/metrics-view.js';
+const metricsViewJs = fs.existsSync(metricsViewPath)
+  ? fs.readFileSync(metricsViewPath, 'utf8')
+  : '';
+check('UI-Controller: Trading-Kennzahlen liegen in einem eigenen UI-Modul',
+  fs.existsSync(metricsViewPath) && appControllerJs.includes("from './metrics-view.js'"));
+const dialogAccessibilityPath = DIR + '/js/dialog-accessibility.js';
+check('Barrierefreiheit: Dialogsteuerung liegt in einem gemeinsamen UI-Modul',
+  fs.existsSync(dialogAccessibilityPath) &&
+  appControllerJs.includes("from './dialog-accessibility.js'"));
 // Der Service Worker wird aus index.html mit './sw.js' registriert. Er muss
 // deshalb im Projekt-Root liegen: Unter js/ haette er nur den Scope /js/ und
 // koennte weder die App-Seite noch die PWA-Root-Route kontrollieren.
@@ -72,6 +82,9 @@ const backlogPath = DIR + '/BACKLOG.md';
 const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8') : '';
 check('Projekt-Backlog mit offenen Punkten vorhanden',
   backlog.includes('# App-Backlog') && backlog.includes('## Prioritaet 1'));
+check('Backlog: Vergleich mit anderen Tradern ist vollstaendig entfernt',
+  !backlog.includes('### Vergleich mit einem guten Trader-Profil') &&
+  !backlog.includes('Orientierungsprofil'));
 check('Verworfener CSV-Komplettneuaufbau ist nicht mehr ausfuehrbar',
   backlog.includes('### Legacy-Daten vollstaendig neu aufbauen') &&
   backlog.includes('**Status:** Verworfen') &&
@@ -84,8 +97,8 @@ catch (e) { check('sw.js parses (' + e.message + ')', false); }
 const offlineAssets = [
   './index.html', './manifest.json', './icon-192.png', './icon-512.png',
   './js/app.js', './js/config.js', './js/fifo.js', './js/helpers.js',
-  './js/import-dialogs.js', './js/import.js', './js/navigation.js',
-  './js/position-dialog.js', './js/storage.js',
+  './js/dialog-accessibility.js', './js/import-dialogs.js', './js/import.js', './js/navigation.js',
+  './js/metrics-view.js', './js/position-dialog.js', './js/storage.js',
   './js/trade-dialogs.js', './js/trade-search.js', './js/views.js'
 ];
 check('PWA: alle lokalen App-Assets werden vorgeladen', offlineAssets.every(asset => swJs.includes("'" + asset + "'")));
@@ -208,6 +221,48 @@ const r2 = /\$\(['"]([^'"]+)['"]\)/g; while ((m = r2.exec(appJs))) ids.add(m[1])
 const missingIds = [...ids].filter(id => !html.includes('id="' + id + '"'));
 check('all ' + ids.size + ' getElementById IDs exist in HTML', missingIds.length === 0);
 if (missingIds.length) console.log('     missing: ' + missingIds.join(', '));
+
+console.log('\n=== 2a. BEDIENBARKEIT UND BARRIEREFREIHEIT ===');
+const accessibilityDom = new JSDOM(html);
+const accessibilityDocument = accessibilityDom.window.document;
+const dialogOverlays = Array.from(accessibilityDocument.querySelectorAll('.modal-overlay, .detail-overlay'));
+check('A11y: alle Dialoge besitzen Rolle, Modalstatus und erreichbaren Titel',
+  dialogOverlays.length === 8 && dialogOverlays.every(overlay => {
+    const titleId = overlay.getAttribute('aria-labelledby');
+    return overlay.getAttribute('role') === 'dialog' &&
+      overlay.getAttribute('aria-modal') === 'true' && titleId &&
+      accessibilityDocument.getElementById(titleId);
+  }));
+check('A11y: alle sichtbaren Formularlabels sind technisch mit ihrem Feld verbunden',
+  Array.from(accessibilityDocument.querySelectorAll('label')).every(label =>
+    label.htmlFor && accessibilityDocument.getElementById(label.htmlFor)));
+check('A11y: reine Symbol-Schliessenbuttons besitzen einen zugänglichen Namen',
+  Array.from(accessibilityDocument.querySelectorAll('.detail-close')).every(button =>
+    button.getAttribute('aria-label')));
+check('A11y: CSV-Auswahl ist ein echtes Tastatur-Bedienelement',
+  accessibilityDocument.getElementById('drop-zone')?.tagName === 'BUTTON');
+check('A11y: Status- und Ergebnisänderungen werden angekündigt',
+  accessibilityDocument.getElementById('status-bar')?.getAttribute('role') === 'status' &&
+  accessibilityDocument.getElementById('pnl-preview')?.getAttribute('aria-live') === 'polite' &&
+  accessibilityDocument.getElementById('search-summary')?.getAttribute('role') === 'status');
+check('A11y: Hauptnavigation und Panels bilden einen vollständigen Tab-Vertrag',
+  accessibilityDocument.querySelector('.nav')?.getAttribute('role') === 'tablist' &&
+  accessibilityDocument.querySelectorAll('.nav-tab[role="tab"][aria-controls]').length === 5 &&
+  accessibilityDocument.querySelectorAll('.section[role="tabpanel"][aria-labelledby]').length === 5);
+check('Mobile: Hauptnavigation, Aktionsmenü und Safe-Area sind semantisch abgesichert',
+  accessibilityDocument.getElementById('bottom-bar')?.tagName === 'NAV' &&
+  accessibilityDocument.getElementById('mobile-actions-toggle')?.getAttribute('aria-controls') === 'mobile-actions' &&
+  accessibilityDocument.getElementById('mobile-actions-toggle')?.getAttribute('aria-expanded') === 'false' &&
+  html.includes('env(safe-area-inset-bottom'));
+check('Mobile: Touchziele und Eingaben sind mindestens fingerfreundlich definiert',
+  html.includes('min-height:44px') && html.includes('font-size:16px'));
+check('A11y: Fokus ist global sichtbar und Formularfelder bleiben kontrastreich',
+  html.includes(':focus-visible') &&
+  html.includes('background:var(--bg);color:var(--ink)'));
+check('A11y: Kalendertage werden als beschriftete Buttons gerendert',
+  appControllerJs.includes("cell.className = 'calendar-day-button'") &&
+  appControllerJs.includes("cell.setAttribute('aria-label'"));
+accessibilityDom.window.close();
 
 console.log('\n=== 2b. DATENSCHUTZ ===');
 const gitignore = fs.readFileSync(DIR + '/.gitignore', 'utf8');
@@ -380,8 +435,67 @@ const realFifoCheck = (async () => {
     const importdialogsmod = fs.existsSync(importDialogsPath)
       ? await import('file://' + importDialogsPath)
       : null;
+    const metricsviewmod = fs.existsSync(metricsViewPath)
+      ? await import('file://' + metricsViewPath)
+      : null;
+    const dialoga11ymod = fs.existsSync(dialogAccessibilityPath)
+      ? await import('file://' + dialogAccessibilityPath)
+      : null;
+    check('dialogA11y: Oeffnen, Schliessen und Tastatursteuerung sind exportiert',
+      !!dialoga11ymod && ['openAccessibleDialog', 'closeAccessibleDialog',
+        'handleAccessibleDialogKey'].every(name => typeof dialoga11ymod[name] === 'function'));
+    const dialogA11yDom = new JSDOM(
+      '<!doctype html><html><body><button id="trigger">Öffnen</button>' +
+      '<div id="test-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="test-title">' +
+      '<div class="modal" tabindex="-1"><h2 id="test-title">Test</h2>' +
+      '<button id="first" data-dialog-initial-focus>Erster</button><button id="last">Letzter</button>' +
+      '</div></div></body></html>',
+      { pretendToBeVisual: true }
+    );
+    const previousA11yWindow = global.window;
+    const previousA11yDocument = global.document;
+    global.window = dialogA11yDom.window;
+    global.document = dialogA11yDom.window.document;
+    try {
+      const trigger = dialogA11yDom.window.document.getElementById('trigger');
+      trigger.focus();
+      if (dialoga11ymod) dialoga11ymod.openAccessibleDialog('test-overlay');
+      check('dialogA11y: Oeffnen setzt Fokus, Scrollsperre und Dialogzustand',
+        !!dialoga11ymod && dialogA11yDom.window.document.getElementById('test-overlay').classList.contains('open') &&
+        dialogA11yDom.window.document.body.classList.contains('dialog-open') &&
+        dialogA11yDom.window.document.activeElement.id === 'first');
+
+      let tabPrevented = false;
+      dialogA11yDom.window.document.getElementById('last').focus();
+      if (dialoga11ymod) dialoga11ymod.handleAccessibleDialogKey({
+        key: 'Tab', shiftKey: false,
+        preventDefault: () => { tabPrevented = true; },
+        stopPropagation: () => {}
+      }, () => {});
+      check('dialogA11y: Tab bleibt im obersten Dialog eingeschlossen',
+        tabPrevented && dialogA11yDom.window.document.activeElement.id === 'first');
+
+      let requestedClose = '';
+      let escapePrevented = false;
+      if (dialoga11ymod) dialoga11ymod.handleAccessibleDialogKey({
+        key: 'Escape', preventDefault: () => { escapePrevented = true; },
+        stopPropagation: () => {}
+      }, id => { requestedClose = id; });
+      check('dialogA11y: Escape fordert das Schliessen des obersten Dialogs an',
+        escapePrevented && requestedClose === 'test-overlay');
+
+      if (dialoga11ymod) dialoga11ymod.closeAccessibleDialog('test-overlay');
+      check('dialogA11y: Schliessen gibt Fokus zurueck und loest Scrollsperre',
+        !dialogA11yDom.window.document.getElementById('test-overlay').classList.contains('open') &&
+        !dialogA11yDom.window.document.body.classList.contains('dialog-open') &&
+        dialogA11yDom.window.document.activeElement.id === 'trigger');
+    } finally {
+      global.window = previousA11yWindow;
+      global.document = previousA11yDocument;
+      dialogA11yDom.window.close();
+    }
     check('navigation: alle Desktop- und Mobilfunktionen exportiert',
-      !!navmod && ['showTab', 'setStatsView', 'handleStatsViewKey', 'mobileTab',
+      !!navmod && ['showTab', 'handleMainTabKey', 'setStatsView', 'handleStatsViewKey', 'mobileTab',
         'toggleMobileActions', 'closeMobileActions']
         .every(name => typeof navmod[name] === 'function'));
 
@@ -394,15 +508,28 @@ const realFifoCheck = (async () => {
     navDom.window.scrollTo = () => { scrollCalls++; };
     try {
       if (navmod) navmod.showTab('timestats');
+      const metricsPanel = navDom.window.document.getElementById('stats-view-metrics');
       check('navigation: Haupttab aktiviert Section und Standard-Statistikbereich',
         !!navmod && navDom.window.document.getElementById('tab-timestats').classList.contains('active') &&
         navDom.window.document.querySelector('.nav-tab.active').textContent.trim() === 'Statistik' &&
-        !navDom.window.document.getElementById('stats-view-performance').hidden);
+        navDom.window.document.getElementById('main-tab-timestats')?.getAttribute('aria-selected') === 'true' &&
+        !navDom.window.document.getElementById('tab-timestats').hidden &&
+        navDom.window.document.getElementById('tab-calendar').hidden &&
+        !!metricsPanel && !metricsPanel.hidden);
+
+      const mainStatsButton = navDom.window.document.getElementById('main-tab-timestats');
+      if (mainStatsButton) mainStatsButton.focus();
+      let mainPrevented = false;
+      if (navmod) navmod.handleMainTabKey({ key: 'Home', preventDefault: () => { mainPrevented = true; } });
+      check('navigation: Haupttabs sind per Tastatur wechselbar',
+        !!navmod && mainPrevented &&
+        navDom.window.document.getElementById('main-tab-calendar').classList.contains('active') &&
+        navDom.window.document.activeElement.id === 'main-tab-calendar');
 
       if (navmod) navmod.setStatsView('timing');
       check('navigation: Statistikbereich aktualisiert Sichtbarkeit und ARIA-Zustand',
         !!navmod && !navDom.window.document.getElementById('stats-view-timing').hidden &&
-        navDom.window.document.getElementById('stats-view-performance').hidden &&
+        !!metricsPanel && metricsPanel.hidden &&
         navDom.window.document.getElementById('stats-nav-timing').getAttribute('aria-selected') === 'true');
 
       const timingButton = navDom.window.document.getElementById('stats-nav-timing');
@@ -415,11 +542,14 @@ const realFifoCheck = (async () => {
         navDom.window.document.activeElement.id === 'stats-nav-behavior');
 
       navDom.window.document.getElementById('mobile-actions').classList.add('open');
+      navDom.window.document.getElementById('mobile-actions-toggle')?.setAttribute('aria-expanded', 'true');
       if (navmod) navmod.mobileTab('monthly');
       check('navigation: mobiler Tab synchronisiert Navigation, schliesst Aktionen und scrollt hoch',
         !!navmod &&
         navDom.window.document.querySelector('#bottom-bar button.active').dataset.tab === 'monthly' &&
+        navDom.window.document.querySelector('#bottom-bar button[aria-current="page"]')?.dataset.tab === 'monthly' &&
         !navDom.window.document.getElementById('mobile-actions').classList.contains('open') &&
+        navDom.window.document.getElementById('mobile-actions-toggle')?.getAttribute('aria-expanded') === 'false' &&
         scrollCalls === 1);
     } finally {
       global.window = previousWindow;
@@ -794,6 +924,231 @@ const realFifoCheck = (async () => {
     check('periodReview: Berechnung mutiert Trades nicht', JSON.stringify(reviewTrades) === reviewBefore);
     check('views: computeStats Wins/Losses (2/1)', stats.wins === 2 && stats.losses === 1);
     check('views: Rendite bei 1000 Einstand = 25%', Math.abs(stats.rendite - 25) < 0.01);
+    check('views: Trading-Kennzahlen als pure Berechnung exportiert',
+      typeof vmod.computeTradingMetrics === 'function');
+    const metricTrades = [
+      { date: '2026-01-01', time: '09:00', desc: 'Gewinn A', pnl: 100 },
+      { date: '2026-01-02', time: '09:00', desc: 'Gewinn B', pnl: 50 },
+      { date: '2026-01-03', time: '09:00', desc: 'Verlust A', pnl: -40 },
+      { date: '2026-01-04', time: '09:00', desc: 'Verlust B', pnl: -60 },
+      { date: '2026-01-05', time: '09:00', desc: 'Neutral', pnl: 0 },
+      { date: '2026-01-06', time: '09:00', desc: 'Gewinn C', pnl: 30 }
+    ];
+    const metricBefore = JSON.stringify(metricTrades);
+    const metrics = typeof vmod.computeTradingMetrics === 'function'
+      ? vmod.computeTradingMetrics(metricTrades, { capital: 1000 })
+      : null;
+    check('metrics: Gewinn, Verlust, Nullergebnis und Trade-Winrate stimmen',
+      !!metrics && metrics.count === 6 && metrics.wins === 3 && metrics.losses === 2 &&
+      metrics.flat === 1 && metrics.winrate === 60);
+    check('metrics: Profit Factor, Durchschnitt und Payoff stimmen mit Handwerten',
+      !!metrics && metrics.grossProfit === 180 && metrics.grossLoss === 100 &&
+      Math.abs(metrics.profitFactor - 1.8) < 0.0001 && metrics.avgWin === 60 &&
+      metrics.avgLoss === -50 && Math.abs(metrics.payoffRatio - 1.2) < 0.0001);
+    check('metrics: Erwartungswert, bester und schlechtester Trade stimmen',
+      !!metrics && Math.abs(metrics.expectancy - (80 / 6)) < 0.0001 &&
+      metrics.bestTrade.pnl === 100 && metrics.worstTrade.pnl === -60);
+    check('metrics: Gewinn-/Verlustserien, Drawdown und Recovery stimmen',
+      !!metrics && metrics.maxWinStreak === 2 && metrics.maxLossStreak === 2 &&
+      metrics.maxDrawdown === 100 && Math.abs(metrics.maxDrawdownPct - (100 / 1150 * 100)) < 0.0001 &&
+      Math.abs(metrics.recoveryFactor - 0.8) < 0.0001);
+    check('metrics: Rendite fuer das persoenliche Trading-Level wird aus dem Startkapital berechnet',
+      !!metrics && Math.abs(metrics.rendite - 8) < 0.0001);
+    const rangeMetrics = typeof vmod.computeTradingMetrics === 'function'
+      ? vmod.computeTradingMetrics(metricTrades, { from: '2026-01-03', to: '2026-01-05', capital: 1000 })
+      : null;
+    check('metrics: frei gewaehlter Zeitraum verwendet den Ausstiegstag',
+      !!rangeMetrics && rangeMetrics.count === 3 && rangeMetrics.totalPnl === -100 &&
+      rangeMetrics.excluded.outsideRange === 3 && rangeMetrics.bestTrade.pnl === 0);
+    const invalidMetricTrades = metricTrades.concat([
+      { date: 'ungueltig', pnl: 999 },
+      { date: '2026-01-07', pnl: 'kein-betrag' }
+    ]);
+    const invalidMetrics = typeof vmod.computeTradingMetrics === 'function'
+      ? vmod.computeTradingMetrics(invalidMetricTrades, {})
+      : null;
+    check('metrics: ungueltige Daten werden sichtbar ausgeschlossen',
+      !!invalidMetrics && invalidMetrics.count === 6 && invalidMetrics.excluded.invalidDate === 1 &&
+      invalidMetrics.excluded.invalidPnl === 1);
+    const emptyMetrics = typeof vmod.computeTradingMetrics === 'function'
+      ? vmod.computeTradingMetrics([], {})
+      : null;
+    check('metrics: leere Eingabe und fehlende Nenner bleiben ehrlich leer',
+      !!emptyMetrics && emptyMetrics.count === 0 && emptyMetrics.winrate === null &&
+      emptyMetrics.profitFactor === null && emptyMetrics.payoffRatio === null &&
+      emptyMetrics.recoveryFactor === null && emptyMetrics.bestTrade === null);
+    const winnerMetrics = typeof vmod.computeTradingMetrics === 'function'
+      ? vmod.computeTradingMetrics(metricTrades.slice(0, 2), {})
+      : null;
+    check('metrics: nur Gewinne ergeben unendlichen Profit Factor ohne erfundene Payoff-Ratio',
+      !!winnerMetrics && winnerMetrics.profitFactor === Infinity && winnerMetrics.payoffRatio === null);
+    const reversedRangeMetrics = typeof vmod.computeTradingMetrics === 'function'
+      ? vmod.computeTradingMetrics(metricTrades, { from: '2026-01-05', to: '2026-01-03' })
+      : null;
+    check('metrics: umgekehrter Zeitraum wird nicht stillschweigend umgedeutet',
+      !!reversedRangeMetrics && reversedRangeMetrics.range.valid === false &&
+      reversedRangeMetrics.count === 0);
+    check('level: pure Level- und Rekordberechnung sind exportiert',
+      typeof vmod.computeTradingLevel === 'function' &&
+      typeof vmod.computeTradingLevelRecord === 'function' &&
+      typeof vmod.computeTradingLevelCatalog === 'function');
+    const levelBase = {
+      count: 50, capital: 10000, rendite: 22, profitFactor: 2,
+      expectancy: 40, maxDrawdownPct: 7, maxDrawdown: 700,
+      recoveryFactor: 2.5, totalPnl: 2200
+    };
+    const levelBefore = JSON.stringify(levelBase);
+    const currentStrongLevel = typeof vmod.computeTradingLevel === 'function'
+      ? vmod.computeTradingLevel(levelBase)
+      : null;
+    check('level: bisher starke Kennzahlen lassen bewusst noch Luft nach oben',
+      !!currentStrongLevel && currentStrongLevel.id === 'patience-rune' &&
+      currentStrongLevel.index === 6 && currentStrongLevel.progress < 100 &&
+      currentStrongLevel.next.name === 'Bullen-und-Bären-Spalter');
+    const levelWithoutExpectancyGate = typeof vmod.computeTradingLevel === 'function'
+      ? vmod.computeTradingLevel(Object.assign({}, levelBase, { expectancy: -40 }))
+      : null;
+    check('level: Erwartungswert bleibt Kennzahl und ist kein redundantes Aufstiegstor',
+      !!levelWithoutExpectancyGate && levelWithoutExpectancyGate.id === 'patience-rune');
+    const topLevel = typeof vmod.computeTradingLevel === 'function'
+      ? vmod.computeTradingLevel(Object.assign({}, levelBase, {
+          rendite: 65, profitFactor: 3, maxDrawdownPct: 12, recoveryFactor: 6
+        }))
+      : null;
+    check('level: aufgeholter Drawdown blockiert die heilige gruene Klinge nicht dauerhaft',
+      !!topLevel && topLevel.id === 'sacred-candle-blade' && topLevel.index === 8 &&
+      topLevel.name === 'Heilige Klinge der grünen Kerze' &&
+      topLevel.progress === 100 && topLevel.next === null);
+    const riskyLevel = typeof vmod.computeTradingLevel === 'function'
+      ? vmod.computeTradingLevel(Object.assign({}, levelBase, {
+          rendite: 30, maxDrawdownPct: 25, recoveryFactor: 0.3
+        }))
+      : null;
+    check('level: hohe Rendite mit unaufgeholtem Drawdown schaltet kein hohes Level frei',
+      !!riskyLevel && riskyLevel.id === 'breakeven-knife' && riskyLevel.index === 2);
+    const calibrationLevel = typeof vmod.computeTradingLevel === 'function'
+      ? vmod.computeTradingLevel(Object.assign({}, levelBase, { capital: 0 }))
+      : null;
+    check('level: fehlendes Startkapital bleibt trotz vieler Trades in Kalibrierung',
+      !!calibrationLevel && calibrationLevel.id === 'calibration' &&
+      calibrationLevel.reason === 'capital');
+    const fewTradesLevel = typeof vmod.computeTradingLevel === 'function'
+      ? vmod.computeTradingLevel(Object.assign({}, levelBase, { count: 10 }))
+      : null;
+    check('level: vor 20 Trades zeigt der Fortschritt nur die Kalibrierung',
+      !!fewTradesLevel && fewTradesLevel.id === 'calibration' &&
+      fewTradesLevel.reason === 'sample' && fewTradesLevel.progress === 50);
+    const recordTrades = Array.from({ length: 20 }, (_, index) => ({
+      date: '2026-01-' + String(index + 1).padStart(2, '0'),
+      time: '10:00', pnl: 10
+    })).concat([{ date: '2026-01-21', time: '10:00', pnl: -250 }]);
+    const levelRecord = typeof vmod.computeTradingLevelRecord === 'function'
+      ? vmod.computeTradingLevelRecord(recordTrades, {
+          from: '2026-01-01', to: '2026-12-31', capital: 1000
+        })
+      : null;
+    check('level: persoenlicher Rekord bleibt nach einer spaeteren Verlustphase sichtbar',
+      !!levelRecord && levelRecord.current.id === 'liquidity-spoon' &&
+      levelRecord.record.id === 'patience-rune' && levelRecord.recordDate === '2026-01-20');
+    check('level: Zeitstrahl zeigt nur echte Wechsel inklusive Rueckstufung',
+      !!levelRecord && Array.isArray(levelRecord.timeline) && levelRecord.timeline.length === 3 &&
+      levelRecord.timeline[0].date === '2026-01-01' && levelRecord.timeline[0].level.id === 'calibration' &&
+      levelRecord.timeline[1].date === '2026-01-20' && levelRecord.timeline[1].level.id === 'patience-rune' &&
+      levelRecord.timeline[2].date === '2026-01-21' && levelRecord.timeline[2].level.id === 'liquidity-spoon');
+    const levelCatalog = typeof vmod.computeTradingLevelCatalog === 'function' && levelRecord
+      ? vmod.computeTradingLevelCatalog(levelRecord.metrics, levelRecord.record.index)
+      : [];
+    check('level: Arsenal ordnet alle neun Stufen als aktuell, erreicht oder gesperrt ein',
+      levelCatalog.length === 9 &&
+      levelCatalog.find(item => item.id === 'liquidity-spoon')?.status === 'current' &&
+      levelCatalog.find(item => item.id === 'patience-rune')?.status === 'reached' &&
+      levelCatalog.find(item => item.id === 'market-splitter')?.status === 'locked' &&
+      levelCatalog.find(item => item.id === 'sacred-candle-blade')?.requirements.length === 3 &&
+      !levelCatalog.some(item => item.requirements.some(requirement => requirement.includes('Drawdown ≤'))) &&
+      !levelCatalog.some(item => item.requirements.some(requirement => requirement.includes('Erwartungswert'))));
+    check('level: Berechnung mutiert die Kennzahlen nicht', JSON.stringify(levelBase) === levelBefore);
+    check('metrics: Berechnung mutiert Trades nicht', JSON.stringify(metricTrades) === metricBefore);
+    const metricDom = new JSDOM(html, { runScripts: 'outside-only' });
+    global.window = metricDom.window;
+    global.document = metricDom.window.document;
+    try {
+      if (metricsviewmod && metrics) {
+        metricsviewmod.renderTradingMetrics(Object.assign({}, metrics, {
+          bestTrade: Object.assign({}, metrics.bestTrade, { desc: '<img src=x onerror=alert(1)>' })
+        }));
+      }
+      check('metricsView: rendert Zusammenfassung und alle Kennzahlenkarten',
+        !!metricsviewmod && metricDom.window.document.getElementById('metrics-summary').textContent.includes('6 Trades') &&
+        metricDom.window.document.querySelectorAll('.metrics-card').length === 13 &&
+        metricDom.window.document.getElementById('metrics-grid').textContent.includes('Profit Factor'));
+      check('metricsView: Produkttexte bleiben beim Rendern HTML-sicher',
+        metricDom.window.document.querySelectorAll('#metrics-grid img').length === 0 &&
+        metricDom.window.document.getElementById('metrics-grid').textContent.includes('<img src=x'));
+      if (metricsviewmod && levelRecord) {
+        metricsviewmod.renderTradingLevel(levelRecord, { periodLabel: 'Saison 2026' });
+      }
+      check('levelView: rendert Level, Rekord, Fortschritt und 16x16-Pixelgrafik',
+        !!metricsviewmod && metricDom.window.document.getElementById('trading-level-name')?.textContent === 'Holzlöffel der Liquidität' &&
+        metricDom.window.document.getElementById('trading-level-record')?.textContent.includes('Runenschwert der Geduld') &&
+        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-cell').length === 256 &&
+        metricDom.window.document.getElementById('trading-level-progress')?.style.width.endsWith('%'));
+      check('levelView: Zeitstrahl rendert chronologische Auf- und Rueckstufungen',
+        metricDom.window.document.querySelectorAll('#trading-level-timeline .trading-level-event').length === 3 &&
+        metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Runenschwert der Geduld') &&
+        metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Start') &&
+        metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Aufstieg') &&
+        metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Abstieg') &&
+        !metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Trainingsphase'));
+      check('levelView: Pixelgrafik verwendet kein externes Bild',
+        metricDom.window.document.querySelectorAll('#trading-level-card img').length === 0);
+      if (metricsviewmod && topLevel) {
+        metricsviewmod.renderTradingLevel({
+          current: topLevel, record: topLevel, recordDate: '2026-12-31',
+          timeline: [{ date: '2026-12-31', level: topLevel }]
+        }, { periodLabel: 'Saison 2026' });
+      }
+      check('levelView: Maximalgrafik besitzt Krone, Aura und Funken',
+        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-cell').length === 256 &&
+        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-crown').length > 0 &&
+        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-glow').length > 0 &&
+        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-spark').length > 0);
+      if (metricsviewmod && levelRecord) {
+        metricsviewmod.renderTradingLevel(levelRecord, { periodLabel: 'Saison 2026' });
+      }
+      check('levelView: Arsenal zeigt alle neun Level samt Status und Voraussetzungen',
+        metricDom.window.document.querySelectorAll('#trading-level-arsenal-grid .level-arsenal-card').length === 9 &&
+        metricDom.window.document.querySelectorAll('#trading-level-arsenal-grid .level-arsenal-card.current').length === 1 &&
+        metricDom.window.document.querySelectorAll('#trading-level-arsenal-grid .level-arsenal-card.locked').length === 2 &&
+        metricDom.window.document.getElementById('trading-level-arsenal-grid')?.textContent.includes('Heilige Klinge der grünen Kerze'));
+      if (metricsviewmod && typeof metricsviewmod.openTradingLevelArsenal === 'function') {
+        metricsviewmod.openTradingLevelArsenal();
+      }
+      check('levelView: Arsenal oeffnet als Dialog und fokussiert Schliessen',
+        metricDom.window.document.getElementById('trading-level-arsenal-overlay')?.classList.contains('open') &&
+        metricDom.window.document.activeElement.id === 'trading-level-arsenal-close');
+      if (metricsviewmod && typeof metricsviewmod.handleTradingLevelArsenalKey === 'function') {
+        metricsviewmod.handleTradingLevelArsenalKey({ key: 'Escape' });
+      }
+      check('levelView: Escape schliesst das Arsenal wieder',
+        !metricDom.window.document.getElementById('trading-level-arsenal-overlay')?.classList.contains('open'));
+      metricDom.window.document.getElementById('metrics-from').value = '2026-01-02';
+      metricDom.window.document.getElementById('metrics-to').value = '2026-01-06';
+      const readRange = metricsviewmod ? metricsviewmod.readTradingMetricRange() : {};
+      if (metricsviewmod) metricsviewmod.clearTradingMetricRange();
+      check('metricsView: Zeitraum wird gelesen und vollstaendig zurueckgesetzt',
+        readRange.from === '2026-01-02' && readRange.to === '2026-01-06' &&
+        metricDom.window.document.getElementById('metrics-from').value === '' &&
+        metricDom.window.document.getElementById('metrics-to').value === '');
+      const levelPeriodSelect = metricDom.window.document.getElementById('trading-level-period');
+      if (levelPeriodSelect) levelPeriodSelect.value = 'all';
+      check('levelView: Saison und Gesamtzeitraum sind umschaltbar',
+        metricsviewmod && typeof metricsviewmod.readTradingLevelPeriod === 'function' &&
+        metricsviewmod.readTradingLevelPeriod() === 'all');
+    } finally {
+      global.window = previousWindow;
+      global.document = previousDocument;
+      metricDom.window.close();
+    }
     check('views: Equity-/Drawdown-Berechnung exportiert',
       typeof vmod.computeEquityCurve === 'function');
     const equity = typeof vmod.computeEquityCurve === 'function'
@@ -1486,10 +1841,40 @@ check('CSS fuer Stunden-Richtungszeile', html.includes('.ts-hour-dir{'));
 check('Statistik-Tab in Tab-Order', appJs.includes("'open', 'timestats'"));
 check('buildTimeStats vorhanden + in rebuildAll', appJs.includes('function buildTimeStats') && /rebuildAll[\s\S]{0,400}buildTimeStats\(\)/.test(appJs) || appJs.includes('buildTimeStats();'));
 check('HTML: Statistik-Section vorhanden', html.includes('id="tab-timestats"') && html.includes('ts-blocks'));
-check('Statistik-UI: interne Navigation mit drei Bereichen vorhanden',
-  html.includes('id="stats-nav-performance"') && html.includes('id="stats-nav-timing"') &&
+check('Statistik-UI: interne Navigation mit vier Bereichen vorhanden',
+  html.includes('id="stats-nav-metrics"') && html.includes('id="stats-nav-performance"') && html.includes('id="stats-nav-timing"') &&
   html.includes('id="stats-nav-behavior"') && html.includes('id="stats-view-performance"') &&
-  html.includes('id="stats-view-timing"') && html.includes('id="stats-view-behavior"'));
+  html.includes('id="stats-view-metrics"') && html.includes('id="stats-view-timing"') && html.includes('id="stats-view-behavior"'));
+check('Kennzahlen-UI: Zeitraum, Datenabdeckung und Ergebnisraster vorhanden',
+  html.includes('id="metrics-from"') && html.includes('id="metrics-to"') &&
+  html.includes('id="metrics-summary"') && html.includes('id="metrics-grid"') &&
+  html.includes('id="metrics-note"'));
+check('Kennzahlen-UI: Header-Tagesquote und Trade-Winrate sind eindeutig benannt',
+  html.includes('Win-Tage-Quote') && metricsViewJs.includes('function renderTradingMetrics'));
+check('Trading-Level-UI: Levelkarte, Zeitraum, Pixelgrafik und Fortschritt vorhanden',
+  html.includes('id="trading-level-card"') && html.includes('id="trading-level-period"') &&
+  html.includes('id="trading-level-art"') && html.includes('id="trading-level-progress"') &&
+  html.includes('id="trading-level-record"') && html.includes('id="trading-level-timeline"') &&
+  metricsViewJs.includes('function renderTradingLevel'));
+check('Trading-Level-UI: Arsenal ist ein Dialog und keine Level-Combobox',
+  html.includes('id="trading-level-arsenal-btn"') &&
+  html.includes('id="trading-level-arsenal-overlay"') &&
+  html.includes('id="trading-level-arsenal-grid"') &&
+  html.includes('id="trading-level-arsenal-close"') &&
+  !html.includes('<select id="trading-level-choice"') &&
+  metricsViewJs.includes('function openTradingLevelArsenal') &&
+  metricsViewJs.includes('function closeTradingLevelArsenal'));
+check('Trading-Level-UI: Animation respektiert reduzierte Bewegung',
+  html.includes('@media (prefers-reduced-motion: reduce)') &&
+  html.includes('.pixel-cell.pixel-glow'));
+check('Trading-Level-UI: neun eigene Pixelstufen und kein alter Maximalname',
+  ['calibration', 'liquidity-spoon', 'breakeven-knife', 'candle-dagger',
+    'trend-blade', 'drawdown-tamer', 'patience-rune', 'market-splitter',
+    'sacred-candle-blade']
+    .every(key => metricsViewJs.includes("'" + key + "': [")) &&
+  !metricsViewJs.includes('Leuchtende Klinge'));
+check('Trading-Level-UI: erklaerender Gimmick-Hinweis ist entfernt',
+  !html.includes('Nur dein eigener Verlauf, kein Vergleich mit anderen.'));
 check('Statistik-UI: Bereichswechsel ist verdrahtet und global erreichbar',
   appJs.includes('function setStatsView(view)') && appJs.includes('window.setStatsView = setStatsView'));
 check('Statistik-UI: interne Tabs sind per Pfeiltasten erreichbar',
@@ -1553,12 +1938,17 @@ try {
   const allSections = [...doc.querySelectorAll('.section')];
   const firstParent = allSections[0] && allSections[0].parentElement;
   check('alle .section-Tabs im selben Container', allSections.length >= 5 && allSections.every(s => s.parentElement === firstParent));
+  const statsMetrics = doc.getElementById('stats-view-metrics');
   const statsPerformance = doc.getElementById('stats-view-performance');
   const statsTiming = doc.getElementById('stats-view-timing');
   const statsBehavior = doc.getElementById('stats-view-behavior');
-  check('Statistik-UI: Performance ist der sichtbare Standardbereich',
-    !!statsPerformance && !statsPerformance.hidden && !!statsTiming && statsTiming.hidden &&
+  check('Statistik-UI: Kennzahlen ist der sichtbare Standardbereich',
+    !!statsMetrics && !statsMetrics.hidden && !!statsPerformance && statsPerformance.hidden &&
+    !!statsTiming && statsTiming.hidden &&
     !!statsBehavior && statsBehavior.hidden);
+  check('Statistik-UI: Kennzahlenfilter und Raster liegen ausschliesslich im Kennzahlen-Bereich',
+    !!statsMetrics && statsMetrics.contains(doc.getElementById('metrics-grid')) &&
+    !statsPerformance.contains(doc.getElementById('metrics-grid')));
   check('Statistik-UI: Equity liegt ausschliesslich im Performance-Bereich',
     !!statsPerformance && statsPerformance.contains(doc.getElementById('equity-summary')) &&
     !statsTiming.contains(doc.getElementById('equity-summary')));

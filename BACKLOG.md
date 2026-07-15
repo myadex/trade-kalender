@@ -187,7 +187,104 @@ Wartbarkeit bzw. Komfort.
 - **Zeitraum:** Die Zuordnung folgt wie die vorhandenen Tabellen dem
   Ausstiegsdatum; Wochen sind ISO-Kalenderwochen von Montag bis Sonntag.
 
+### Typische Trading-Kennzahlen
+
+- **Status:** Erledigt in v61.
+- **Ziel:** Einen kompakten Kennzahlenbereich fuer die Gesamtperformance und
+  frei waehlbare Zeitraeume bereitstellen. Vorhandene Werte werden
+  wiederverwendet und nicht mit abweichender Berechnung doppelt eingefuehrt.
+- **Kennzahlen:** Trefferquote, Profit Factor, durchschnittlicher Gewinn und
+  Verlust, Payoff-Ratio, Erwartungswert je Trade, bester und schlechtester
+  Trade, Gewinn-/Verlustserien, maximaler Drawdown und Recovery Factor.
+  Sharpe- und Sortino-Ratio kommen nur hinzu, wenn die verwendete periodische
+  Renditereihe fachlich eindeutig definiert und in der UI erklaert ist.
+- **Datenluecken:** R-Multiples und regelbasiertes Risiko pro Trade sind mit dem
+  aktuellen Datenmodell nicht serioes berechenbar, weil Stop-Abstand und
+  geplantes Risiko fehlen. Diese Werte duerfen erst mit entsprechenden
+  Eingabedaten erscheinen.
+- **Belastbarkeit:** Zeitraum, Anzahl Trades und Datenabdeckung stehen sichtbar
+  neben den Kennzahlen. Leere oder zu kleine Stichproben liefern einen
+  ehrlichen Hinweis statt einer scheinbar praezisen Bewertung.
+- **Sicherung:** Pure Berechnung in `views.js` mit Handwerten fuer Gewinn,
+  Verlust, Nullergebnis, leere Eingabe und mehrere Zeitraeume. Bestehende
+  Golden Values und Drawdown-Ergebnisse muessen unveraendert bleiben.
+- **Umsetzung:** `Kennzahlen` ist der erste interne Bereich des vorhandenen
+  Statistik-Tabs. Ein frei waehlbarer Von-/Bis-Zeitraum filtert nach dem
+  realisierten Ausstiegstag. Angezeigt werden Netto-P&L, Trade-Winrate, Profit
+  Factor, Erwartungswert, durchschnittlicher Gewinn/Verlust, Payoff-Ratio,
+  bester/schlechtester Trade, Gewinn-/Verlustserien, maximaler Drawdown und
+  Recovery Factor. Anzahl, Nullergebnisse, ausgeschlossene Daten und kleine
+  Stichproben bleiben sichtbar. Die bisherige Header-Quote heisst nun
+  eindeutig `Win-Tage-Quote`, weil sie profitable Tage statt Trades zaehlt.
+- **Bewusste Grenze:** Sharpe/Sortino bleiben aus, bis eine fachlich eindeutige
+  periodische Renditereihe festgelegt ist. R-Multiples bleiben ohne geplantes
+  Risiko bzw. Stop-Abstand nicht berechenbar.
+
 ## Prioritaet 3
+
+### Pixel-Trading-Level und Waffenentwicklung
+
+- **Status:** Erledigt in v62, erweitert in v63 und risikobasiert nachgeschaerft
+  in v67; baut nur auf den eigenen Kennzahlen auf.
+- **Ziel:** Eine kleine Pixelgrafik entwickelt sich mit der Trading-Performance
+  und macht Fortschritt spielerisch sichtbar, ohne Finanzrisiko oder haeufiges
+  Handeln zu belohnen.
+- **Stufen:** `Schmiede im Pre-Opening` -> `Holzloeffel der Liquiditaet` ->
+  `Break-even-Butterbrotmesser` -> `Kerzendolch` -> `Trendklinge` ->
+  `Drawdown-Baendiger` -> `Runenschwert der Geduld` ->
+  `Bullen-und-Baeren-Spalter` -> `Heilige Klinge der gruenen Kerze`.
+- **Bewertung:** Rendite ist ein sichtbarer Bestandteil, reicht allein aber
+  nicht fuer einen Aufstieg. Level und Fortschrittsbalken beruecksichtigen auch
+  Profit Factor, Recovery Factor, Konstanz und Mindestanzahl an Trades. Der
+  maximale Drawdown fliesst ueber den Recovery Factor ein, sperrt nach einer
+  ausreichend starken Erholung aber kein Level dauerhaft.
+- **Zeitraum:** Standard ist das laufende Kalenderjahr; optional kann auf
+  Gesamtzeitraum umgeschaltet werden. Ein neues Jahr startet als neue Saison,
+  waehrend das bisher hoechste Level als persoenlicher Rekord erhalten bleibt.
+- **Pixelgrafik:** Pro Stufe wird ein kleines eigenes Pixel-Art-Motiv ohne
+  externe Bild-API verwendet. Hoehere Stufen erhalten dezente Effekte wie
+  Runen, farbige Aura oder Funken; Animationen muessen abschaltbar sein und
+  `prefers-reduced-motion` respektieren.
+- **Ton:** Keine abwertenden Meldungen bei Verlusten und keine Aufforderung,
+  mehr Trades einzugehen. Der Zeitstrahl benennt Wechsel eindeutig als `Start`,
+  `Aufstieg` oder `Abstieg`; die sachlichen Kennzahlen bleiben jederzeit
+  wichtiger als das Gimmick.
+- **Sicherung:** Levelberechnung als pure Funktion mit festen Grenzfaellen,
+  unveraendertem Ergebnis bei gleicher Datenbasis und Tests gegen das
+  Hochrisiko-Szenario `hohe Rendite plus unaufgeholter Drawdown`.
+- **Umsetzung:** Die Levelkarte steht im Bereich `Kennzahlen` und startet mit
+  dem laufenden Kalenderjahr. Optional kann auf den Gesamtzeitraum gewechselt
+  werden. Vor 20 geschlossenen Trades oder ohne Startkapital bleibt die Karte
+  ehrlich in `Schmiede im Pre-Opening`. Danach folgen acht eigenstaendige
+  persoenliche Level mit zunehmend strengeren Ertrags- und Risikogrenzen.
+- **Aufstiegsregeln:** Ab dem Break-even-Butterbrotmesser muessen Rendite,
+  Profit Factor und Recovery Factor die jeweilige Stufe gemeinsam erfuellen.
+  Der Recovery Factor teilt den Gesamtgewinn durch den maximalen Drawdown. Eine
+  alte Verlustphase bleibt dadurch sichtbar und erschwert den Aufstieg, kann
+  aber mit spaeteren stabilen Gewinnen aufgeholt werden. Der Erwartungswert
+  bleibt als sachliche Kennzahl sichtbar, ist aber kein zusaetzliches
+  Aufstiegstor, da ein positiver Wert bereits aus den anderen Bedingungen
+  folgt. Die Grenzwerte sind persoenliche Spielregeln und ausdruecklich kein
+  Vergleich oder Branchen-Benchmark.
+- **Rekord:** Das historisch hoechste Level wird aus den Zwischenstaenden der
+  vorhandenen Trades pure rekonstruiert. Es braucht kein zusaetzliches
+  Speicherfeld und bleibt nach Importen oder Korrekturen konsistent.
+- **Zeitstrahl:** Fuer jeden realisierten Tagesendstand wird das damalige Level
+  pure berechnet. Die UI zeigt nur echte Wechsel, sowohl Aufstiege als auch
+  Abstiege, chronologisch mit Datum und damaliger Pixelgrafik.
+- **Darstellung:** Jede der neun Stufen besitzt ein eigenes 16x16-Pixelmotiv aus
+  HTML/CSS. Das seltene Maximallevel verlangt mindestens 60 % Rendite, Profit
+  Factor 2,5 und Recovery Factor 5 gemeinsam. Der Gesamtgewinn muss damit
+  mindestens das Fuenffache des schlimmsten Drawdowns betragen. Das Level
+  erhaelt Krone, Aura und Funken. Runen und Leuchteffekt kommen ohne externe
+  Bildquelle aus; bei `prefers-reduced-motion` werden Animation und
+  Fortschrittsuebergang deaktiviert.
+- **Arsenal:** Der Button `Arsenal ansehen` oeffnet alle neun Stufen als
+  nicht auswaehlbaren Katalog. Jede Karte zeigt Pixelmotiv, Beschreibung,
+  Anforderungen und den Status `Aktuell`, `Erreicht` oder `Gesperrt`. Auf dem
+  Desktop erscheint das Arsenal als Dialograster, mobil als Bottom-Sheet; es
+  laesst sich per Schliessen-Button, Klick auf den Hintergrund oder Escape
+  verlassen.
 
 ### PWA im echten Browser offline pruefen
 

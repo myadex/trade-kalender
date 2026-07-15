@@ -6,9 +6,12 @@
 import { CLIENT_ID, SCOPE, APP_VERSION } from './config.js';
 import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml, csvCell } from './helpers.js';
 import {
-  showTab, setStatsView, handleStatsViewKey,
+  showTab, handleMainTabKey, setStatsView, handleStatsViewKey,
   mobileTab, toggleMobileActions, closeMobileActions
 } from './navigation.js';
+import {
+  openAccessibleDialog, closeAccessibleDialog, handleAccessibleDialogKey
+} from './dialog-accessibility.js';
 import {
   openAddModal, closeAddModal, updatePnlPreview, readAddTradeForm,
   openEditTradeDialog, closeEditModal, updateEditPreview, readEditTradeForm
@@ -28,6 +31,11 @@ import {
   renderImportPreview, showSavedImportReport
 } from './import-dialogs.js';
 import {
+  readTradingMetricRange, clearTradingMetricRange, renderTradingMetrics,
+  readTradingLevelPeriod, renderTradingLevel,
+  openTradingLevelArsenal, closeTradingLevelArsenal
+} from './metrics-view.js';
+import {
   dayMap, deriveOpenPositions, fifoMatch, replayImportLedger,
   closePositionPnl, tradePnl, withOpenLotIds,
   createHiddenOpenPositionEvent, visibleOpenLots,
@@ -35,7 +43,8 @@ import {
 } from './fifo.js';
 import { DriveConflictError, findDataFile, getDataEtag, downloadVersionedData, createData, updateData, createWriteQueue } from './storage.js';
 import {
-  aggregateWeeks, aggregateMonths, computeStats, computeEquityCurve,
+  aggregateWeeks, aggregateMonths, computeStats, computeTradingMetrics,
+  computeTradingLevelRecord, computeEquityCurve,
   computeWeekdayStats, computeTimeStats, computeInsights, diagnoseBucket,
   computeMonthlyDiscipline,
   computePeriodReviews
@@ -240,6 +249,31 @@ function rebuildStats() {
   if (capEl) capEl.textContent = s.capital > 0 ? fmtPlain(s.capital, 0) + ' \u20ac' : '\u2014';
 }
 
+function buildTradingMetrics() {
+  const range = readTradingMetricRange();
+  renderTradingMetrics(computeTradingMetrics(DATA.trades, {
+    from: range.from,
+    to: range.to,
+    capital: DATA.capital
+  }));
+}
+
+function resetTradingMetrics() {
+  clearTradingMetricRange();
+  buildTradingMetrics();
+}
+
+function buildTradingLevel() {
+  const mode = readTradingLevelPeriod();
+  const year = new Date().getFullYear();
+  const options = mode === 'season'
+    ? { from: year + '-01-01', to: year + '-12-31', capital: DATA.capital }
+    : { capital: DATA.capital };
+  renderTradingLevel(computeTradingLevelRecord(DATA.trades, options), {
+    periodLabel: mode === 'season' ? 'Saison ' + year : 'Gesamtzeitraum'
+  });
+}
+
 /* ============================================================
    CALENDAR (GitHub-style heatmap, full year)
    ============================================================ */
@@ -285,14 +319,18 @@ function buildCalendar() {
   const nav = document.createElement('div');
   nav.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:.5rem;';
   const btnPrev = document.createElement('button');
+  btnPrev.type = 'button';
   btnPrev.textContent = '\u2039';
+  btnPrev.setAttribute('aria-label', 'Vorheriger Monat');
   btnPrev.style.cssText = 'font-size:1.4rem;line-height:1;background:none;border:1px solid var(--border);border-radius:8px;width:40px;height:40px;cursor:pointer;color:var(--ink);flex-shrink:0;';
   btnPrev.onclick = () => { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } buildCalendar(); };
   const btnNext = document.createElement('button');
+  btnNext.type = 'button';
   btnNext.textContent = '\u203a';
+  btnNext.setAttribute('aria-label', 'Nächster Monat');
   btnNext.style.cssText = btnPrev.style.cssText;
   btnNext.onclick = () => { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } buildCalendar(); };
-  const title = document.createElement('div');
+  const title = document.createElement('h2');
   title.style.cssText = "font-family:'Chakra Petch',sans-serif;font-size:1.6rem;letter-spacing:.04em;color:var(--ink);text-align:center;flex:1;";
   title.textContent = MON[calMonth] + ' ' + calYear;
   nav.appendChild(btnPrev);
@@ -357,12 +395,20 @@ function buildCalendar() {
     const key = calYear + '-' + String(calMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
     const data = dm[key] || null;
 
-    const cell = document.createElement('div');
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'calendar-day-button';
     const bg = data ? (dayColor(data.pnl, maxAbs) || 'var(--paper)') : 'var(--paper)';
     cell.style.cssText =
       'aspect-ratio:1;border:1px solid var(--border);border-radius:8px;padding:.4rem;' +
       'display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;' +
       'background:' + bg + ';min-height:64px;overflow:hidden;';
+    cell.setAttribute('aria-label', String(day).padStart(2, '0') + '.' +
+      String(calMonth + 1).padStart(2, '0') + '.' + calYear +
+      (data
+        ? ': ' + data.n + (data.n === 1 ? ' Trade, ' : ' Trades, ') +
+          'Netto P&L ' + fmtPlain(data.pnl, 2) + ' Euro'
+        : ': Keine Trades'));
 
     const dnum = document.createElement('div');
     dnum.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:.72rem;font-weight:600;color:' + (data ? textColor(data.pnl, maxAbs) : 'var(--ink)') + ';';
@@ -597,8 +643,9 @@ function buildOpenPositions() {
       '<div><div class="op-num-lbl">Einstand</div><div class="op-num-val">' + fmtPlain(p.cost, 0) + ' \u20ac</div></div>' +
       '</div>' +
       '<div class="op-btns">' +
-      '<button class="btn-close-pos" data-isin="' + escapeHtml(p.isin) + '">Schlie\u00dfen</button>' +
-      '<button class="btn-del-pos" data-isin="' + escapeHtml(p.isin) + '" title="Position aus dem Tracking entfernen (ohne P&L-Buchung)">\u2715</button>' +
+      '<button type="button" class="btn-close-pos" data-isin="' + escapeHtml(p.isin) + '">Schlie\u00dfen</button>' +
+      '<button type="button" class="btn-del-pos" data-isin="' + escapeHtml(p.isin) +
+        '" aria-label="' + escapeHtml(p.desc) + ' aus dem Tracking entfernen, ohne P&L-Buchung">\u2715</button>' +
       '</div>';
     card.querySelector('.btn-close-pos').onclick = () => openClosePosModal(p.isin);
     card.querySelector('.btn-del-pos').onclick = () => deleteOpenPosition(p.isin);
@@ -886,6 +933,8 @@ function setTsMode(mode) {
   tsMode = mode;
   $('ts-mode-sell').classList.toggle('active', mode === 'sell');
   $('ts-mode-buy').classList.toggle('active', mode === 'buy');
+  $('ts-mode-sell').setAttribute('aria-pressed', mode === 'sell' ? 'true' : 'false');
+  $('ts-mode-buy').setAttribute('aria-pressed', mode === 'buy' ? 'true' : 'false');
   buildTimeStats();
 }
 
@@ -1168,15 +1217,15 @@ function showDetail(key) {
       '</div></div>' +
       '<div class="trade-right">' +
       '<div class="trade-pnl ' + pnlCls + '">' + fmtDE(t.pnl) + '</div>' +
-      '<button class="btn-edit" title="Bearbeiten">\u270e</button>' +
-      '<button class="btn-del" title="L\u00f6schen">\u2715</button>' +
+      '<button type="button" class="btn-edit" aria-label="' + escapeHtml(t.desc) + ' bearbeiten">\u270e</button>' +
+      '<button type="button" class="btn-del" aria-label="' + escapeHtml(t.desc) + ' l\u00f6schen">\u2715</button>' +
       '</div>';
     row.querySelector('.btn-edit').onclick = () => openEditModal(uid);
     row.querySelector('.btn-del').onclick = () => deleteTrade(uid, key);
     c.appendChild(row);
   });
   $('add-day-btn').style.display = 'flex';
-  $('detail-overlay').classList.add('open');
+  openAccessibleDialog('detail-overlay', 'detail-close-btn');
 }
 
 function openDetailNew(key) {
@@ -1187,10 +1236,10 @@ function openDetailNew(key) {
   $('detail-pnl-hdr').textContent = '';
   $('detail-trades').innerHTML = '<div style="color:var(--muted);font-size:.7rem;padding:.5rem 0">Kein Trade f\u00fcr diesen Tag.</div>';
   $('add-day-btn').style.display = 'flex';
-  $('detail-overlay').classList.add('open');
+  openAccessibleDialog('detail-overlay', 'detail-close-btn');
 }
 
-function closeDetail() { $('detail-overlay').classList.remove('open'); currentDetailDate = null; }
+function closeDetail() { closeAccessibleDialog('detail-overlay'); currentDetailDate = null; }
 
 async function deleteTrade(uid, date) {
   if (!uid) { alert('Kein UID \u2014 Trade kann nicht gel\u00f6scht werden.'); return; }
@@ -1486,6 +1535,8 @@ async function setCapital() {
   DATA.capital = val;
   if (!(await persist()).ok) return;
   rebuildStats();
+  buildTradingMetrics();
+  buildTradingLevel();
   buildEquityCurve();
 }
 
@@ -1511,9 +1562,25 @@ function rebuildAll() {
   buildWeekly();
   buildMonthly();
   buildOpenPositions();
+  buildTradingMetrics();
+  buildTradingLevel();
   buildEquityCurve();
   buildWeekdayStats();
   buildTimeStats();
+}
+
+function closeDialogById(id) {
+  const closers = {
+    'trading-level-arsenal-overlay': closeTradingLevelArsenal,
+    'search-overlay': closeTradeSearch,
+    'detail-overlay': closeDetail,
+    'add-overlay': closeAddModal,
+    'edit-overlay': closeEditModal,
+    'close-pos-overlay': closeClosePosModal,
+    'import-overlay': closeImportModal,
+    'import-migration-overlay': closeImportMigration
+  };
+  if (closers[id]) closers[id]();
 }
 
 /* ============================================================
@@ -1539,6 +1606,29 @@ function bootApp() {
   if (jsonInput) jsonInput.onchange = function () { handleJsonRestore(this.files[0]); };
   const btnRestoreM = $('btn-restore-m');
   if (btnRestoreM) btnRestoreM.onclick = function () { closeMobileActions(); openRestoreJson(); };
+  const metricsFrom = $('metrics-from');
+  const metricsTo = $('metrics-to');
+  const metricsReset = $('metrics-reset');
+  const tradingLevelPeriod = $('trading-level-period');
+  const tradingLevelArsenalBtn = $('trading-level-arsenal-btn');
+  const tradingLevelArsenalClose = $('trading-level-arsenal-close');
+  const tradingLevelArsenalOverlay = $('trading-level-arsenal-overlay');
+  if (metricsFrom) metricsFrom.onchange = buildTradingMetrics;
+  if (metricsTo) metricsTo.onchange = buildTradingMetrics;
+  if (metricsReset) metricsReset.onclick = resetTradingMetrics;
+  if (tradingLevelPeriod) tradingLevelPeriod.onchange = buildTradingLevel;
+  if (tradingLevelArsenalBtn) tradingLevelArsenalBtn.onclick = openTradingLevelArsenal;
+  if (tradingLevelArsenalClose) tradingLevelArsenalClose.onclick = closeTradingLevelArsenal;
+  if (tradingLevelArsenalOverlay) tradingLevelArsenalOverlay.onclick = event => {
+    if (event.target === tradingLevelArsenalOverlay) closeTradingLevelArsenal();
+  };
+  document.addEventListener('keydown', event => {
+    if (handleAccessibleDialogKey(event, closeDialogById)) return;
+    if (event.key === 'Escape' && $('mobile-actions')?.classList.contains('open')) {
+      event.preventDefault();
+      closeMobileActions(true);
+    }
+  });
   const btnSearchM = $('btn-search-m');
   if (btnSearchM) btnSearchM.onclick = openTradeSearch;
   const capCard = $('s-capital-card');
@@ -1593,6 +1683,7 @@ function gisLoaded() {
 window.gisLoaded = gisLoaded;
 window.setTsMode = setTsMode;
 window.setWeekdayMode = setWeekdayMode;
+window.handleMainTabKey = handleMainTabKey;
 window.setStatsView = setStatsView;
 window.handleStatsViewKey = handleStatsViewKey;
 window.closeTradeSearch = closeTradeSearch;

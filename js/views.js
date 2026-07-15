@@ -128,6 +128,328 @@ export function computeStats(dm, capital) {
 }
 
 // ------------------------------------------------------------
+// Berechnet klassische Kennzahlen auf Ebene einzelner geschlossener Trades.
+// Der Zeitraum folgt dem realisierten Ausstiegstag. Ungueltige Datensaetze
+// werden nicht stillschweigend zu Nullwerten, sondern separat ausgewiesen.
+// ------------------------------------------------------------
+export function computeTradingMetrics(trades, options = {}) {
+  const source = Array.isArray(trades) ? trades : [];
+  const rawFrom = String(options.from || '').trim();
+  const rawTo = String(options.to || '').trim();
+  const fromDate = rawFrom ? utcDateFromKey(rawFrom) : null;
+  const toDate = rawTo ? utcDateFromKey(rawTo) : null;
+  const rangeValid = (!rawFrom || !!fromDate) && (!rawTo || !!toDate) &&
+    (!rawFrom || !rawTo || rawFrom <= rawTo);
+  const parsedCapital = Number(options.capital);
+  const capital = Number.isFinite(parsedCapital) && parsedCapital > 0 ? parsedCapital : 0;
+  const excluded = { invalidDate: 0, invalidPnl: 0, outsideRange: 0 };
+  const eligible = [];
+
+  source.forEach((trade, index) => {
+    const rawPnl = trade && trade.pnl;
+    const pnl = Number(rawPnl);
+    if (rawPnl === null || rawPnl === undefined || rawPnl === '' || !Number.isFinite(pnl)) {
+      excluded.invalidPnl++;
+      return;
+    }
+    const date = String(trade && trade.date || '').slice(0, 10);
+    if (!utcDateFromKey(date)) {
+      excluded.invalidDate++;
+      return;
+    }
+    if (!rangeValid) return;
+    if ((rawFrom && date < rawFrom) || (rawTo && date > rawTo)) {
+      excluded.outsideRange++;
+      return;
+    }
+    eligible.push({
+      date,
+      time: String(trade && trade.time || ''),
+      desc: String(trade && trade.desc || ''),
+      uid: String(trade && trade.uid || ''),
+      pnl,
+      index
+    });
+  });
+
+  // Serien brauchen eine stabile chronologische Reihenfolge. Der Index ist
+  // der letzte Tiebreak, damit gleiche Zeitstempel reproduzierbar bleiben.
+  eligible.sort((a, b) =>
+    a.date.localeCompare(b.date) || a.time.localeCompare(b.time) ||
+    a.uid.localeCompare(b.uid) || a.index - b.index);
+
+  const wins = eligible.filter(trade => trade.pnl > 0);
+  const losses = eligible.filter(trade => trade.pnl < 0);
+  const flat = eligible.length - wins.length - losses.length;
+  const roundMoney = value => +value.toFixed(2);
+  const grossProfit = roundMoney(wins.reduce((sum, trade) => sum + trade.pnl, 0));
+  const grossLoss = roundMoney(Math.abs(losses.reduce((sum, trade) => sum + trade.pnl, 0)));
+  const totalPnl = roundMoney(eligible.reduce((sum, trade) => sum + trade.pnl, 0));
+  const avgWin = wins.length > 0 ? grossProfit / wins.length : null;
+  const avgLoss = losses.length > 0 ? -grossLoss / losses.length : null;
+  const decisiveTrades = wins.length + losses.length;
+  const winrate = decisiveTrades > 0 ? wins.length / decisiveTrades * 100 : null;
+  const profitFactor = grossLoss > 0
+    ? grossProfit / grossLoss
+    : (grossProfit > 0 ? Infinity : null);
+  const payoffRatio = avgWin !== null && avgLoss !== null
+    ? avgWin / Math.abs(avgLoss)
+    : null;
+  const expectancy = eligible.length > 0 ? totalPnl / eligible.length : null;
+
+  let maxWinStreak = 0;
+  let maxLossStreak = 0;
+  let currentWins = 0;
+  let currentLosses = 0;
+  eligible.forEach(trade => {
+    if (trade.pnl > 0) {
+      currentWins++;
+      currentLosses = 0;
+    } else if (trade.pnl < 0) {
+      currentLosses++;
+      currentWins = 0;
+    } else {
+      // Ein Nullergebnis beendet beide Serien; es ist weder Gewinn noch Verlust.
+      currentWins = 0;
+      currentLosses = 0;
+    }
+    maxWinStreak = Math.max(maxWinStreak, currentWins);
+    maxLossStreak = Math.max(maxLossStreak, currentLosses);
+  });
+
+  const best = eligible.reduce((current, trade) =>
+    current === null || trade.pnl > current.pnl ? trade : current, null);
+  const worst = eligible.reduce((current, trade) =>
+    current === null || trade.pnl < current.pnl ? trade : current, null);
+  const publicTrade = trade => trade ? {
+    date: trade.date,
+    time: trade.time,
+    desc: trade.desc,
+    uid: trade.uid,
+    pnl: trade.pnl
+  } : null;
+
+  const equity = computeEquityCurve(eligible, capital);
+  const recoveryFactor = equity.maxDrawdown > 0
+    ? totalPnl / equity.maxDrawdown
+    : null;
+  const rendite = capital > 0 ? totalPnl / capital * 100 : null;
+
+  return {
+    range: { from: rawFrom, to: rawTo, valid: rangeValid },
+    sourceCount: source.length,
+    count: eligible.length,
+    excluded,
+    wins: wins.length,
+    losses: losses.length,
+    flat,
+    decisiveTrades,
+    winrate,
+    grossProfit,
+    grossLoss,
+    totalPnl,
+    avgWin,
+    avgLoss,
+    payoffRatio,
+    profitFactor,
+    expectancy,
+    bestTrade: publicTrade(best),
+    worstTrade: publicTrade(worst),
+    maxWinStreak,
+    maxLossStreak,
+    maxDrawdown: equity.maxDrawdown,
+    maxDrawdownPct: equity.maxDrawdownPct,
+    recoveryFactor,
+    rendite,
+    capital
+  };
+}
+
+const TRADING_LEVELS = [
+  {
+    id: 'liquidity-spoon', index: 1, name: 'Holzlöffel der Liquidität', pixelKey: 'liquidity-spoon',
+    description: 'Die Grundlage steht. Noch wird Liquidität eher umgerührt als gespalten.'
+  },
+  {
+    id: 'breakeven-knife', index: 2, name: 'Break-even-Butterbrotmesser', pixelKey: 'breakeven-knife',
+    minReturn: 0, minProfitFactor: 1, minRecovery: 0.25,
+    description: 'Schneidet bereits durch die Nulllinie, aber noch nicht durch dicke Trends.'
+  },
+  {
+    id: 'candle-dagger', index: 3, name: 'Kerzendolch', pixelKey: 'candle-dagger',
+    minReturn: 3, minProfitFactor: 1.15, minRecovery: 0.5,
+    description: 'Grüne und rote Kerzen hinterlassen ein kontrolliertes Gesamtbild.'
+  },
+  {
+    id: 'trend-blade', index: 4, name: 'Trendklinge', pixelKey: 'trend-blade',
+    minReturn: 7, minProfitFactor: 1.3, minRecovery: 0.8,
+    description: 'Folgt dem Trend, ohne jedem Docht hinterherzuspringen.'
+  },
+  {
+    id: 'drawdown-tamer', index: 5, name: 'Drawdown-Bändiger', pixelKey: 'drawdown-tamer',
+    minReturn: 12, minProfitFactor: 1.5, minRecovery: 1.2,
+    description: 'Verlustphasen sind noch da, bestimmen aber nicht mehr die Reise.'
+  },
+  {
+    id: 'patience-rune', index: 6, name: 'Runenschwert der Geduld', pixelKey: 'patience-rune',
+    minReturn: 20, minProfitFactor: 1.8, minRecovery: 2,
+    description: 'Die stärkste Rune ist nicht Tempo, sondern Geduld mit Risikokontrolle.'
+  },
+  {
+    id: 'market-splitter', index: 7, name: 'Bullen-und-Bären-Spalter', pixelKey: 'market-splitter',
+    minReturn: 35, minProfitFactor: 2.1, minRecovery: 3,
+    description: 'Beide Marktseiten werden beherrscht, ohne den Drawdown zu entfesseln.'
+  },
+  {
+    id: 'sacred-candle-blade', index: 8, name: 'Heilige Klinge der grünen Kerze', pixelKey: 'sacred-candle-blade',
+    minReturn: 60, minProfitFactor: 2.5, minRecovery: 5,
+    description: 'Krone, Aura und Funken: Das absichtlich seltene persönliche Maximallevel.'
+  }
+];
+
+function effectiveRecovery(metrics) {
+  if (metrics && metrics.recoveryFactor !== null && metrics.recoveryFactor !== undefined) {
+    return metrics.recoveryFactor;
+  }
+  return metrics && metrics.maxDrawdown === 0 && metrics.totalPnl > 0 ? Infinity : null;
+}
+
+function meetsTradingLevel(metrics, level) {
+  if (!level.minProfitFactor) return true;
+  const recovery = effectiveRecovery(metrics);
+  return typeof metrics.rendite === 'number' && metrics.rendite >= level.minReturn &&
+    typeof metrics.profitFactor === 'number' && metrics.profitFactor >= level.minProfitFactor &&
+    typeof recovery === 'number' && recovery >= level.minRecovery;
+}
+
+function levelRequirements(level) {
+  if (!level.minProfitFactor) return ['20 geschlossene Trades', 'Startkapital hinterlegt'];
+  return [
+    'Rendite ≥ ' + level.minReturn + ' %',
+    'Profit Factor ≥ ' + level.minProfitFactor,
+    'Recovery Factor ≥ ' + level.minRecovery + ' (inkl. Drawdown)'
+  ];
+}
+
+function progressToLevel(metrics, target) {
+  const recovery = effectiveRecovery(metrics);
+  const positiveProgress = (value, goal) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return 0;
+    if (goal === 0) return value >= 0 ? 1 : 0;
+    return Math.max(0, Math.min(1, value / goal));
+  };
+  const parts = [
+    positiveProgress(metrics.rendite, target.minReturn),
+    positiveProgress(metrics.profitFactor, target.minProfitFactor),
+    positiveProgress(recovery, target.minRecovery)
+  ];
+  return Math.min(99, Math.floor(Math.min(...parts) * 100));
+}
+
+// Das Level ist bewusst ein persoenliches Gimmick und kein Benchmark. Keine
+// einzelne Rendite kann ein hohes Level freischalten: alle Risikokriterien
+// der Stufe muessen gleichzeitig erfuellt sein.
+export function computeTradingLevel(metrics) {
+  const source = metrics || {};
+  const count = Number(source.count) || 0;
+  const capital = Number(source.capital) || 0;
+  if (capital <= 0 || count < 20) {
+    const reason = capital <= 0 ? 'capital' : 'sample';
+    return {
+      id: 'calibration', index: 0, name: 'Schmiede im Pre-Opening',
+      pixelKey: 'calibration', calibrating: true, reason,
+      description: reason === 'capital'
+        ? 'Für ein Rendite-Level fehlt noch das Startkapital.'
+        : 'Ab 20 geschlossenen Trades wird das erste persönliche Level berechnet.',
+      progress: reason === 'sample' ? Math.min(99, Math.floor(count / 20 * 100)) : 0,
+      next: { name: TRADING_LEVELS[0].name, requirements: levelRequirements(TRADING_LEVELS[0]) }
+    };
+  }
+
+  let current = TRADING_LEVELS[0];
+  for (let index = 1; index < TRADING_LEVELS.length; index++) {
+    if (meetsTradingLevel(source, TRADING_LEVELS[index])) current = TRADING_LEVELS[index];
+  }
+  const nextLevel = TRADING_LEVELS[current.index] || null;
+  return {
+    id: current.id,
+    index: current.index,
+    name: current.name,
+    pixelKey: current.pixelKey,
+    calibrating: false,
+    reason: null,
+    description: current.description,
+    progress: nextLevel ? progressToLevel(source, nextLevel) : 100,
+    next: nextLevel ? {
+      name: nextLevel.name,
+      requirements: levelRequirements(nextLevel)
+    } : null
+  };
+}
+
+// Liefert den vollstaendigen Levelpfad fuer das Arsenal. Der Status entsteht
+// ausschliesslich aus aktuellem und historisch hoechstem persoenlichen Level;
+// die Ansicht ist kein Auswahlmenue und kann das berechnete Level nicht aendern.
+export function computeTradingLevelCatalog(metrics, recordIndex = 0) {
+  const current = computeTradingLevel(metrics);
+  const highestReached = Math.max(current.index, Number(recordIndex) || 0);
+  const calibration = {
+    id: 'calibration', index: 0, name: 'Schmiede im Pre-Opening',
+    pixelKey: 'calibration',
+    description: 'Die Datenbasis und das Startkapital werden für die erste Einstufung vorbereitet.'
+  };
+  return [calibration, ...TRADING_LEVELS].map(level => ({
+    id: level.id,
+    index: level.index,
+    name: level.name,
+    pixelKey: level.pixelKey,
+    description: level.description,
+    requirements: levelRequirements(level),
+    status: level.index === current.index
+      ? 'current'
+      : (level.index <= highestReached ? 'reached' : 'locked')
+  }));
+}
+
+// Der Rekord wird aus historischen Zwischenstaenden neu abgeleitet. Dadurch
+// braucht das Gimmick kein zusaetzliches gespeichertes Datenfeld und bleibt
+// nach Importen oder Korrekturen konsistent mit den tatsaechlichen Trades.
+export function computeTradingLevelRecord(trades, options = {}) {
+  const currentMetrics = computeTradingMetrics(trades, options);
+  const current = computeTradingLevel(currentMetrics);
+  const from = String(options.from || '');
+  const to = String(options.to || '');
+  const dates = [...new Set((Array.isArray(trades) ? trades : [])
+    .map(trade => String(trade && trade.date || '').slice(0, 10))
+    .filter(date => utcDateFromKey(date) && (!from || date >= from) && (!to || date <= to)))]
+    .sort((a, b) => a.localeCompare(b));
+
+  let record = computeTradingLevel({ count: 0, capital: options.capital });
+  let recordDate = null;
+  let previousLevelId = null;
+  const timeline = [];
+  dates.forEach(date => {
+    const metrics = computeTradingMetrics(trades, {
+      from,
+      to: date,
+      capital: options.capital
+    });
+    const level = computeTradingLevel(metrics);
+    if (level.id !== previousLevelId) {
+      timeline.push({ date, level });
+      previousLevelId = level.id;
+    }
+    if (level.index > record.index) {
+      record = level;
+      recordDate = date;
+    }
+  });
+  if (record.index === 0 && current.index === 0) record = current;
+  const catalog = computeTradingLevelCatalog(currentMetrics, record.index);
+  return { current, record, recordDate, timeline, catalog, metrics: currentMetrics };
+}
+
+// ------------------------------------------------------------
 // Baut die Equity-Kurve aus geschlossenen Trades pro Handelstag auf.
 // Drawdown ist der Abstand zum bis dahin hoechsten Tagesendstand. Absolute
 // Werte funktionieren immer; Prozentwerte brauchen bewusst ein Startkapital,

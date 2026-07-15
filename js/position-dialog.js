@@ -6,6 +6,7 @@
 
 import { TAX_RATE } from './config.js';
 import { $, fmtDE, fmtPlain, toLocalDateStr } from './helpers.js';
+import { openAccessibleDialog, closeAccessibleDialog } from './dialog-accessibility.js';
 
 export function readClosePositionForm() {
   return {
@@ -47,11 +48,11 @@ export function openClosePositionDialog(lots, preferredDate = '') {
   $('cp-tax').value = '';
   delete $('cp-tax').dataset.touched;
   updateClosePreview();
-  $('close-pos-overlay').classList.add('open');
+  openAccessibleDialog('close-pos-overlay');
 }
 
 export function closeClosePositionDialog() {
-  $('close-pos-overlay').classList.remove('open');
+  closeAccessibleDialog('close-pos-overlay');
 }
 
 export function setCloseTotalLoss() {

@@ -7,6 +7,7 @@
 
 import { $, escapeHtml, fmtDE } from './helpers.js';
 import { filterTrades, holdMinutes, tradeDirection } from './views.js';
+import { openAccessibleDialog, closeAccessibleDialog } from './dialog-accessibility.js';
 
 export function readTradeSearchFilters() {
   return {
@@ -38,7 +39,7 @@ function searchHoldLabel(trade) {
 }
 
 export function closeTradeSearch() {
-  $('search-overlay').classList.remove('open');
+  closeAccessibleDialog('search-overlay');
 }
 
 export function renderTradeSearch(trades, onShowDetail) {
@@ -90,9 +91,8 @@ export function renderTradeSearch(trades, onShowDetail) {
 }
 
 export function openTradeSearchDialog(trades, onShowDetail) {
-  $('search-overlay').classList.add('open');
   renderTradeSearch(trades, onShowDetail);
-  setTimeout(() => $('search-query').focus(), 0);
+  openAccessibleDialog('search-overlay', 'search-query');
 }
 
 export function resetTradeSearchDialog(trades, onShowDetail) {

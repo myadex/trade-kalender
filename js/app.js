@@ -2083,33 +2083,6 @@ function bootApp() {
   // Drive bleibt wegen des bewusst interaktiven OAuth-Dialogs auf dem Login.
   resumeStoredMode();
 
-  // Register service worker with automatic update + reload
-  if ('serviceWorker' in navigator) {
-    let refreshing = false;
-    // When a new SW takes control, reload the page once automatically
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      window.location.reload();
-    });
-    navigator.serviceWorker.register('./sw.js').then(reg => {
-      // Check for updates on load
-      reg.update().catch(() => {});
-      // And check again every time the app regains focus
-      window.addEventListener('focus', () => reg.update().catch(() => {}));
-      // If an updated SW is found, let it activate immediately
-      reg.addEventListener('updatefound', () => {
-        const nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener('statechange', () => {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            // new version ready -> skipWaiting in SW triggers controllerchange -> auto reload
-            nw.postMessage && nw.postMessage('skipWaiting');
-          }
-        });
-      });
-    }).catch(() => {});
-  }
 }
 
 // ES-Module laufen "deferred" — d.h. DOMContentLoaded kann schon vorbei sein,

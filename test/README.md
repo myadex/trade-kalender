@@ -10,7 +10,7 @@ npm ci
 ```
 
 Das legt `node_modules/` im Projektordner an (in `.gitignore` aufnehmen).
-`require('acorn')` in test_pwa.js findet sie automatisch über die
+`require('acorn')` in test_pwa.cjs findet sie automatisch über die
 Node-Auflösung (test/ -> Projektroot).
 
 ## Ausführen (aus dem Projekt-Root)
@@ -32,8 +32,8 @@ Stand reproduzierbar mit `npm ci`.
 1b. **Modul-Verträge** — jeder `import { X } from './y.js'` hat ein
     passendes `export` (per AST; fängt Teil-Deploy-Fehler)
 2.  **ID-Referenzen** — im Code benutzte Element-IDs existieren im HTML
-3.  **Event-Handler** — Inline-Handler aus dem HTML sind auf `window`
-    exponiert (ES-Modul-Pflicht)
+3.  **Event-Handler** — keine Inline-Handler; UI-Ereignisse werden zentral
+    per `addEventListener` verdrahtet und nicht global auf `window` exponiert
 4.  **CSS-Reihenfolge** — Desktop-Regeln vor Mobile-Media-Query
 5.  **Bekannte-Bugs-Sperre** — je gefixter Bug ein Verbots-Check
     (kein toISOString fürs Datum, kein Math.abs(tax) in P&L, ...)
@@ -49,7 +49,7 @@ Stand reproduzierbar mit `npm ci`.
 
 ## Dateien
 
-- `test_pwa.js`   der Harness (Node, kein Framework)
+- `test_pwa.cjs`  der CommonJS-Harness (Node, kein Framework)
 - `gold_rows.json` synthetische Referenz-Rohdaten (19 Buy/Sell-Zeilen)
 - `golden.json`    von Hand verifizierte synthetische Soll-Werte
 
@@ -63,5 +63,6 @@ Stand reproduzierbar mit `npm ci`.
 4. Golden Values werden NIE angepasst, um grün zu werden — weicht die
    Rechnung ab, sind Code und fachliche Handrechnung zu prüfen. Persönliche
    Broker-Exporte dürfen nie als Test-Fixture eingecheckt werden.
-5. Versionsbump-Pflicht: APP_VERSION (js/config.js) == CACHE (sw.js),
-   der Check erzwingt es.
+5. Versionsbump-Pflicht: HTML-Anzeige und Modul-URL == APP_VERSION
+   (js/config.js) == RELEASE (sw-register.js) == CACHE (sw.js); der Check
+   erzwingt es.

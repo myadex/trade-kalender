@@ -1,10 +1,11 @@
-const CACHE = 'trade-kalender-v72';
+const CACHE = 'trade-kalender-v77';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
+  './sw-register.js',
   './js/app.js',
   './js/app-data.js',
   './js/backup-crypto.js',
@@ -42,6 +43,36 @@ self.addEventListener('activate', e => {
   );
 });
 
+function isUsableAppShellResponse(request, response) {
+  if (!response) return false;
+  const pathname = new URL(request.url).pathname.toLowerCase();
+  if (!pathname.endsWith('.js')) return true;
+  const contentType = String(response.headers.get('content-type') || '')
+    .split(';')[0].trim().toLowerCase();
+  return contentType === 'text/javascript' ||
+    contentType === 'application/javascript' ||
+    contentType === 'text/ecmascript' ||
+    contentType === 'application/ecmascript';
+}
+
+async function appShellResponse(request) {
+  const cached = await caches.match(request, { ignoreSearch: true });
+  if (isUsableAppShellResponse(request, cached)) return cached;
+
+  // Ein lokaler Entwicklungsserver kann .js versehentlich als text/plain
+  // ausliefern. Solch ein Eintrag darf nicht dauerhaft den Modulstart
+  // blockieren: online neu laden und den kanonischen Cache-Key reparieren.
+  const network = await fetch(request);
+  if (network.ok && isUsableAppShellResponse(request, network)) {
+    const cache = await caches.open(CACHE);
+    const canonicalUrl = new URL(request.url);
+    canonicalUrl.search = '';
+    canonicalUrl.hash = '';
+    await cache.put(canonicalUrl.href, network.clone());
+  }
+  return network;
+}
+
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = e.request.url;
@@ -56,13 +87,18 @@ self.addEventListener('fetch', e => {
     e.respondWith(fetch(e.request).catch(() => caches.match('./index.html')));
     return;
   }
-  // JS-Module, index.html, sw.js und root: immer network-first, damit Updates sofort greifen
+  // Die App-Shell ist durch den versionsgebundenen CACHE atomar. Deshalb muss
+  // ein bereits gecachtes Modul ohne jeden Netzversuch starten koennen. Neue
+  // Versionen kommen weiterhin ueber den Browser-SW-Updatecheck und einen neuen
+  // CACHE-Namen; network-first wuerde den Offline-Start unnoetig gefaehrden.
   if (url.includes('/js/') || url.endsWith('.js') || url.endsWith('index.html') || url.endsWith('sw.js') || url.endsWith('/trade-kalender/')) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    e.respondWith(
+      appShellResponse(e.request)
+    );
     return;
   }
   // Everything else: cache-first with network fallback
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => cached))
+    caches.match(e.request, { ignoreSearch: true }).then(cached => cached || fetch(e.request))
   );
 });

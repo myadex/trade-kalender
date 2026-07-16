@@ -133,6 +133,22 @@ Worker-Install vorgeladen. Offline kann eine Navigation daher die vorhandene
 `index.html` anzeigen. Der lokale Modus kann danach seine IndexedDB-Daten ohne
 Netz verwenden. Google-Anmeldung, Drive-Daten und Google-Fonts bleiben bewusst
 online-only; ohne Netz ist kein Drive-Login oder Drive-Synchronisieren möglich.
+Die versionsgebundenen lokalen App-Module werden Cache-first geladen; ein
+App-Update aktiviert jeweils einen neuen Service-Worker-Cache. Ein alter
+JavaScript-Cacheeintrag mit falschem MIME-Typ wird beim naechsten Online-Laden
+erkannt und durch eine gueltige Serverantwort ersetzt. Die Service-Worker-
+Registrierung liegt dafuer in einem kleinen unabhaengigen Starter, sodass ein
+defekter `app.js`-Cache seine eigene Reparatur nicht blockieren kann. Seit v77
+prueft dieser Starter den echten Server getrennt vom aktiven Service Worker.
+Liefert nur dessen Cache noch `text/plain`, entfernt er ausschliesslich alte
+`trade-kalender-*`-App-Shell-Caches und laedt neu. IndexedDB-, Local-Storage-
+und Drive-Daten bleiben dabei unangetastet.
+
+VS Code Live Server fuegt fuer Live-Reload ein Inline-Skript in `index.html`
+ein. Die absichtlich strenge CSP blockiert dieses Fremdskript; die zugehoerige
+Konsolenmeldung betrifft nur Live-Reload und ist kein App-Fehler. Fuer einen
+ruhigen Konsolenlauf sollte ein statischer Server ohne HTML-Injektion verwendet
+werden. `unsafe-inline` wird dafuer bewusst nicht freigeschaltet.
 
 ## Weiterentwicklung
 

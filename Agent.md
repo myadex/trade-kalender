@@ -28,6 +28,7 @@ js/storage-migration.js Vergleich und sicherer Speicherwechsel (pure)
 js/storage-migration-dialog.js Lokaler-Stand-vs.-Drive-Dialog
 js/app.js       UI-Verdrahtung, Rendering, Auth-Flow
 sw.js           Service Worker (CACHE-Name = Version)
+sw-register.js  Unabhaengiger SW-Update-Starter vor dem Hauptmodul
 test/           Test-Harness (siehe test/README.md)
 ```
 
@@ -38,7 +39,9 @@ test/           Test-Harness (siehe test/README.md)
 3. **Logik pure, I/O getrennt.** Berechnung/Parsing/Validierung als pure functions in views/fifo/import/storage — Daten und Abhängigkeiten als Parameter, kein DOM, kein globaler Zustand. DOM-Code bleibt in den UI-Modulen; `app.js` verbindet sie mit State und I/O.
 4. **Kleine Etappen.** Umbauten in einzeln getestete Schritte zerlegen; bei Richtungsentscheidungen Optionen anbieten (klein/sicher vs. groß/gründlich). Im Zweifel: klein.
 5. **Root Cause.** Bugs erst mechanistisch erklären, dann fixen. Umgebungsabhängige Fixes (Zeitzone, Locale) in mehreren Umgebungen beweisen, sonst gilt: nicht gefixt.
-6. **Version:** Jede Lieferung bumpt `APP_VERSION` in js/config.js **UND** `CACHE` in sw.js — Gleichheit ist testerzwungen.
+6. **Version:** Jede Lieferung bumpt die statische HTML-Anzeige, die
+   Hauptmodul-URL, `APP_VERSION` in js/config.js, `RELEASE` in sw-register.js
+   **UND** `CACHE` in sw.js — Gleichheit ist testerzwungen.
 7. **Ehrlicher Bericht:** geändert / verifiziert (Zahlen) / bekannte Grenzen.
 
 ## Golden Values (testerzwungen — niemals „anpassen", um grün zu werden)
@@ -93,6 +96,18 @@ als Test-Fixture eingecheckt werden.
 - **Verschluesselte Backups:** Passphrasen werden nie gespeichert. Dateien nur
   ueber `backup-crypto.js` entschluesseln, Format und App-Daten vor Mutation
   validieren und den aktuellen Stand vor Restore als Safety-Snapshot sichern.
+- **PWA-App-Shell:** Vorab gecachte lokale ES-Module werden Cache-first geladen.
+  Updates laufen ueber die gemeinsame neue App-/Cache-Version. Network-first
+  fuer `js/app.js` kann den kompletten Offline-Start verhindern und ist durch
+  einen ausgefuehrten Service-Worker-Test gesperrt. JavaScript-Antworten mit
+  `text/plain` duerfen weder als brauchbarer Cache gelten noch erneut
+  persistiert werden; der Online-Pfad repariert solche Alt-Eintraege. Der
+  Starter darf dabei nur versionsgebundene `trade-kalender-*`-Caches loeschen,
+  nie IndexedDB oder andere Nutzerdaten, und erst nachdem eine direkte HEAD-
+  Anfrage korrektes JavaScript vom Server bestaetigt hat.
+- **Live-Server-CSP:** VS Code Live Server injiziert ein Inline-Skript fuer
+  Live-Reload. Dass die CSP dieses Skript blockiert, ist beabsichtigt und kein
+  Grund fuer `unsafe-inline`, Nonces oder wechselnde Development-Hashes.
 - **Skript-Einfügungen:** Rückgabewerte von find/match IMMER prüfen (`assert`) bevor sie weiterverwendet werden.
 
 ## Konventionen

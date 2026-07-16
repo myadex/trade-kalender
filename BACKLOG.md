@@ -372,8 +372,8 @@ Wartbarkeit bzw. Komfort.
 
 ### PWA im echten Browser offline pruefen
 
-- **Status:** Teilweise im echten Browser geprueft; vollstaendiger
-  Offline-Reload bleibt offen.
+- **Status:** Offline-Modulfehler in v74 behoben; manueller Nachtest des
+  vollstaendigen Offline-Reloads bleibt offen.
 - **Verifiziert:** Manifest, Service-Worker-Registrierung, App-Shell-Cache und
   Navigations-Fallback sind im Browser vorhanden. Google-Anmeldung und
   Drive-Synchronisierung bleiben bewusst onlineabhaengig. Der lokale Modus
@@ -385,6 +385,44 @@ Wartbarkeit bzw. Komfort.
   vor dem ES-Modul fertig sein und `gisLoaded is not defined` ausloesen. Der
   HTML-Callback ist jetzt fruehstart-sicher; die vorhandene Modulpruefung holt
   die Auth-Initialisierung weiterhin nach.
+- **Offline-Fund in v74 behoben:** Lokale ES-Module wurden trotz installiertem
+  App-Shell-Cache zuerst aus dem Netz angefordert. Im Offline-Modus konnte der
+  fehlgeschlagene Service-Worker-Pfad dadurch fuer `js/app.js` eine ungueltige
+  Antwort liefern und den gesamten Modulstart verhindern. Vorab gecachte,
+  versionsgebundene App-Dateien werden jetzt Cache-first und ohne Netzversuch
+  ausgeliefert; Suchparameter werden beim Cacheabgleich ignoriert. Updates
+  bleiben ueber den neuen Cache-Namen jeder App-Version atomar.
+- **Sicherung:** Ein isolierter Service-Worker-Test simuliert vorhandenen Cache
+  und ausgefallenes Netz. Er erzwingt, dass `js/app.js` aus dem Cache kommt und
+  kein Fetch gestartet wird. Der alte Network-first-Code macht diesen Test
+  reproduzierbar rot.
+- **Startdiagnose in v75:** Login und App-Header enthalten die Versionsnummer
+  bereits statisch im HTML. So bleibt der geladene App-Shell-Stand auch dann
+  erkennbar, wenn das Hauptmodul nicht startet. Der Modul-Boot ueberschreibt
+  denselben Wert weiterhin; Tests erzwingen die Gleichheit von HTML,
+  `APP_VERSION` und Service-Worker-Cache.
+- **MIME-Reparatur in v76:** Ein zuvor von einem ungeeigneten lokalen Server
+  als `text/plain` gecachtes JavaScript-Modul wird nicht mehr blind
+  ausgeliefert. Der Service Worker validiert JavaScript-Content-Types, laedt
+  einen unbrauchbaren Cache-Eintrag online neu und ersetzt den kanonischen
+  Cache-Key nur mit einer gueltigen JavaScript-Antwort. Offline bleibt ein
+  bereits gueltiger Cache weiterhin vollstaendig ohne Netzversuch nutzbar.
+- **Unabhaengiger Wiederanlauf in v76:** `sw-register.js` wird vor dem
+  Hauptmodul geladen und enthaelt ausschliesslich Registrierung und Update des
+  Service Workers. Weil ein alter Cache diese neue Datei nicht kennt, kann sie
+  online vom Server kommen und den reparierenden Worker installieren, selbst
+  wenn der alte `app.js`-Eintrag wegen seines MIME-Typs nicht startet.
+- **Gezielte Alt-Cache-Reparatur in v77:** Der unabhaengige Starter prueft den
+  echten Server per nicht vom Worker behandelter HEAD-Anfrage und vergleicht
+  sie mit dem durch den aktiven Worker laufenden Modulabruf. Nur wenn der Server
+  korrektes JavaScript und der Altpfad weiterhin `text/plain` liefert, werden
+  ausschliesslich `trade-kalender-*`-Caches entfernt und die Seite einmal neu
+  geladen. IndexedDB-, Local-Storage- und Drive-Daten bleiben erhalten. Der
+  Service-Worker-Updatecheck umgeht dabei den HTTP-Cache explizit.
+- **Entwicklungsserver-Grenze:** VS Code Live Server injiziert ein Inline-
+  Live-Reload-Skript, das die produktionsnahe CSP absichtlich blockiert. Die
+  Meldung ist kein App-Skriptfehler; `unsafe-inline` oder ein wechselnder Hash
+  werden dafuer nicht in die CSP aufgenommen.
 - **Ziel:** Installieren, offline navigieren, Service-Worker-Update und erneute
   Online-Synchronisierung in einem echten Browser testen.
 
@@ -401,11 +439,15 @@ Wartbarkeit bzw. Komfort.
 
 ### Node-ESM-Warnung im Testlauf beseitigen
 
-- **Status:** Offen.
-- **Warum:** Die dynamisch importierten Browser-Module verursachen aktuell eine
-  harmlose Node-Warnung zur automatischen ESM-Erkennung.
-- **Ziel:** Test-Harness und Paketmetadaten ohne Warnung kompatibel machen, ohne
-  den CommonJS-Harness zu brechen.
+- **Status:** Erledigt in v73.
+- **Loesung:** `package.json` kennzeichnet die Browserdateien explizit als
+  ES-Module. Der bestehende Node-Harness bleibt durch die Endung `.cjs`
+  eindeutig CommonJS und kann seine bisherigen `require(...)`-Abhaengigkeiten
+  unveraendert verwenden.
+- **Sicherung:** Der Standardtest erzwingt Pakettyp, Harness-Endung und
+  Testkommando gemeinsam. Ein Gegenlauf ohne `type: module` macht den Check rot
+  und reproduziert die `MODULE_TYPELESS_PACKAGE_JSON`-Warnung; der finale
+  Komplettlauf ist warnungsfrei.
 
 ### UI-Controller weiter aufteilen
 

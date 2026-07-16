@@ -1,8 +1,9 @@
 {
   "name": "trade-kalender",
   "private": true,
+  "type": "module",
   "scripts": {
-    "test": "node test/test_pwa.js"
+    "test": "node test/test_pwa.cjs"
   },
   "engines": {
     "node": ">=24"

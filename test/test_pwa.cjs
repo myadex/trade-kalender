@@ -3,6 +3,7 @@ const fs = require('fs');
 const { JSDOM } = require('jsdom');
 const acorn = require('acorn');
 const { execFileSync } = require('child_process');
+const vm = require('vm');
 
 const DIR = __dirname + '/..';
 let pass = 0, fail = 0;
@@ -96,7 +97,17 @@ const swPath = DIR + '/sw.js';
 const hasRootServiceWorker = fs.existsSync(swPath);
 check('Service Worker liegt im Projekt-Root', hasRootServiceWorker);
 const swJs = hasRootServiceWorker ? fs.readFileSync(swPath, 'utf8') : '';
+const swRegisterPath = DIR + '/sw-register.js';
+const swRegisterJs = fs.existsSync(swRegisterPath)
+  ? fs.readFileSync(swRegisterPath, 'utf8')
+  : '';
 const html = fs.readFileSync(DIR + '/index.html', 'utf8');
+check('PWA: unabhaengiger SW-Starter kann einen kaputten App-Modulcache erneuern',
+  fs.existsSync(swRegisterPath) &&
+  html.indexOf('src="sw-register.js"') >= 0 &&
+  html.indexOf('src="sw-register.js"') < html.indexOf('src="js/app.js') &&
+  swRegisterJs.includes('navigator.serviceWorker.register(SERVICE_WORKER_URL') &&
+  !appControllerJs.includes("navigator.serviceWorker.register('./sw.js')"));
 const backlogPath = DIR + '/BACKLOG.md';
 const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8') : '';
 const readme = fs.readFileSync(DIR + '/README.md', 'utf8');
@@ -111,6 +122,9 @@ check('Dokumentation: lokaler Modus und verschluesselte Backups sind in v72 abge
   readme.includes('## Speichermodi ab v72') &&
   readme.includes('## Verschlüsselte Backup-Dateien ab v72') &&
   readme.includes('keinen automatischen Merge'));
+check('Backlog: Node-ESM-Warnung ist als warnungsfrei geloest dokumentiert',
+  /### Node-ESM-Warnung[\s\S]{0,150}\*\*Status:\*\* Erledigt in v73/.test(backlog) &&
+  backlog.includes('MODULE_TYPELESS_PACKAGE_JSON'));
 check('Verworfener CSV-Komplettneuaufbau ist nicht mehr ausfuehrbar',
   backlog.includes('### Legacy-Daten vollstaendig neu aufbauen') &&
   backlog.includes('**Status:** Verworfen') &&
@@ -120,8 +134,10 @@ check('Verworfener CSV-Komplettneuaufbau ist nicht mehr ausfuehrbar',
 if (hasRootServiceWorker) {
 try { acorn.parse(swJs, { ecmaVersion: 2020 }); check('sw.js parses', true); }
 catch (e) { check('sw.js parses (' + e.message + ')', false); }
+try { acorn.parse(swRegisterJs, { ecmaVersion: 2020 }); check('sw-register.js parses', true); }
+catch (e) { check('sw-register.js parses (' + e.message + ')', false); }
 const offlineAssets = [
-  './index.html', './manifest.json', './icon-192.png', './icon-512.png',
+  './index.html', './manifest.json', './icon-192.png', './icon-512.png', './sw-register.js',
   './js/app.js', './js/app-data.js', './js/backup-crypto.js', './js/config.js', './js/fifo.js', './js/helpers.js',
   './js/dialog-accessibility.js', './js/import-dialogs.js', './js/import.js', './js/navigation.js',
   './js/metrics-view.js', './js/position-dialog.js', './js/storage.js',
@@ -148,7 +164,11 @@ const workflow = fs.existsSync(workflowPath)
   ? fs.readFileSync(workflowPath, 'utf8')
   : '';
 check('Entwicklung: npm test ist der zentrale Testeinstieg',
-  packageJson.scripts && packageJson.scripts.test === 'node test/test_pwa.js');
+  packageJson.scripts && packageJson.scripts.test === 'node test/test_pwa.cjs');
+check('Entwicklung: Browsermodule sind explizit ESM und der Harness bleibt CommonJS',
+  packageJson.type === 'module' &&
+  packageJson.scripts && packageJson.scripts.test === 'node test/test_pwa.cjs' &&
+  fs.existsSync(DIR + '/test/test_pwa.cjs'));
 check('CI: reproduzierbare Installation ist durch Lockfile und npm ci festgelegt',
   fs.existsSync(lockPath) && /^\s+run: npm ci\s*$/m.test(workflow));
 check('CI: Tests laufen bei Push und Pull Request',
@@ -505,6 +525,151 @@ check('tax = ' + golden.tax + ' (got ' + taxSum + ')', Math.abs(taxSum - golden.
 // (nicht nur die nachgebaute Logik oben). Läuft asynchron via dynamic import.
 const realFifoCheck = (async () => {
   try {
+    const swHandlers = {};
+    const fakeModuleResponse = (source, contentType) => ({
+      source,
+      ok: true,
+      headers: { get: name => String(name).toLowerCase() === 'content-type' ? contentType : null },
+      clone() { return this; }
+    });
+    const cachedModuleResponse = fakeModuleResponse('app-shell-cache', 'application/javascript; charset=UTF-8');
+    let activeCachedModuleResponse = cachedModuleResponse;
+    let activeNetworkModuleResponse = null;
+    let offlineModuleFetches = 0;
+    let offlineModuleCacheOptions = null;
+    let repairedModuleCacheWrites = 0;
+    vm.runInNewContext(swJs, {
+      self: {
+        addEventListener: (name, handler) => { swHandlers[name] = handler; },
+        skipWaiting: () => Promise.resolve(),
+        clients: { claim: () => Promise.resolve() }
+      },
+      caches: {
+        match: async (_request, options) => {
+          offlineModuleCacheOptions = options || null;
+          return activeCachedModuleResponse;
+        },
+        open: async () => ({
+          addAll: async () => {},
+          put: async () => { repairedModuleCacheWrites++; }
+        }),
+        keys: async () => [],
+        delete: async () => true
+      },
+      fetch: async () => {
+        offlineModuleFetches++;
+        if (activeNetworkModuleResponse) return activeNetworkModuleResponse;
+        throw new Error('offline');
+      },
+      URL
+    });
+    let offlineModuleResponsePromise = null;
+    swHandlers.fetch({
+      request: {
+        method: 'GET', mode: 'cors',
+        url: 'http://127.0.0.1:5500/js/app.js'
+      },
+      respondWith: promise => { offlineModuleResponsePromise = Promise.resolve(promise); }
+    });
+    const offlineModuleResponse = await offlineModuleResponsePromise;
+    check('PWA: gecachtes Hauptmodul wird offline ohne Netzwerkversuch ausgeliefert',
+      offlineModuleResponse === cachedModuleResponse && offlineModuleFetches === 0);
+    check('PWA: App-Shell-Cache bleibt trotz URL-Suchparametern auffindbar',
+      offlineModuleCacheOptions && offlineModuleCacheOptions.ignoreSearch === true);
+
+    const poisonedModuleResponse = fakeModuleResponse('poisoned-cache', 'text/plain; charset=UTF-8');
+    const repairedModuleResponse = fakeModuleResponse('network-repair', 'application/javascript; charset=UTF-8');
+    activeCachedModuleResponse = poisonedModuleResponse;
+    activeNetworkModuleResponse = repairedModuleResponse;
+    offlineModuleFetches = 0;
+    repairedModuleCacheWrites = 0;
+    let repairedModuleResponsePromise = null;
+    swHandlers.fetch({
+      request: {
+        method: 'GET', mode: 'cors',
+        url: 'http://127.0.0.1:5500/js/app.js'
+      },
+      respondWith: promise => { repairedModuleResponsePromise = Promise.resolve(promise); }
+    });
+    const servedRepairedModule = await repairedModuleResponsePromise;
+    check('PWA: falscher JS-MIME-Typ im Cache wird online erkannt und repariert',
+      servedRepairedModule === repairedModuleResponse &&
+      offlineModuleFetches === 1 && repairedModuleCacheWrites === 1);
+
+    const runSwStarter = async contentType => {
+      const deletedCaches = [];
+      const sessionValues = new Map();
+      let reloads = 0;
+      let registeredUrl = null;
+      let registeredOptions = null;
+      let healthRequest = null;
+      let healthOptions = null;
+      vm.runInNewContext(swRegisterJs, {
+        navigator: {
+          onLine: true,
+          serviceWorker: {
+            addEventListener: () => {},
+            register: async (url, options) => {
+              registeredUrl = url;
+              registeredOptions = options;
+              return {
+                installing: null,
+                update: async () => {},
+                addEventListener: () => {}
+              };
+            }
+          }
+        },
+        window: {
+          addEventListener: () => {},
+          location: { reload: () => { reloads++; } }
+        },
+        sessionStorage: {
+          getItem: key => sessionValues.get(key) || null,
+          setItem: (key, value) => sessionValues.set(key, value)
+        },
+        caches: {
+          keys: async () => ['trade-kalender-v75', 'unrelated-cache'],
+          delete: async key => { deletedCaches.push(key); return true; }
+        },
+        fetch: async (url, options = {}) => {
+          const isServerProbe = options.method === 'HEAD';
+          if (!isServerProbe) {
+            healthRequest = url;
+            healthOptions = options;
+          }
+          return {
+            ok: true,
+            headers: {
+              get: name => String(name).toLowerCase() === 'content-type'
+                ? (isServerProbe ? 'application/javascript; charset=UTF-8' : contentType)
+                : null
+            }
+          };
+        }
+      });
+      await new Promise(resolve => setImmediate(resolve));
+      return {
+        deletedCaches, reloads, registeredUrl, registeredOptions,
+        healthRequest, healthOptions
+      };
+    };
+
+    const poisonedStarter = await runSwStarter('text/plain; charset=UTF-8');
+    check('PWA: Starter entfernt bei text/plain nur alte App-Shell-Caches und laedt neu',
+      poisonedStarter.deletedCaches.length === 1 &&
+      poisonedStarter.deletedCaches[0] === 'trade-kalender-v75' &&
+      poisonedStarter.reloads === 1 &&
+      poisonedStarter.registeredUrl === null &&
+      poisonedStarter.healthOptions && poisonedStarter.healthOptions.cache === 'reload');
+
+    const healthyStarter = await runSwStarter('application/javascript; charset=UTF-8');
+    check('PWA: Starter umgeht beim SW-Update den HTTP-Cache',
+      /\.\/sw\.js\?v=v\d+$/.test(healthyStarter.registeredUrl || '') &&
+      healthyStarter.registeredOptions && healthyStarter.registeredOptions.updateViaCache === 'none' &&
+      /\.\/js\/app\.js\?v=v\d+$/.test(healthyStarter.healthRequest || '') &&
+      healthyStarter.reloads === 0 && healthyStarter.deletedCaches.length === 0);
+
     const mod = await import('file://' + DIR + '/js/fifo.js');
     const { closed, openLots } = mod.fifoMatch(goldRows, [], true);
     const rPnl = +closed.reduce((s, t) => s + t.pnl, 0).toFixed(2);
@@ -2354,13 +2519,20 @@ console.log('\n=== 6d. VERSION ===');
 {
   const cfgMatch = appJs.match(/APP_VERSION\s*=\s*'([^']+)'/);
   const swMatch = swJs.match(/CACHE\s*=\s*'trade-kalender-(v\d+)'/);
+  const starterMatch = swRegisterJs.match(/RELEASE\s*=\s*'(v\d+)'/);
   const cfgVer = cfgMatch ? cfgMatch[1] : null;
   const swVer = swMatch ? swMatch[1] : null;
+  const starterVer = starterMatch ? starterMatch[1] : null;
   check('APP_VERSION in config.js gesetzt', !!cfgVer);
   check('SW Cache-Version gesetzt', !!swVer);
   check('APP_VERSION (' + cfgVer + ') == SW-Version (' + swVer + ')', cfgVer === swVer);
-  check('Version wird im Header angezeigt', html.includes('id="app-version"') && appJs.includes("$('app-version')"));
-  check('Version wird im Login angezeigt', html.includes('id="login-version"'));
+  check('SW-Starter und Hauptmodul-URL verwenden dieselbe Release-Version',
+    starterVer === cfgVer && html.includes('src="js/app.js?v=' + cfgVer + '"'));
+  check('Version bleibt im Header auch ohne gestartetes App-Modul sichtbar',
+    new RegExp('id="app-version"[^>]*>' + cfgVer + '<').test(html) &&
+    appJs.includes("$('app-version')"));
+  check('Version bleibt im Login auch ohne gestartetes App-Modul sichtbar',
+    new RegExp('id="login-version"[^>]*>Version ' + cfgVer + '<').test(html));
 }
 
 console.log('\n=== 7. DOM BEHAVIOR (jsdom) ===');

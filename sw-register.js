@@ -8,7 +8,7 @@
 (function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
-  const RELEASE = 'v79';
+  const RELEASE = 'v81';
   const SERVICE_WORKER_URL = `./sw.js?v=${RELEASE}`;
   const MAIN_MODULE_URL = `./js/app.js?v=${RELEASE}`;
   const APP_CACHE_PREFIX = 'trade-kalender-';
@@ -69,8 +69,16 @@
   }
 
   let refreshing = false;
+  let userInteractionStarted = false;
+  const markUserInteraction = () => { userInteractionStarted = true; };
+  window.addEventListener('pointerdown', markUserInteraction, { once: true, capture: true });
+  window.addEventListener('keydown', markUserInteraction, { once: true, capture: true });
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
+    // Ein Reload nach Beginn eines OAuth-Popups verwirft dessen nur im Speicher
+    // liegendes Token und erzwingt direkt eine zweite Anmeldung. Unberuehrte
+    // Starts duerfen fuer ein atomares Update weiter neu laden; nach der ersten
+    // Interaktion greift der neue Worker beim naechsten natuerlichen App-Start.
+    if (refreshing || userInteractionStarted) return;
     refreshing = true;
     window.location.reload();
   });

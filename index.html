@@ -24,6 +24,7 @@ body.dialog-open{overflow:hidden;}
 .login-actions{display:flex;flex-direction:column;align-items:stretch;gap:.65rem;width:min(340px,100%);}
 .gbtn{display:inline-flex;align-items:center;gap:.6rem;background:var(--green);color:#0a0e14;border:none;border-radius:8px;padding:.7rem 1.4rem;font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:500;letter-spacing:.04em;cursor:pointer;}
 .gbtn:hover{opacity:.88;}
+.gbtn:disabled,.gbtn:disabled:hover{opacity:.55;cursor:wait;}
 .gbtn.secondary{justify-content:center;background:transparent;color:var(--ink);border:1px solid var(--border);}
 .login-note{font-family:'JetBrains Mono',monospace;font-size:.58rem!important;line-height:1.5;}
 #login-status{min-height:1.1rem;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--red);}
@@ -160,59 +161,6 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .metrics-card-meta{font-family:'JetBrains Mono',monospace;font-size:.49rem;color:var(--muted);line-height:1.4;margin-top:.28rem;overflow-wrap:anywhere;}
 .metrics-note{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);line-height:1.5;margin-top:.7rem;}
 .metrics-empty{grid-column:1/-1;padding:1.2rem;text-align:center;border:1px dashed var(--border);border-radius:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.6rem;}
-.trading-level-card{margin:.9rem 0 1rem;border:1px solid var(--green-mid);border-radius:12px;padding:1rem;background:linear-gradient(135deg,var(--paper),var(--green-bg));overflow:hidden;}
-.trading-level-card[data-level="sacred-candle-blade"]{border-color:#fbbf24;background:radial-gradient(circle at 12% 28%,rgba(74,222,128,.2),transparent 28%),radial-gradient(circle at 88% 16%,rgba(251,191,36,.18),transparent 26%),linear-gradient(135deg,#101827,#172517);box-shadow:0 0 28px rgba(74,222,128,.2),inset 0 0 32px rgba(251,191,36,.08);}
-.trading-level-head{display:flex;align-items:flex-end;justify-content:space-between;gap:.8rem;margin-bottom:.85rem;}
-.trading-level-eyebrow{font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--green);text-transform:uppercase;letter-spacing:.09em;}
-.trading-level-period-label{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);margin-top:.18rem;}
-.trading-level-actions{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;justify-content:flex-end;}
-.trading-level-select{border:1px solid var(--green-mid);border-radius:7px;padding:.45rem .6rem;background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:.58rem;}
-.level-arsenal-btn{border-color:var(--green-mid);color:var(--green);}
-.trading-level-body{display:grid;grid-template-columns:112px minmax(0,1fr);gap:1rem;align-items:center;}
-.pixel-stage{width:112px;height:112px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:10px;background:rgba(10,14,20,.7);box-shadow:inset 0 0 24px rgba(0,0,0,.35);}
-.pixel-art{display:grid;grid-template-columns:repeat(16,6px);grid-template-rows:repeat(16,6px);gap:1px;width:max-content;height:max-content;image-rendering:pixelated;}
-.pixel-cell{display:block;width:6px;height:6px;}
-.pixel-cell.pixel-empty{background:transparent;}.pixel-cell.pixel-shadow{background:#334155;}.pixel-cell.pixel-wood{background:#a16207;}.pixel-cell.pixel-metal{background:#94a3b8;}.pixel-cell.pixel-iron{background:#64748b;}.pixel-cell.pixel-steel{background:#e2e8f0;}.pixel-cell.pixel-rune{background:#38bdf8;box-shadow:0 0 4px #38bdf8;}.pixel-cell.pixel-glow{background:#4ade80;box-shadow:0 0 6px #4ade80;animation:pixelPulse 1.8s ease-in-out infinite alternate;}.pixel-cell.pixel-crown{background:#fbbf24;box-shadow:0 0 7px #f59e0b;}.pixel-cell.pixel-spark{background:#fde68a;box-shadow:0 0 8px #fbbf24;animation:pixelSpark 1.25s steps(2,end) infinite alternate;}
-@keyframes pixelPulse{from{opacity:.55;transform:scale(.85);}to{opacity:1;transform:scale(1.15);}}
-@keyframes pixelSpark{from{opacity:.3;transform:translateY(1px) scale(.7);}to{opacity:1;transform:translateY(-1px) scale(1.25);}}
-.trading-level-name{font-family:'Chakra Petch',sans-serif;font-size:1.45rem;font-weight:700;letter-spacing:.04em;}
-.trading-level-description{font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);line-height:1.5;margin-top:.18rem;}
-.trading-level-progress-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-top:.7rem;}
-.trading-level-progress-label,.trading-level-record{font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--ink);}
-.trading-level-progress-track{height:7px;border-radius:999px;background:var(--border);overflow:hidden;margin-top:.3rem;}
-.trading-level-progress{height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--green-mid),var(--green));transition:width .25s ease;}
-.trading-level-next{font-family:'JetBrains Mono',monospace;font-size:.48rem;color:var(--muted);line-height:1.5;margin-top:.48rem;}
-.trading-level-timeline-section{margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--border);}
-.trading-level-timeline-head{display:flex;align-items:baseline;justify-content:space-between;gap:.7rem;margin-bottom:.55rem;}
-.trading-level-timeline-title{font-family:'Chakra Petch',sans-serif;font-size:.9rem;font-weight:600;letter-spacing:.03em;}
-.trading-level-timeline-sub{font-family:'JetBrains Mono',monospace;font-size:.46rem;color:var(--muted);}
-.trading-level-timeline{display:flex;gap:.55rem;overflow-x:auto;padding:.15rem .05rem .55rem;scroll-snap-type:x proximity;scrollbar-width:thin;}
-.trading-level-event{position:relative;flex:0 0 142px;scroll-snap-align:start;border:1px solid var(--border);border-radius:9px;padding:.55rem;background:rgba(10,14,20,.68);}
-.trading-level-event.current{border-color:var(--green-mid);box-shadow:inset 0 0 14px rgba(34,197,94,.08);}
-.timeline-pixel-stage{height:56px;display:flex;align-items:center;justify-content:center;margin-bottom:.35rem;}
-.timeline-pixel-art{display:grid;grid-template-columns:repeat(16,3px);grid-template-rows:repeat(16,3px);gap:0;width:48px;height:48px;image-rendering:pixelated;}
-.timeline-pixel-art .pixel-cell{width:3px;height:3px;animation:none;box-shadow:none;}
-.trading-level-event-date{font-family:'JetBrains Mono',monospace;font-size:.44rem;color:var(--muted);}
-.trading-level-event-name{font-family:'Chakra Petch',sans-serif;font-size:.72rem;font-weight:600;line-height:1.2;margin-top:.18rem;min-height:2.4em;}
-.trading-level-event-direction{display:inline-block;margin-top:.35rem;padding:.12rem .32rem;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.42rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);background:var(--border);}
-.trading-level-event.up .trading-level-event-direction{color:var(--green);background:var(--green-bg);}.trading-level-event.down .trading-level-event-direction{color:var(--amber);background:var(--amber-bg);}
-.trading-level-timeline-empty{width:100%;padding:.9rem;border:1px dashed var(--border);border-radius:8px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:.5rem;color:var(--muted);}
-.level-arsenal-modal{width:min(960px,100%);max-width:960px;max-height:88vh;overflow-y:auto;}
-.level-arsenal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border);}
-.level-arsenal-header h3{font-family:'Chakra Petch',sans-serif;font-size:1.35rem;letter-spacing:.04em;}
-.level-arsenal-header p{font-family:'JetBrains Mono',monospace;font-size:.52rem;color:var(--muted);line-height:1.45;margin-top:.2rem;}
-.level-arsenal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem;}
-.level-arsenal-card{min-width:0;border:1px solid var(--border);border-radius:10px;padding:.75rem;background:var(--bg);}
-.level-arsenal-card.current{border-color:var(--green);box-shadow:inset 0 0 20px rgba(34,197,94,.08);}.level-arsenal-card.reached{border-color:var(--blue);}.level-arsenal-card.locked{opacity:.72;}
-.level-arsenal-card[data-level="sacred-candle-blade"]{border-color:#fbbf24;background:radial-gradient(circle at 50% 18%,rgba(251,191,36,.14),transparent 35%),var(--bg);}
-.level-arsenal-pixel{display:grid;grid-template-columns:repeat(16,4px);grid-template-rows:repeat(16,4px);gap:0;width:64px;height:64px;margin:0 auto .55rem;image-rendering:pixelated;}
-.level-arsenal-pixel .pixel-cell{width:4px;height:4px;animation:none;}
-.level-arsenal-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:.4rem;}
-.level-arsenal-card-head h4{font-family:'Chakra Petch',sans-serif;font-size:.82rem;line-height:1.2;}
-.level-arsenal-status{flex-shrink:0;padding:.12rem .3rem;border-radius:4px;background:var(--border);color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.4rem;text-transform:uppercase;letter-spacing:.04em;}
-.level-arsenal-card.current .level-arsenal-status{color:var(--green);background:var(--green-bg);}.level-arsenal-card.reached .level-arsenal-status{color:var(--blue);background:var(--blue-bg);}
-.level-arsenal-description{font-family:'JetBrains Mono',monospace;font-size:.47rem;color:var(--muted);line-height:1.45;margin-top:.4rem;}
-.level-arsenal-requirements{font-family:'JetBrains Mono',monospace;font-size:.44rem;color:var(--ink);line-height:1.45;margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--border);}
 .equity-section{margin-bottom:0;padding-bottom:0;border-bottom:none;}
 .equity-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.55rem;margin-bottom:.8rem;}
 .equity-card{border:1px solid var(--border);border-radius:9px;padding:.65rem .7rem;background:var(--paper);min-width:0;}
@@ -291,9 +239,8 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .ts-on-table th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:.55rem;letter-spacing:.08em;padding:.35rem .5rem;border-bottom:1px solid var(--border);}
 .ts-on-table td{padding:.4rem .5rem;border-bottom:1px solid var(--border);color:var(--ink);}
 .ts-on-table td.r{text-align:right;}
-@media(max-width:900px){.metrics-grid{grid-template-columns:repeat(3,minmax(0,1fr));}.level-arsenal-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media (prefers-reduced-motion: reduce){.pixel-cell.pixel-glow,.pixel-cell.pixel-spark{animation:none;}.trading-level-progress{transition:none;}}
-@media(max-width:640px){.ts-block{flex-direction:column;align-items:flex-start;gap:.4rem;}.ts-block-label{flex:none;}.trading-level-head{align-items:stretch;flex-direction:column;}.trading-level-actions{display:grid;grid-template-columns:1fr auto;}.trading-level-select{width:100%;}.trading-level-body{grid-template-columns:1fr;}.pixel-stage{margin:0 auto;}.level-arsenal-grid{grid-template-columns:1fr;}.metrics-toolbar{align-items:stretch;flex-direction:column;}.metrics-range{display:grid;grid-template-columns:1fr 1fr;}.metrics-field input{width:100%;min-width:0;}.metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.equity-summary{grid-template-columns:repeat(2,minmax(0,1fr));}.equity-card:last-child{grid-column:1/-1;}.equity-chart{min-height:180px;}.equity-svg{min-height:170px;}.equity-card-value{font-size:.74rem;}}
+@media(max-width:900px){.metrics-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(max-width:640px){.ts-block{flex-direction:column;align-items:flex-start;gap:.4rem;}.ts-block-label{flex:none;}.metrics-toolbar{align-items:stretch;flex-direction:column;}.metrics-range{display:grid;grid-template-columns:1fr 1fr;}.metrics-field input{width:100%;min-width:0;}.metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.equity-summary{grid-template-columns:repeat(2,minmax(0,1fr));}.equity-card:last-child{grid-column:1/-1;}.equity-chart{min-height:180px;}.equity-svg{min-height:170px;}.equity-card-value{font-size:.74rem;}}
 .btn-del:hover{background:var(--red-bg);color:var(--red);}
 .btn-edit:hover{background:var(--blue-bg);color:var(--blue);}
 .add-day-btn{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;margin-top:.8rem;padding:.5rem;border:1px dashed var(--border);border-radius:6px;background:none;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:.64rem;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;}
@@ -531,10 +478,10 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   /* Touchziele nach WCAG und 16px-Eingaben gegen iOS-Zoom. */
   .btn,.gbtn,.detail-close,.btn-edit,.btn-del,.btn-close-pos,.btn-del-pos,.header-metric-action,
   .add-day-btn,.calendar-month-button,.ts-mode-btn,.stats-view-nav-btn,.search-result-open,
-  .period-review-select,.trading-level-select,.form-group input,
+  .period-review-select,.form-group input,
   .form-group select,.metrics-field input { min-height:44px; }
   .form-group input,.form-group select,.metrics-field input,
-  .period-review-select,.trading-level-select { font-size:16px; }
+  .period-review-select { font-size:16px; }
 }
 
 
@@ -547,12 +494,12 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <h1>Trade Kalender</h1>
   <p id="login-description">Waehle, wo deine Trades gespeichert werden. Du kannst einen lokalen Stand spaeter kontrolliert mit Google Drive verbinden.</p>
   <div class="login-actions" aria-describedby="login-description">
-    <button class="gbtn" id="btn-login" type="button">Mit Google Drive starten</button>
+    <button class="gbtn" id="btn-login" type="button" disabled aria-busy="true">Mit Google Drive starten</button>
     <button class="gbtn secondary" id="btn-local-mode" type="button">Nur auf diesem Ger&auml;t</button>
   </div>
   <p class="login-note">Lokale Daten verlassen dieses Ger&auml;t nicht. Gel&ouml;schte Browserdaten oder eine Deinstallation k&ouml;nnen sie jedoch entfernen.</p>
   <div id="login-status" role="status" aria-live="polite"></div>
-  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v79</div>
+  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v81</div>
 </div>
 
 <!-- APP -->
@@ -560,7 +507,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <div class="header">
     <div>
       <h1>Trade Kalender</h1>
-      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v79</span></p>
+      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v81</span></p>
     </div>
     <div class="header-summary" aria-label="Realisierte Gesamtergebnisse">
       <div class="header-metric header-metric-primary">
@@ -668,45 +615,6 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
         <h2 class="ts-title">Trading-Kennzahlen</h2>
         <div class="ts-sub">Klassische Kennzahlen auf Ebene einzelner geschlossener Trades</div>
       </div>
-      <section id="trading-level-card" class="trading-level-card" aria-labelledby="trading-level-name">
-        <div class="trading-level-head">
-          <div>
-            <div class="trading-level-eyebrow">Pers&ouml;nliches Trading-Level</div>
-            <div id="trading-level-period-label" class="trading-level-period-label"></div>
-          </div>
-          <div class="trading-level-actions">
-            <select id="trading-level-period" class="trading-level-select" aria-label="Zeitraum f&uuml;r Trading-Level">
-              <option value="season">Laufendes Kalenderjahr</option>
-              <option value="all">Gesamtzeitraum</option>
-            </select>
-            <button id="trading-level-arsenal-btn" type="button" class="btn level-arsenal-btn">Arsenal ansehen</button>
-          </div>
-        </div>
-        <div class="trading-level-body">
-          <div class="pixel-stage">
-            <div id="trading-level-art" class="pixel-art" role="img"></div>
-          </div>
-          <div>
-            <h3 id="trading-level-name" class="trading-level-name">Schmiede im Pre-Opening</h3>
-            <p id="trading-level-description" class="trading-level-description"></p>
-            <div class="trading-level-progress-row">
-              <span id="trading-level-progress-label" class="trading-level-progress-label"></span>
-              <span id="trading-level-record" class="trading-level-record"></span>
-            </div>
-            <div class="trading-level-progress-track" aria-hidden="true">
-              <div id="trading-level-progress" class="trading-level-progress"></div>
-            </div>
-            <p id="trading-level-next" class="trading-level-next"></p>
-          </div>
-        </div>
-        <div class="trading-level-timeline-section">
-          <div class="trading-level-timeline-head">
-            <h4 class="trading-level-timeline-title">Level-Zeitstrahl</h4>
-            <span class="trading-level-timeline-sub">Nur echte Wechsel nach realisiertem Tagesendstand</span>
-          </div>
-          <div id="trading-level-timeline" class="trading-level-timeline" aria-live="polite"></div>
-        </div>
-      </section>
       <div class="metrics-toolbar">
         <div class="metrics-range">
           <div class="metrics-field">
@@ -789,22 +697,6 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
     </div>
   </section>
 </div>
-</div>
-
-<!-- LEVEL-ARSENAL -->
-<div class="modal-overlay" id="trading-level-arsenal-overlay" role="dialog" aria-modal="true"
-  aria-labelledby="trading-level-arsenal-title">
-  <div class="modal level-arsenal-modal" tabindex="-1">
-    <div class="level-arsenal-header">
-      <div>
-        <h3 id="trading-level-arsenal-title">Level-Arsenal</h3>
-        <p>Alle neun Stufen, dein aktueller Stand und die jeweiligen Voraussetzungen.</p>
-      </div>
-      <button id="trading-level-arsenal-close" type="button" class="detail-close"
-        aria-label="Level-Arsenal schlie&szlig;en">&times;</button>
-    </div>
-    <div id="trading-level-arsenal-grid" class="level-arsenal-grid"></div>
-  </div>
 </div>
 
 <!-- TRADE SEARCH -->
@@ -1107,7 +999,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <!-- Der SW-Starter bleibt absichtlich unabhaengig vom Hauptmodul. So kann ein
      alter defekter app.js-Cache durch einen neuen Service Worker heilen. -->
 <script src="sw-register.js" defer></script>
-<script type="module" src="js/app.js?v=v79"></script>
+<script type="module" src="js/app.js?v=v81"></script>
 <!-- app.js behandelt beide async-Reihenfolgen per load-Listener und prueft
      zusaetzlich, ob Google GIS beim Boot bereits verfuegbar ist. -->
 <script id="google-gis-script" src="https://accounts.google.com/gsi/client" async defer></script>

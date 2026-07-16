@@ -36,9 +36,7 @@ import {
   openSafetyBackupDialog, closeSafetyBackupDialog, renderSafetyBackupDialog
 } from './safety-backup-dialog.js';
 import {
-  readTradingMetricRange, clearTradingMetricRange, renderTradingMetrics,
-  readTradingLevelPeriod, renderTradingLevel,
-  openTradingLevelArsenal, closeTradingLevelArsenal
+  readTradingMetricRange, clearTradingMetricRange, renderTradingMetrics
 } from './metrics-view.js';
 import {
   dayMap, deriveOpenPositions, fifoMatch, replayImportLedger,
@@ -66,7 +64,7 @@ import {
 } from './encrypted-backup-dialog.js';
 import {
   aggregateWeeks, aggregateMonths, computeStats, computeTradingMetrics,
-  computeTradingLevelRecord, computeEquityCurve,
+  computeEquityCurve,
   computeWeekdayStats, computeTimeStats, computeInsights, diagnoseBucket,
   computeMonthlyDiscipline,
   computePeriodReviews
@@ -81,6 +79,7 @@ import {
    ============================================================ */
 let tokenClient = null;
 let accessToken = null;
+let authRequestInProgress = false;
 let storageMode = null;
 let authIntent = 'open-drive';
 let localStoragePersistent = false;
@@ -110,15 +109,37 @@ function initAuth() {
     client_id: CLIENT_ID,
     scope: SCOPE,
     callback: (resp) => {
+      authRequestInProgress = false;
+      updateGoogleLoginState();
       if (resp.error) {
         reportAuthError('Login fehlgeschlagen: ' + resp.error);
         return;
       }
       accessToken = resp.access_token;
       onSignedIn();
+    },
+    error_callback: (error) => {
+      authRequestInProgress = false;
+      updateGoogleLoginState();
+      const message = error?.type === 'popup_closed'
+        ? 'Google-Anmeldung wurde abgebrochen.'
+        : 'Google-Anmeldung konnte nicht geoeffnet werden. Bitte erneut versuchen.';
+      reportAuthError(message);
     }
   });
-  $('btn-login').style.display = 'inline-block';
+  updateGoogleLoginState();
+}
+
+function updateGoogleLoginState() {
+  const button = $('btn-login');
+  if (!button) return;
+  button.disabled = !tokenClient || authRequestInProgress;
+  button.setAttribute('aria-busy', String(!tokenClient || authRequestInProgress));
+  button.textContent = !tokenClient
+    ? 'Google wird vorbereitet ...'
+    : authRequestInProgress
+      ? 'Google-Anmeldung laeuft ...'
+      : 'Mit Google Drive starten';
 }
 
 function signIn() {
@@ -133,7 +154,16 @@ function connectDrive() {
 
 function requestGoogleAccess() {
   if (!tokenClient) { reportAuthError('Auth noch nicht bereit, bitte neu laden.'); return; }
-  tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+  if (authRequestInProgress) return;
+  authRequestInProgress = true;
+  updateGoogleLoginState();
+  try {
+    tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+  } catch (error) {
+    authRequestInProgress = false;
+    updateGoogleLoginState();
+    reportAuthError('Google-Anmeldung konnte nicht gestartet werden: ' + error.message);
+  }
 }
 
 function setLoginStatus(message = '') {
@@ -176,11 +206,13 @@ function signOut() {
     google.accounts.oauth2.revoke(accessToken, () => {});
   }
   accessToken = null;
+  authRequestInProgress = false;
   driveFileId = null;
   driveEtag = null;
   storageMode = STORAGE_MODE_DRIVE;
   DATA = emptyData();
   showLogin();
+  updateGoogleLoginState();
 }
 
 async function onSignedIn() {
@@ -487,17 +519,6 @@ function buildTradingMetrics() {
 function resetTradingMetrics() {
   clearTradingMetricRange();
   buildTradingMetrics();
-}
-
-function buildTradingLevel() {
-  const mode = readTradingLevelPeriod();
-  const year = new Date().getFullYear();
-  const options = mode === 'season'
-    ? { from: year + '-01-01', to: year + '-12-31', capital: DATA.capital }
-    : { capital: DATA.capital };
-  renderTradingLevel(computeTradingLevelRecord(DATA.trades, options), {
-    periodLabel: mode === 'season' ? 'Saison ' + year : 'Gesamtzeitraum'
-  });
 }
 
 /* ============================================================
@@ -1871,7 +1892,6 @@ async function setCapital() {
   if (!(await persist()).ok) return;
   rebuildStats();
   buildTradingMetrics();
-  buildTradingLevel();
   buildEquityCurve();
 }
 
@@ -1898,7 +1918,6 @@ function rebuildAll() {
   buildMonthly();
   buildOpenPositions();
   buildTradingMetrics();
-  buildTradingLevel();
   buildEquityCurve();
   buildWeekdayStats();
   buildTimeStats();
@@ -1906,7 +1925,6 @@ function rebuildAll() {
 
 function closeDialogById(id) {
   const closers = {
-    'trading-level-arsenal-overlay': closeTradingLevelArsenal,
     'search-overlay': closeTradeSearch,
     'detail-overlay': closeDetail,
     'add-overlay': closeAddModal,
@@ -2043,10 +2061,6 @@ function bootApp() {
   bind('metrics-from', 'change', buildTradingMetrics);
   bind('metrics-to', 'change', buildTradingMetrics);
   bind('metrics-reset', 'click', resetTradingMetrics);
-  bind('trading-level-period', 'change', buildTradingLevel);
-  bind('trading-level-arsenal-btn', 'click', openTradingLevelArsenal);
-  bind('trading-level-arsenal-close', 'click', closeTradingLevelArsenal);
-  bindBackdrop('trading-level-arsenal-overlay', closeTradingLevelArsenal);
 
   bindMobileAction('btn-add-m', openAddModal);
   bind('btn-search-m', 'click', openTradeSearch);
@@ -2059,6 +2073,10 @@ function bootApp() {
   bindMobileAction('btn-reset-m', resetAllData);
 
   bind('google-gis-script', 'load', initAuthWhenReady);
+  bind('google-gis-script', 'error', () => {
+    reportAuthError('Google-Anmeldung konnte nicht geladen werden. Bitte Netzwerk pruefen und neu laden.');
+  });
+  updateGoogleLoginState();
   initAuthWhenReady();
   document.addEventListener('keydown', event => {
     if (handleAccessibleDialogKey(event, closeDialogById)) return;

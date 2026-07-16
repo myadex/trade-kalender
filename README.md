@@ -3,6 +3,12 @@
 Persönlicher Trade-Kalender als installierbare PWA. Die App läuft ohne
 Framework und ohne Build-Schritt direkt im Browser.
 
+## Sachlicher Kennzahlenbereich ab v81
+
+Der Kennzahlenbereich konzentriert sich ausschliesslich auf die messbaren
+Trading-Auswertungen. Spielerische Fortschrittskarten, Grafiken, Kataloge und
+Zeitstrahlen sind vollstaendig aus UI, Controller und Berechnungslogik entfernt.
+
 ## Kompakter Ergebnis-Header ab v78
 
 Der feste Kopfbereich zeigt nur noch das realisierte Gesamt-P&L (netto), die
@@ -12,6 +18,15 @@ auf jeder Ansicht Platz. Ein Klick auf die Rendite oeffnet weiterhin die
 Bearbeitung des Einstands, der als Nenner der Renditeberechnung dient.
 Seit v79 bleibt die Ergebniszeile auch im mobilen Spaltenlayout kompakt; die
 Desktop-Flexbasis wird dort nicht mehr als vertikale Hoehe uebernommen.
+
+## Stabiler Google-Start ab v80
+
+Der Drive-Button wird erst freigegeben, wenn Google Identity Services den
+Token-Client vollstaendig initialisiert hat. Eine laufende Token-Anfrage ist
+gegen Doppelklicks gesperrt und wird bei geschlossenem oder blockiertem Popup
+wieder sauber freigegeben. Ein Service-Worker-Wechsel darf nach der ersten
+Nutzerinteraktion keinen automatischen Reload mehr ausloesen; dadurch geht ein
+gerade erhaltenes, nur im Arbeitsspeicher liegendes Google-Token nicht verloren.
 
 ## Speichermodi ab v72
 

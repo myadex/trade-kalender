@@ -244,6 +244,16 @@ console.log('\n=== 1b. IMPORT/EXPORT-KONSISTENZ (Modul-Vertraege) ===');
     appControllerJs.includes('function initAuthWhenReady()') &&
     appControllerJs.includes('if (window.google && window.google.accounts && window.google.accounts.oauth2)') &&
     appControllerJs.includes('initAuthWhenReady();'));
+  const loginButton = new JSDOM(html).window.document.getElementById('btn-login');
+  check('Google-Auth: Login bleibt bis zum fertigen GIS-Client gesperrt',
+    loginButton?.disabled === true &&
+    appControllerJs.includes('function updateGoogleLoginState()') &&
+    appControllerJs.includes('button.disabled = !tokenClient || authRequestInProgress'));
+  check('Google-Auth: laufende Tokenanfrage ist gegen Doppelklick und Popup-Abbruch gesichert',
+    appControllerJs.includes('let authRequestInProgress = false') &&
+    appControllerJs.includes('if (authRequestInProgress) return;') &&
+    appControllerJs.includes('error_callback:') &&
+    appControllerJs.includes('authRequestInProgress = true'));
 })();
 
 console.log('\n=== 2. ID REFERENCES ===');
@@ -259,7 +269,7 @@ const accessibilityDom = new JSDOM(html);
 const accessibilityDocument = accessibilityDom.window.document;
 const dialogOverlays = Array.from(accessibilityDocument.querySelectorAll('.modal-overlay, .detail-overlay'));
 check('A11y: alle Dialoge besitzen Rolle, Modalstatus und erreichbaren Titel',
-  dialogOverlays.length === 11 && dialogOverlays.every(overlay => {
+  dialogOverlays.length === 10 && dialogOverlays.every(overlay => {
     const titleId = overlay.getAttribute('aria-labelledby');
     return overlay.getAttribute('role') === 'dialog' &&
       overlay.getAttribute('aria-modal') === 'true' && titleId &&
@@ -601,9 +611,11 @@ const realFifoCheck = (async () => {
       servedRepairedModule === repairedModuleResponse &&
       offlineModuleFetches === 1 && repairedModuleCacheWrites === 1);
 
-    const runSwStarter = async contentType => {
+    const runSwStarter = async (contentType, scenario = {}) => {
       const deletedCaches = [];
       const sessionValues = new Map();
+      const serviceWorkerHandlers = {};
+      const windowHandlers = {};
       let reloads = 0;
       let registeredUrl = null;
       let registeredOptions = null;
@@ -613,7 +625,9 @@ const realFifoCheck = (async () => {
         navigator: {
           onLine: true,
           serviceWorker: {
-            addEventListener: () => {},
+            addEventListener: (eventName, handler) => {
+              serviceWorkerHandlers[eventName] = handler;
+            },
             register: async (url, options) => {
               registeredUrl = url;
               registeredOptions = options;
@@ -626,7 +640,9 @@ const realFifoCheck = (async () => {
           }
         },
         window: {
-          addEventListener: () => {},
+          addEventListener: (eventName, handler) => {
+            windowHandlers[eventName] = handler;
+          },
           location: { reload: () => { reloads++; } }
         },
         sessionStorage: {
@@ -654,6 +670,8 @@ const realFifoCheck = (async () => {
         }
       });
       await new Promise(resolve => setImmediate(resolve));
+      if (scenario.userInteracts) windowHandlers.pointerdown?.();
+      if (scenario.controllerChanges) serviceWorkerHandlers.controllerchange?.();
       return {
         deletedCaches, reloads, registeredUrl, registeredOptions,
         healthRequest, healthOptions
@@ -674,6 +692,20 @@ const realFifoCheck = (async () => {
       healthyStarter.registeredOptions && healthyStarter.registeredOptions.updateViaCache === 'none' &&
       /\.\/js\/app\.js\?v=v\d+$/.test(healthyStarter.healthRequest || '') &&
       healthyStarter.reloads === 0 && healthyStarter.deletedCaches.length === 0);
+
+    const untouchedUpdateStarter = await runSwStarter(
+      'application/javascript; charset=UTF-8',
+      { controllerChanges: true }
+    );
+    check('PWA: unberuehrter Start darf nach Worker-Wechsel atomar neu laden',
+      untouchedUpdateStarter.reloads === 1);
+
+    const activeLoginStarter = await runSwStarter(
+      'application/javascript; charset=UTF-8',
+      { userInteracts: true, controllerChanges: true }
+    );
+    check('PWA: Worker-Wechsel unterbricht keinen begonnenen Google-Login',
+      activeLoginStarter.reloads === 0);
 
     const mod = await import('file://' + DIR + '/js/fifo.js');
     const { closed, openLots } = mod.fifoMatch(goldRows, [], true);
@@ -1545,7 +1577,7 @@ const realFifoCheck = (async () => {
       !!metrics && metrics.maxWinStreak === 2 && metrics.maxLossStreak === 2 &&
       metrics.maxDrawdown === 100 && Math.abs(metrics.maxDrawdownPct - (100 / 1150 * 100)) < 0.0001 &&
       Math.abs(metrics.recoveryFactor - 0.8) < 0.0001);
-    check('metrics: Rendite fuer das persoenliche Trading-Level wird aus dem Startkapital berechnet',
+    check('metrics: Rendite wird aus dem Startkapital berechnet',
       !!metrics && Math.abs(metrics.rendite - 8) < 0.0001);
     const rangeMetrics = typeof vmod.computeTradingMetrics === 'function'
       ? vmod.computeTradingMetrics(metricTrades, { from: '2026-01-03', to: '2026-01-05', capital: 1000 })
@@ -1581,85 +1613,6 @@ const realFifoCheck = (async () => {
     check('metrics: umgekehrter Zeitraum wird nicht stillschweigend umgedeutet',
       !!reversedRangeMetrics && reversedRangeMetrics.range.valid === false &&
       reversedRangeMetrics.count === 0);
-    check('level: pure Level- und Rekordberechnung sind exportiert',
-      typeof vmod.computeTradingLevel === 'function' &&
-      typeof vmod.computeTradingLevelRecord === 'function' &&
-      typeof vmod.computeTradingLevelCatalog === 'function');
-    const levelBase = {
-      count: 50, capital: 10000, rendite: 22, profitFactor: 2,
-      expectancy: 40, maxDrawdownPct: 7, maxDrawdown: 700,
-      recoveryFactor: 2.5, totalPnl: 2200
-    };
-    const levelBefore = JSON.stringify(levelBase);
-    const currentStrongLevel = typeof vmod.computeTradingLevel === 'function'
-      ? vmod.computeTradingLevel(levelBase)
-      : null;
-    check('level: bisher starke Kennzahlen lassen bewusst noch Luft nach oben',
-      !!currentStrongLevel && currentStrongLevel.id === 'patience-rune' &&
-      currentStrongLevel.index === 6 && currentStrongLevel.progress < 100 &&
-      currentStrongLevel.next.name === 'Bullen-und-Bären-Spalter');
-    const levelWithoutExpectancyGate = typeof vmod.computeTradingLevel === 'function'
-      ? vmod.computeTradingLevel(Object.assign({}, levelBase, { expectancy: -40 }))
-      : null;
-    check('level: Erwartungswert bleibt Kennzahl und ist kein redundantes Aufstiegstor',
-      !!levelWithoutExpectancyGate && levelWithoutExpectancyGate.id === 'patience-rune');
-    const topLevel = typeof vmod.computeTradingLevel === 'function'
-      ? vmod.computeTradingLevel(Object.assign({}, levelBase, {
-          rendite: 65, profitFactor: 3, maxDrawdownPct: 12, recoveryFactor: 6
-        }))
-      : null;
-    check('level: aufgeholter Drawdown blockiert die heilige gruene Klinge nicht dauerhaft',
-      !!topLevel && topLevel.id === 'sacred-candle-blade' && topLevel.index === 8 &&
-      topLevel.name === 'Heilige Klinge der grünen Kerze' &&
-      topLevel.progress === 100 && topLevel.next === null);
-    const riskyLevel = typeof vmod.computeTradingLevel === 'function'
-      ? vmod.computeTradingLevel(Object.assign({}, levelBase, {
-          rendite: 30, maxDrawdownPct: 25, recoveryFactor: 0.3
-        }))
-      : null;
-    check('level: hohe Rendite mit unaufgeholtem Drawdown schaltet kein hohes Level frei',
-      !!riskyLevel && riskyLevel.id === 'breakeven-knife' && riskyLevel.index === 2);
-    const calibrationLevel = typeof vmod.computeTradingLevel === 'function'
-      ? vmod.computeTradingLevel(Object.assign({}, levelBase, { capital: 0 }))
-      : null;
-    check('level: fehlendes Startkapital bleibt trotz vieler Trades in Kalibrierung',
-      !!calibrationLevel && calibrationLevel.id === 'calibration' &&
-      calibrationLevel.reason === 'capital');
-    const fewTradesLevel = typeof vmod.computeTradingLevel === 'function'
-      ? vmod.computeTradingLevel(Object.assign({}, levelBase, { count: 10 }))
-      : null;
-    check('level: vor 20 Trades zeigt der Fortschritt nur die Kalibrierung',
-      !!fewTradesLevel && fewTradesLevel.id === 'calibration' &&
-      fewTradesLevel.reason === 'sample' && fewTradesLevel.progress === 50);
-    const recordTrades = Array.from({ length: 20 }, (_, index) => ({
-      date: '2026-01-' + String(index + 1).padStart(2, '0'),
-      time: '10:00', pnl: 10
-    })).concat([{ date: '2026-01-21', time: '10:00', pnl: -250 }]);
-    const levelRecord = typeof vmod.computeTradingLevelRecord === 'function'
-      ? vmod.computeTradingLevelRecord(recordTrades, {
-          from: '2026-01-01', to: '2026-12-31', capital: 1000
-        })
-      : null;
-    check('level: persoenlicher Rekord bleibt nach einer spaeteren Verlustphase sichtbar',
-      !!levelRecord && levelRecord.current.id === 'liquidity-spoon' &&
-      levelRecord.record.id === 'patience-rune' && levelRecord.recordDate === '2026-01-20');
-    check('level: Zeitstrahl zeigt nur echte Wechsel inklusive Rueckstufung',
-      !!levelRecord && Array.isArray(levelRecord.timeline) && levelRecord.timeline.length === 3 &&
-      levelRecord.timeline[0].date === '2026-01-01' && levelRecord.timeline[0].level.id === 'calibration' &&
-      levelRecord.timeline[1].date === '2026-01-20' && levelRecord.timeline[1].level.id === 'patience-rune' &&
-      levelRecord.timeline[2].date === '2026-01-21' && levelRecord.timeline[2].level.id === 'liquidity-spoon');
-    const levelCatalog = typeof vmod.computeTradingLevelCatalog === 'function' && levelRecord
-      ? vmod.computeTradingLevelCatalog(levelRecord.metrics, levelRecord.record.index)
-      : [];
-    check('level: Arsenal ordnet alle neun Stufen als aktuell, erreicht oder gesperrt ein',
-      levelCatalog.length === 9 &&
-      levelCatalog.find(item => item.id === 'liquidity-spoon')?.status === 'current' &&
-      levelCatalog.find(item => item.id === 'patience-rune')?.status === 'reached' &&
-      levelCatalog.find(item => item.id === 'market-splitter')?.status === 'locked' &&
-      levelCatalog.find(item => item.id === 'sacred-candle-blade')?.requirements.length === 3 &&
-      !levelCatalog.some(item => item.requirements.some(requirement => requirement.includes('Drawdown ≤'))) &&
-      !levelCatalog.some(item => item.requirements.some(requirement => requirement.includes('Erwartungswert'))));
-    check('level: Berechnung mutiert die Kennzahlen nicht', JSON.stringify(levelBase) === levelBefore);
     check('metrics: Berechnung mutiert Trades nicht', JSON.stringify(metricTrades) === metricBefore);
     const metricDom = new JSDOM(html, { runScripts: 'outside-only' });
     global.window = metricDom.window;
@@ -1677,53 +1630,6 @@ const realFifoCheck = (async () => {
       check('metricsView: Produkttexte bleiben beim Rendern HTML-sicher',
         metricDom.window.document.querySelectorAll('#metrics-grid img').length === 0 &&
         metricDom.window.document.getElementById('metrics-grid').textContent.includes('<img src=x'));
-      if (metricsviewmod && levelRecord) {
-        metricsviewmod.renderTradingLevel(levelRecord, { periodLabel: 'Saison 2026' });
-      }
-      check('levelView: rendert Level, Rekord, Fortschritt und 16x16-Pixelgrafik',
-        !!metricsviewmod && metricDom.window.document.getElementById('trading-level-name')?.textContent === 'Holzlöffel der Liquidität' &&
-        metricDom.window.document.getElementById('trading-level-record')?.textContent.includes('Runenschwert der Geduld') &&
-        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-cell').length === 256 &&
-        metricDom.window.document.getElementById('trading-level-progress')?.style.width.endsWith('%'));
-      check('levelView: Zeitstrahl rendert chronologische Auf- und Rueckstufungen',
-        metricDom.window.document.querySelectorAll('#trading-level-timeline .trading-level-event').length === 3 &&
-        metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Runenschwert der Geduld') &&
-        metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Start') &&
-        metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Aufstieg') &&
-        metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Abstieg') &&
-        !metricDom.window.document.getElementById('trading-level-timeline')?.textContent.includes('Trainingsphase'));
-      check('levelView: Pixelgrafik verwendet kein externes Bild',
-        metricDom.window.document.querySelectorAll('#trading-level-card img').length === 0);
-      if (metricsviewmod && topLevel) {
-        metricsviewmod.renderTradingLevel({
-          current: topLevel, record: topLevel, recordDate: '2026-12-31',
-          timeline: [{ date: '2026-12-31', level: topLevel }]
-        }, { periodLabel: 'Saison 2026' });
-      }
-      check('levelView: Maximalgrafik besitzt Krone, Aura und Funken',
-        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-cell').length === 256 &&
-        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-crown').length > 0 &&
-        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-glow').length > 0 &&
-        metricDom.window.document.querySelectorAll('#trading-level-art .pixel-spark').length > 0);
-      if (metricsviewmod && levelRecord) {
-        metricsviewmod.renderTradingLevel(levelRecord, { periodLabel: 'Saison 2026' });
-      }
-      check('levelView: Arsenal zeigt alle neun Level samt Status und Voraussetzungen',
-        metricDom.window.document.querySelectorAll('#trading-level-arsenal-grid .level-arsenal-card').length === 9 &&
-        metricDom.window.document.querySelectorAll('#trading-level-arsenal-grid .level-arsenal-card.current').length === 1 &&
-        metricDom.window.document.querySelectorAll('#trading-level-arsenal-grid .level-arsenal-card.locked').length === 2 &&
-        metricDom.window.document.getElementById('trading-level-arsenal-grid')?.textContent.includes('Heilige Klinge der grünen Kerze'));
-      if (metricsviewmod && typeof metricsviewmod.openTradingLevelArsenal === 'function') {
-        metricsviewmod.openTradingLevelArsenal();
-      }
-      check('levelView: Arsenal oeffnet als Dialog und fokussiert Schliessen',
-        metricDom.window.document.getElementById('trading-level-arsenal-overlay')?.classList.contains('open') &&
-        metricDom.window.document.activeElement.id === 'trading-level-arsenal-close');
-      if (metricsviewmod && typeof metricsviewmod.handleTradingLevelArsenalKey === 'function') {
-        metricsviewmod.handleTradingLevelArsenalKey({ key: 'Escape' });
-      }
-      check('levelView: Escape schliesst das Arsenal wieder',
-        !metricDom.window.document.getElementById('trading-level-arsenal-overlay')?.classList.contains('open'));
       metricDom.window.document.getElementById('metrics-from').value = '2026-01-02';
       metricDom.window.document.getElementById('metrics-to').value = '2026-01-06';
       const readRange = metricsviewmod ? metricsviewmod.readTradingMetricRange() : {};
@@ -1732,11 +1638,6 @@ const realFifoCheck = (async () => {
         readRange.from === '2026-01-02' && readRange.to === '2026-01-06' &&
         metricDom.window.document.getElementById('metrics-from').value === '' &&
         metricDom.window.document.getElementById('metrics-to').value === '');
-      const levelPeriodSelect = metricDom.window.document.getElementById('trading-level-period');
-      if (levelPeriodSelect) levelPeriodSelect.value = 'all';
-      check('levelView: Saison und Gesamtzeitraum sind umschaltbar',
-        metricsviewmod && typeof metricsviewmod.readTradingLevelPeriod === 'function' &&
-        metricsviewmod.readTradingLevelPeriod() === 'all');
     } finally {
       global.window = previousWindow;
       global.document = previousDocument;
@@ -2470,30 +2371,11 @@ check('Tagesstatistiken sind aus dem Header entfernt und bleiben im Statistikber
   !html.includes('id="s-trades"') && !html.includes('id="s-avgday"') &&
   !html.includes('id="s-avgtrade"') && !html.includes('id="s-streak"') &&
   metricsViewJs.includes('Trade-Winrate'));
-check('Trading-Level-UI: Levelkarte, Zeitraum, Pixelgrafik und Fortschritt vorhanden',
-  html.includes('id="trading-level-card"') && html.includes('id="trading-level-period"') &&
-  html.includes('id="trading-level-art"') && html.includes('id="trading-level-progress"') &&
-  html.includes('id="trading-level-record"') && html.includes('id="trading-level-timeline"') &&
-  metricsViewJs.includes('function renderTradingLevel'));
-check('Trading-Level-UI: Arsenal ist ein Dialog und keine Level-Combobox',
-  html.includes('id="trading-level-arsenal-btn"') &&
-  html.includes('id="trading-level-arsenal-overlay"') &&
-  html.includes('id="trading-level-arsenal-grid"') &&
-  html.includes('id="trading-level-arsenal-close"') &&
-  !html.includes('<select id="trading-level-choice"') &&
-  metricsViewJs.includes('function openTradingLevelArsenal') &&
-  metricsViewJs.includes('function closeTradingLevelArsenal'));
-check('Trading-Level-UI: Animation respektiert reduzierte Bewegung',
-  html.includes('@media (prefers-reduced-motion: reduce)') &&
-  html.includes('.pixel-cell.pixel-glow'));
-check('Trading-Level-UI: neun eigene Pixelstufen und kein alter Maximalname',
-  ['calibration', 'liquidity-spoon', 'breakeven-knife', 'candle-dagger',
-    'trend-blade', 'drawdown-tamer', 'patience-rune', 'market-splitter',
-    'sacred-candle-blade']
-    .every(key => metricsViewJs.includes("'" + key + "': [")) &&
-  !metricsViewJs.includes('Leuchtende Klinge'));
-check('Trading-Level-UI: erklaerender Gimmick-Hinweis ist entfernt',
-  !html.includes('Nur dein eigener Verlauf, kein Vergleich mit anderen.'));
+check('Dezente Statistik: Trading-Level-Gimmick ist vollstaendig entfernt',
+  !html.includes('trading-level') && !html.includes('level-arsenal') &&
+  !appControllerJs.includes('TradingLevel') && !metricsViewJs.includes('Pixel') &&
+  !metricsViewJs.includes('TradingLevel') && !appJs.includes('computeTradingLevel') &&
+  !backlog.includes('Pixel-Trading-Level und Waffenentwicklung'));
 check('Statistik-UI: Bereichswechsel ist ohne globale Exposition verdrahtet',
   appJs.includes('function setStatsView(view)') &&
   appControllerJs.includes("document.querySelectorAll('.stats-view-nav-btn')") &&

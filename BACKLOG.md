@@ -198,7 +198,7 @@ Wartbarkeit bzw. Komfort.
 
 ### Kompakter Ergebnis-Header
 
-- **Status:** Erledigt in v78.
+- **Status:** Erledigt in v78, mobile Hoehenkorrektur in v79.
 - **Loesung:** Die globale Tagesstatistikleiste ist entfernt. Im Kopf jeder
   Ansicht bleiben ausschliesslich realisiertes Gesamt-P&L (netto), abgefuehrte
   Steuern und Rendite sichtbar; tiefergehende Kennzahlen gehoeren in den
@@ -208,6 +208,9 @@ Wartbarkeit bzw. Komfort.
   mobil stehen sie ohne horizontales Kartenkarussell in einer kompakten Zeile.
 - **Sicherung:** Strukturtests erzwingen genau diese drei Headerwerte, das
   Fehlen der alten Tageskarten und den weiterhin erreichbaren Einstandseditor.
+- **Mobile-Korrektur:** Im mobilen Spaltenlayout setzt v79 die Desktop-Flexbasis
+  explizit zurueck. Dadurch entstehen unter den drei Kennzahlen keine hohen
+  Leerflaechen oder bis zum Kalender reichenden Trennlinien mehr.
 
 ### Trades suchen und filtern
 

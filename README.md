@@ -10,6 +10,8 @@ abgefuehrten Steuern und die Rendite. Tagesquoten, Trade-Anzahl, Durchschnitte
 und Serien bleiben im fachlich passenden Statistik-Tab und belegen nicht mehr
 auf jeder Ansicht Platz. Ein Klick auf die Rendite oeffnet weiterhin die
 Bearbeitung des Einstands, der als Nenner der Renditeberechnung dient.
+Seit v79 bleibt die Ergebniszeile auch im mobilen Spaltenlayout kompakt; die
+Desktop-Flexbasis wird dort nicht mehr als vertikale Hoehe uebernommen.
 
 ## Speichermodi ab v72
 

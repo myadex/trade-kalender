@@ -291,6 +291,9 @@ check('Mobile: langes Aktionsmenue bleibt auf kleinen Displays scrollbar und kon
   /#mobile-actions button\s*\{[\s\S]*?background:\s*var\(--bg\)/.test(html));
 check('Mobile: Touchziele und Eingaben sind mindestens fingerfreundlich definiert',
   html.includes('min-height:44px') && html.includes('font-size:16px'));
+const mobileHeaderCss = html.slice(html.indexOf('@media (max-width: 720px)'), html.indexOf('</style>'));
+check('Mobile: Kompaktheader uebernimmt keine vertikale Desktop-Flexbasis',
+  /\.header-summary\s*\{[^}]*flex:\s*0 0 auto/.test(mobileHeaderCss));
 check('A11y: Fokus ist global sichtbar und Formularfelder bleiben kontrastreich',
   html.includes(':focus-visible') &&
   html.includes('background:var(--bg);color:var(--ink)'));

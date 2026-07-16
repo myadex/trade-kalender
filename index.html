@@ -419,7 +419,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   .header { margin: 0; padding: 1rem 1rem .8rem; border-bottom: 1px solid var(--border); align-items: flex-start; flex-direction: column; gap: .8rem; }
   .header h1 { font-size: 1.6rem; }
   .header-sub { font-size: .52rem; }
-  .header-summary { width: 100%; margin-left: 0; grid-template-columns: repeat(3,minmax(0,1fr)); padding-top: .75rem; border-top: 1px solid var(--border); }
+  .header-summary { width: 100%; margin-left: 0; grid-template-columns: repeat(3,minmax(0,1fr)); padding-top: .75rem; border-top: 1px solid var(--border); flex: 0 0 auto; }
   .header-metric { padding: 0 .55rem; }
   .header-metric:first-child { padding-left: 0; text-align: left; }
   .header-metric:last-child { padding-right: 0; }
@@ -552,7 +552,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   </div>
   <p class="login-note">Lokale Daten verlassen dieses Ger&auml;t nicht. Gel&ouml;schte Browserdaten oder eine Deinstallation k&ouml;nnen sie jedoch entfernen.</p>
   <div id="login-status" role="status" aria-live="polite"></div>
-  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v78</div>
+  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v79</div>
 </div>
 
 <!-- APP -->
@@ -560,7 +560,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <div class="header">
     <div>
       <h1>Trade Kalender</h1>
-      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v78</span></p>
+      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v79</span></p>
     </div>
     <div class="header-summary" aria-label="Realisierte Gesamtergebnisse">
       <div class="header-metric header-metric-primary">
@@ -1107,7 +1107,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <!-- Der SW-Starter bleibt absichtlich unabhaengig vom Hauptmodul. So kann ein
      alter defekter app.js-Cache durch einen neuen Service Worker heilen. -->
 <script src="sw-register.js" defer></script>
-<script type="module" src="js/app.js?v=v78"></script>
+<script type="module" src="js/app.js?v=v79"></script>
 <!-- app.js behandelt beide async-Reihenfolgen per load-Listener und prueft
      zusaetzlich, ob Google GIS beim Boot bereits verfuegbar ist. -->
 <script id="google-gis-script" src="https://accounts.google.com/gsi/client" async defer></script>

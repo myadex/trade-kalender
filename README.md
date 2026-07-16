@@ -18,6 +18,9 @@ auf jeder Ansicht Platz. Ein Klick auf die Rendite oeffnet weiterhin die
 Bearbeitung des Einstands, der als Nenner der Renditeberechnung dient.
 Seit v79 bleibt die Ergebniszeile auch im mobilen Spaltenlayout kompakt; die
 Desktop-Flexbasis wird dort nicht mehr als vertikale Hoehe uebernommen.
+Seit v82 beginnen alle drei Kennzahlen an einer einheitlichen linken Achse.
+Feste Werte- und Beschriftungszeilen gleichen dabei die unterschiedlichen
+Schriftgroessen aus, auf Desktop ebenso wie auf dem Smartphone.
 
 ## Stabiler Google-Start ab v80
 

@@ -304,6 +304,11 @@ check('Mobile: Touchziele und Eingaben sind mindestens fingerfreundlich definier
 const mobileHeaderCss = html.slice(html.indexOf('@media (max-width: 720px)'), html.indexOf('</style>'));
 check('Mobile: Kompaktheader uebernimmt keine vertikale Desktop-Flexbasis',
   /\.header-summary\s*\{[^}]*flex:\s*0 0 auto/.test(mobileHeaderCss));
+const headerMetricRule = html.match(/\.header-metric\{([^}]*)\}/)?.[1] || '';
+check('Header: alle drei Kennzahlen teilen linke Achse und feste Wertezeile',
+  headerMetricRule.includes('text-align:left') &&
+  headerMetricRule.includes('display:grid') &&
+  headerMetricRule.includes('grid-template-rows:'));
 check('A11y: Fokus ist global sichtbar und Formularfelder bleiben kontrastreich',
   html.includes(':focus-visible') &&
   html.includes('background:var(--bg);color:var(--ink)'));

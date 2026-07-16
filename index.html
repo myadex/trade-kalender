@@ -34,7 +34,8 @@ body.dialog-open{overflow:hidden;}
 .header h1{font-family:'Chakra Petch',sans-serif;font-size:2.6rem;letter-spacing:.06em;line-height:1;}
 .header-sub{font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:.2rem;}
 .header-summary{margin-left:auto;display:grid;grid-template-columns:minmax(190px,1.35fr) minmax(130px,1fr) minmax(110px,.8fr);align-items:stretch;flex:1 1 460px;}
-.header-metric{min-width:0;text-align:right;padding:0 1rem;background:transparent;color:inherit;border:0;border-left:1px solid var(--border);font:inherit;}
+.header-metric{min-width:0;display:grid;grid-template-rows:2rem auto;align-content:end;text-align:left;padding:0 1rem;background:transparent;color:inherit;border:0;border-left:1px solid var(--border);font:inherit;}
+.header-metric>:first-child{align-self:end;}
 .header-metric:first-child{border-left:0;}.header-metric:last-child{padding-right:0;}
 .header-metric-action{cursor:pointer;}.header-metric-action:hover .total-label{color:var(--ink);}
 .total-pnl{font-family:'Chakra Petch',sans-serif;font-size:2rem;line-height:1;white-space:nowrap;}
@@ -367,8 +368,8 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   .header h1 { font-size: 1.6rem; }
   .header-sub { font-size: .52rem; }
   .header-summary { width: 100%; margin-left: 0; grid-template-columns: repeat(3,minmax(0,1fr)); padding-top: .75rem; border-top: 1px solid var(--border); flex: 0 0 auto; }
-  .header-metric { padding: 0 .55rem; }
-  .header-metric:first-child { padding-left: 0; text-align: left; }
+  .header-metric { grid-template-rows: 1.35rem auto; padding: 0 .55rem; }
+  .header-metric:first-child { padding-left: 0; }
   .header-metric:last-child { padding-right: 0; }
   .total-pnl { font-size: 1.25rem; }
   .header-value { font-size: .82rem; }
@@ -499,7 +500,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   </div>
   <p class="login-note">Lokale Daten verlassen dieses Ger&auml;t nicht. Gel&ouml;schte Browserdaten oder eine Deinstallation k&ouml;nnen sie jedoch entfernen.</p>
   <div id="login-status" role="status" aria-live="polite"></div>
-  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v81</div>
+  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v82</div>
 </div>
 
 <!-- APP -->
@@ -507,7 +508,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <div class="header">
     <div>
       <h1>Trade Kalender</h1>
-      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v81</span></p>
+      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v82</span></p>
     </div>
     <div class="header-summary" aria-label="Realisierte Gesamtergebnisse">
       <div class="header-metric header-metric-primary">
@@ -999,7 +1000,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <!-- Der SW-Starter bleibt absichtlich unabhaengig vom Hauptmodul. So kann ein
      alter defekter app.js-Cache durch einen neuen Service Worker heilen. -->
 <script src="sw-register.js" defer></script>
-<script type="module" src="js/app.js?v=v81"></script>
+<script type="module" src="js/app.js?v=v82"></script>
 <!-- app.js behandelt beide async-Reihenfolgen per load-Listener und prueft
      zusaetzlich, ob Google GIS beim Boot bereits verfuegbar ist. -->
 <script id="google-gis-script" src="https://accounts.google.com/gsi/client" async defer></script>

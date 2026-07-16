@@ -217,7 +217,8 @@ Wartbarkeit bzw. Komfort.
 
 ### Kompakter Ergebnis-Header
 
-- **Status:** Erledigt in v78, mobile Hoehenkorrektur in v79.
+- **Status:** Erledigt in v78, mobile Hoehenkorrektur in v79 und einheitliches
+  Kennzahlen-Alignment in v82.
 - **Loesung:** Die globale Tagesstatistikleiste ist entfernt. Im Kopf jeder
   Ansicht bleiben ausschliesslich realisiertes Gesamt-P&L (netto), abgefuehrte
   Steuern und Rendite sichtbar; tiefergehende Kennzahlen gehoeren in den

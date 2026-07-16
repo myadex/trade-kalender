@@ -196,6 +196,19 @@ Wartbarkeit bzw. Komfort.
   So bleibt die Hauptnavigation kompakt, zusammengehoerige Analysen bleiben
   beieinander und die mobile Ansicht vermeidet eine einzige lange Seite.
 
+### Kompakter Ergebnis-Header
+
+- **Status:** Erledigt in v78.
+- **Loesung:** Die globale Tagesstatistikleiste ist entfernt. Im Kopf jeder
+  Ansicht bleiben ausschliesslich realisiertes Gesamt-P&L (netto), abgefuehrte
+  Steuern und Rendite sichtbar; tiefergehende Kennzahlen gehoeren in den
+  Statistik-Tab.
+- **Bedienung:** Die Rendite bleibt ein echtes Bedienelement und oeffnet die
+  Einstandsbearbeitung. Desktop ordnet die drei Werte neben dem App-Titel an,
+  mobil stehen sie ohne horizontales Kartenkarussell in einer kompakten Zeile.
+- **Sicherung:** Strukturtests erzwingen genau diese drei Headerwerte, das
+  Fehlen der alten Tageskarten und den weiterhin erreichbaren Einstandseditor.
+
 ### Trades suchen und filtern
 
 - **Status:** Erledigt in v50.
@@ -372,15 +385,14 @@ Wartbarkeit bzw. Komfort.
 
 ### PWA im echten Browser offline pruefen
 
-- **Status:** Offline-Modulfehler in v74 behoben; manueller Nachtest des
-  vollstaendigen Offline-Reloads bleibt offen.
+- **Status:** Erledigt in v77.
 - **Verifiziert:** Manifest, Service-Worker-Registrierung, App-Shell-Cache und
   Navigations-Fallback sind im Browser vorhanden. Google-Anmeldung und
   Drive-Synchronisierung bleiben bewusst onlineabhaengig. Der lokale Modus
   benoetigt nach geladener App-Huelle dagegen weder Google noch Netzwerk.
-- **Browsergrenze:** Der verwendete In-App-Browser bietet keinen echten
-  Netzwerk-Offline-Schalter; ein Reload ohne Netz konnte deshalb noch nicht
-  simuliert werden.
+- **Manueller Abschluss:** v77 wurde online mit korrektem JavaScript-MIME-Typ
+  gestartet und anschliessend im lokalen Geraetemodus erfolgreich offline neu
+  geladen. Damit ist der zuvor offene echte Browser-Nachtest abgeschlossen.
 - **Nebenfund in v56 behoben:** Das asynchrone Google-Script konnte beim Reload
   vor dem ES-Modul fertig sein und `gisLoaded is not defined` ausloesen. Der
   HTML-Callback ist jetzt fruehstart-sicher; die vorhandene Modulpruefung holt
@@ -423,8 +435,8 @@ Wartbarkeit bzw. Komfort.
   Live-Reload-Skript, das die produktionsnahe CSP absichtlich blockiert. Die
   Meldung ist kein App-Skriptfehler; `unsafe-inline` oder ein wechselnder Hash
   werden dafuer nicht in die CSP aufgenommen.
-- **Ziel:** Installieren, offline navigieren, Service-Worker-Update und erneute
-  Online-Synchronisierung in einem echten Browser testen.
+- **Abschluss:** Online-Start, Service-Worker-Updatepfad und Offline-Navigation
+  sind automatisiert beziehungsweise manuell abgesichert.
 
 ### Testlauf als Standardkommando und CI etablieren
 
@@ -505,12 +517,6 @@ Wartbarkeit bzw. Komfort.
   einen sichtbaren Tastaturfokus. Status- und Ergebniswechsel werden als
   Live-Regionen angekuendigt.
 
-### Trading-Journal und Regel-Tracking
-
-- **Status:** Warteliste.
-- **Ziel:** Setups, Gruende, Fehler und eigene Handelsregeln pro Trade erfassen,
-  wenn die automatisch ableitbaren Statistiken ausgebaut sind.
-
 ### Backup-Verlauf
 
 - **Status:** Erledigt in v70.
@@ -533,19 +539,6 @@ Wartbarkeit bzw. Komfort.
 
 - **Status:** Warteliste mit niedriger Prioritaet.
 - **Ziel:** Kennzahlenkarten ausblenden und individuell anordnen.
-
-### Privater automatischer Sync ohne Google
-
-- **Status:** Warteliste; nicht Teil des lokalen Geraetemodus.
-- **Ziel:** Optionaler eigener Sync-Dienst, der nur Ende-zu-Ende
-  verschluesselte Daten speichert. Desktop und Handy werden ueber einen
-  Wiederherstellungsschluessel oder QR-Code gekoppelt; der Server kennt den
-  Klartext und den Entschluesselungsschluessel nicht.
-- **Voraussetzungen:** Eigene Hosting- und Authentifizierungsentscheidung,
-  versionierte Schreibvorgaenge, Konfliktbehandlung, Schluesselrotation,
-  Recovery-Konzept und Betriebsmonitoring. Ohne diese Infrastruktur bleibt
-  geraeteuebergreifender Sync entweder Google Drive oder manueller
-  verschluesselter Datei-Transfer.
 
 ## Erledigte Grundlagen
 

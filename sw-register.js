@@ -8,7 +8,7 @@
 (function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
-  const RELEASE = 'v77';
+  const RELEASE = 'v78';
   const SERVICE_WORKER_URL = `./sw.js?v=${RELEASE}`;
   const MAIN_MODULE_URL = `./js/app.js?v=${RELEASE}`;
   const APP_CACHE_PREFIX = 'trade-kalender-';

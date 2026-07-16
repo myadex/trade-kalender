@@ -3,6 +3,14 @@
 Persönlicher Trade-Kalender als installierbare PWA. Die App läuft ohne
 Framework und ohne Build-Schritt direkt im Browser.
 
+## Kompakter Ergebnis-Header ab v78
+
+Der feste Kopfbereich zeigt nur noch das realisierte Gesamt-P&L (netto), die
+abgefuehrten Steuern und die Rendite. Tagesquoten, Trade-Anzahl, Durchschnitte
+und Serien bleiben im fachlich passenden Statistik-Tab und belegen nicht mehr
+auf jeder Ansicht Platz. Ein Klick auf die Rendite oeffnet weiterhin die
+Bearbeitung des Einstands, der als Nenner der Renditeberechnung dient.
+
 ## Speichermodi ab v72
 
 Beim ersten Start stehen zwei gleichwertige Wege bereit:

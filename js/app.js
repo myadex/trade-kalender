@@ -461,27 +461,18 @@ function rebuildStats() {
 
   $('hdr-pnl').textContent = fmtDE(s.totalPnl);
   $('hdr-pnl').className = 'total-pnl ' + (s.totalPnl >= 0 ? 'pos' : 'neg');
-  $('s-winrate').textContent = s.winrate.toFixed(1).replace('.', ',') + ' %';
-  $('s-wins').textContent = s.wins;
-  $('s-losses').textContent = s.losses;
-  $('s-trades').textContent = s.totalTrades;
-  $('s-avgday').textContent = fmtK(s.avgDay);
-  $('s-avgtrade').textContent = fmtK(s.avgTrade);
-  $('s-streak').textContent = s.maxStreak;
   $('s-tax').textContent = fmtPlain(Math.abs(s.totalTax)) + ' \u20ac';
 
   const renditeEl = $('s-rendite');
   if (renditeEl) {
     if (s.rendite !== null) {
       renditeEl.textContent = (s.rendite >= 0 ? '+' : '') + s.rendite.toFixed(1).replace('.', ',') + ' %';
-      renditeEl.className = 'stat-val ' + (s.rendite >= 0 ? 'pos' : 'neg');
+      renditeEl.className = 'header-value ' + (s.rendite >= 0 ? 'pos' : 'neg');
     } else {
       renditeEl.textContent = '\u2014';
-      renditeEl.className = 'stat-val';
+      renditeEl.className = 'header-value';
     }
   }
-  const capEl = $('s-capital');
-  if (capEl) capEl.textContent = s.capital > 0 ? fmtPlain(s.capital, 0) + ' \u20ac' : '\u2014';
 }
 
 function buildTradingMetrics() {
@@ -2076,7 +2067,6 @@ function bootApp() {
       closeMobileActions(true);
     }
   });
-  bind('s-capital-card', 'click', setCapital);
   bind('s-rendite-card', 'click', setCapital);
 
   // Ein lokal gewaehlter Modus kann ohne Google und ohne Netz sofort starten.

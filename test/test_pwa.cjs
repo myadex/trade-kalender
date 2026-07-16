@@ -472,8 +472,10 @@ console.log('\n=== 5b. EINSTAND / RENDITE ===');
 check('DATA has capital field', appJs.includes('capital:'));
 check('setCapital function defined', appJs.includes('function setCapital('));
 check('rendite computed from capital', appJs.includes('(totalPnl / cap) * 100'));
-check('capital card in HTML', html.includes('id="s-capital"'));
-check('rendite card in HTML', html.includes('id="s-rendite"'));
+check('Einstand bleibt ueber die Rendite im Kompaktheader bearbeitbar',
+  html.includes('id="s-rendite-card"') && html.includes('id="s-rendite"') &&
+  appControllerJs.includes("bind('s-rendite-card', 'click', setCapital)") &&
+  !html.includes('id="s-capital"'));
 check('all DATA inits include capital', (appJs.match(/DATA = \{ trades: \[\], openLots: \[\]/g) || []).every ? !appJs.match(/DATA = \{ trades: \[\], openLots: \[\] \}/) : true);
 check('DATA und JSON-Restore unterstuetzen entfernte offene Positionen',
   appJs.includes('hiddenOpenPositions: []') &&
@@ -2454,8 +2456,17 @@ check('Kennzahlen-UI: Zeitraum, Datenabdeckung und Ergebnisraster vorhanden',
   html.includes('id="metrics-from"') && html.includes('id="metrics-to"') &&
   html.includes('id="metrics-summary"') && html.includes('id="metrics-grid"') &&
   html.includes('id="metrics-note"'));
-check('Kennzahlen-UI: Header-Tagesquote und Trade-Winrate sind eindeutig benannt',
-  html.includes('Win-Tage-Quote') && metricsViewJs.includes('function renderTradingMetrics'));
+check('Kompaktheader zeigt genau Ergebnis, abgefuehrte Steuern und Rendite',
+  (html.match(/class="header-metric(?:\s|\")/g) || []).length === 3 &&
+  html.includes('id="hdr-pnl"') && html.includes('Realisiertes Gesamt-P&amp;L') &&
+  html.includes('id="s-tax"') && html.includes('Abgef&uuml;hrte Steuern') &&
+  html.includes('id="s-rendite"'));
+check('Tagesstatistiken sind aus dem Header entfernt und bleiben im Statistikbereich',
+  !html.includes('class="stats-bar"') && !html.includes('id="s-winrate"') &&
+  !html.includes('id="s-wins"') && !html.includes('id="s-losses"') &&
+  !html.includes('id="s-trades"') && !html.includes('id="s-avgday"') &&
+  !html.includes('id="s-avgtrade"') && !html.includes('id="s-streak"') &&
+  metricsViewJs.includes('Trade-Winrate'));
 check('Trading-Level-UI: Levelkarte, Zeitraum, Pixelgrafik und Fortschritt vorhanden',
   html.includes('id="trading-level-card"') && html.includes('id="trading-level-period"') &&
   html.includes('id="trading-level-art"') && html.includes('id="trading-level-progress"') &&
@@ -2588,8 +2599,10 @@ try {
   const searchOverlay = doc.getElementById('search-overlay');
   check('Trade-Suche: Overlay liegt ausserhalb der Haupttabs',
     !!searchOverlay && !searchOverlay.closest('.section'));
-  check('capital card present', !!doc.getElementById('s-capital'));
-  check('rendite card present', !!doc.getElementById('s-rendite'));
+  check('Kompaktheader besitzt exakt drei Ergebniswerte',
+    doc.querySelectorAll('.header-summary .header-metric').length === 3 &&
+    !!doc.getElementById('hdr-pnl') && !!doc.getElementById('s-tax') &&
+    !!doc.getElementById('s-rendite') && !doc.getElementById('s-capital'));
 } catch (e) {
   check('jsdom load (' + e.message + ')', false);
 }

@@ -29,25 +29,20 @@ body.dialog-open{overflow:hidden;}
 #login-status{min-height:1.1rem;font-family:'JetBrains Mono',monospace;font-size:.62rem;color:var(--red);}
 
 /* HEADER */
-.header{max-width:1100px;margin:0 auto 1.5rem;display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:1rem;flex-wrap:wrap;gap:.5rem;}
+.header{max-width:1100px;margin:0 auto 1.5rem;display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:1rem;gap:1.5rem;flex-wrap:wrap;}
 .header h1{font-family:'Chakra Petch',sans-serif;font-size:2.6rem;letter-spacing:.06em;line-height:1;}
 .header-sub{font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:.2rem;}
-.total-block{text-align:right;}
-.total-pnl{font-family:'Chakra Petch',sans-serif;font-size:2.4rem;line-height:1;}
+.header-summary{margin-left:auto;display:grid;grid-template-columns:minmax(190px,1.35fr) minmax(130px,1fr) minmax(110px,.8fr);align-items:stretch;flex:1 1 460px;}
+.header-metric{min-width:0;text-align:right;padding:0 1rem;background:transparent;color:inherit;border:0;border-left:1px solid var(--border);font:inherit;}
+.header-metric:first-child{border-left:0;}.header-metric:last-child{padding-right:0;}
+.header-metric-action{cursor:pointer;}.header-metric-action:hover .total-label{color:var(--ink);}
+.total-pnl{font-family:'Chakra Petch',sans-serif;font-size:2rem;line-height:1;white-space:nowrap;}
 .total-pnl.pos{color:var(--green);}.total-pnl.neg{color:var(--red);}
+.header-value{font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:600;line-height:1.15;white-space:nowrap;}
+.header-value.pos{color:var(--green);}.header-value.neg{color:var(--red);}
 .total-label{font-family:'JetBrains Mono',monospace;font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;}
 
 #status-bar{max-width:1100px;margin:0 auto .75rem;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);display:none;}
-
-/* STATS */
-.stats-bar{max-width:1100px;margin:0 auto 1.25rem;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
-@media(min-width:760px){.stats-bar{grid-template-columns:repeat(5,1fr);}}
-.stat{background:var(--paper);padding:.6rem .8rem;}
-.stat-lbl{display:block;font-family:'JetBrains Mono',monospace;font-size:.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem;}
-.stat-val{font-family:'JetBrains Mono',monospace;font-size:.9rem;font-weight:500;}
-.stat-val.pos{color:var(--green);}.stat-val.neg{color:var(--red);}
-.stat-action{border:0;color:inherit;text-align:left;cursor:pointer;}
-.stat-action:hover{background:var(--blue-bg);}
 
 /* TOOLBAR */
 .toolbar{max-width:1100px;margin:0 auto 1rem;display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap;}
@@ -421,40 +416,18 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   body { padding: 0 0 calc(64px + env(safe-area-inset-bottom, 0px)) 0; }
 
   /* HEADER compact */
-  .header { margin: 0; padding: 1rem 1rem .8rem; border-bottom: 1px solid var(--border); align-items: center; }
+  .header { margin: 0; padding: 1rem 1rem .8rem; border-bottom: 1px solid var(--border); align-items: flex-start; flex-direction: column; gap: .8rem; }
   .header h1 { font-size: 1.6rem; }
   .header-sub { font-size: .52rem; }
-  .total-block { text-align: right; }
-  .total-pnl { font-size: 1.7rem; }
-  .total-label { font-size: .5rem; }
+  .header-summary { width: 100%; margin-left: 0; grid-template-columns: repeat(3,minmax(0,1fr)); padding-top: .75rem; border-top: 1px solid var(--border); }
+  .header-metric { padding: 0 .55rem; }
+  .header-metric:first-child { padding-left: 0; text-align: left; }
+  .header-metric:last-child { padding-right: 0; }
+  .total-pnl { font-size: 1.25rem; }
+  .header-value { font-size: .82rem; }
+  .total-label { display: block; margin-top: .18rem; font-size: .45rem; line-height: 1.35; }
 
   #status-bar { margin: .5rem 1rem 0; }
-
-  /* STATS as horizontal swipeable cards */
-  .stats-bar {
-    display: flex;
-    grid-template-columns: none;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    gap: 8px;
-    background: none;
-    border: none;
-    border-radius: 0;
-    padding: .8rem 1rem;
-    margin: 0;
-    -webkit-overflow-scrolling: touch;
-  }
-  .stats-bar::-webkit-scrollbar { display: none; }
-  .stat {
-    flex: 0 0 38%;
-    scroll-snap-align: start;
-    background: var(--paper);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: .7rem .9rem;
-  }
-  .stat-lbl { font-size: .58rem; }
-  .stat-val { font-size: 1.1rem; }
 
   /* TOOLBAR hidden on mobile — actions move to bottom bar */
   .toolbar { display: none; }
@@ -556,7 +529,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   .search-result-open { grid-column: 2; grid-row: 3; }
 
   /* Touchziele nach WCAG und 16px-Eingaben gegen iOS-Zoom. */
-  .btn,.gbtn,.detail-close,.btn-edit,.btn-del,.btn-close-pos,.btn-del-pos,
+  .btn,.gbtn,.detail-close,.btn-edit,.btn-del,.btn-close-pos,.btn-del-pos,.header-metric-action,
   .add-day-btn,.calendar-month-button,.ts-mode-btn,.stats-view-nav-btn,.search-result-open,
   .period-review-select,.trading-level-select,.form-group input,
   .form-group select,.metrics-field input { min-height:44px; }
@@ -579,7 +552,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   </div>
   <p class="login-note">Lokale Daten verlassen dieses Ger&auml;t nicht. Gel&ouml;schte Browserdaten oder eine Deinstallation k&ouml;nnen sie jedoch entfernen.</p>
   <div id="login-status" role="status" aria-live="polite"></div>
-  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v77</div>
+  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v78</div>
 </div>
 
 <!-- APP -->
@@ -587,28 +560,26 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
   <div class="header">
     <div>
       <h1>Trade Kalender</h1>
-      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v77</span></p>
+      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v78</span></p>
     </div>
-    <div class="total-block">
-      <div class="total-pnl pos" id="hdr-pnl">+0,00 &euro;</div>
-      <div class="total-label">Realisiertes P&amp;L (netto)</div>
+    <div class="header-summary" aria-label="Realisierte Gesamtergebnisse">
+      <div class="header-metric header-metric-primary">
+        <div class="total-pnl pos" id="hdr-pnl">+0,00 &euro;</div>
+        <div class="total-label">Realisiertes Gesamt-P&amp;L (netto)</div>
+      </div>
+      <div class="header-metric">
+        <div class="header-value" id="s-tax">0,00 &euro;</div>
+        <div class="total-label">Abgef&uuml;hrte Steuern</div>
+      </div>
+      <button class="header-metric header-metric-action" id="s-rendite-card" type="button"
+        aria-label="Einstand f&uuml;r die Rendite bearbeiten">
+        <span class="header-value" id="s-rendite">&mdash;</span>
+        <span class="total-label">Rendite &#9998;</span>
+      </button>
     </div>
   </div>
 
   <div id="status-bar" role="status" aria-live="polite"></div>
-
-  <div class="stats-bar">
-    <div class="stat"><div class="stat-lbl">Win-Tage-Quote</div><div class="stat-val pos" id="s-winrate">0,0 %</div></div>
-    <div class="stat"><div class="stat-lbl">Win Tage</div><div class="stat-val pos" id="s-wins">0</div></div>
-    <div class="stat"><div class="stat-lbl">Loss Tage</div><div class="stat-val neg" id="s-losses">0</div></div>
-    <div class="stat"><div class="stat-lbl">Trades</div><div class="stat-val" id="s-trades">0</div></div>
-    <div class="stat"><div class="stat-lbl">&Oslash; Tag</div><div class="stat-val" id="s-avgday">+0</div></div>
-    <div class="stat"><div class="stat-lbl">&Oslash; Trade</div><div class="stat-val" id="s-avgtrade">+0</div></div>
-    <div class="stat"><div class="stat-lbl">Win Streak</div><div class="stat-val" id="s-streak">0</div></div>
-    <div class="stat"><div class="stat-lbl">Steuer</div><div class="stat-val" id="s-tax">0,00 &euro;</div></div>
-    <button class="stat stat-action" id="s-capital-card" type="button"><span class="stat-lbl">Einstand &#9998;</span><span class="stat-val" id="s-capital">&mdash;</span></button>
-    <button class="stat stat-action" id="s-rendite-card" type="button"><span class="stat-lbl">Rendite</span><span class="stat-val" id="s-rendite">&mdash;</span></button>
-  </div>
 
   <div class="toolbar">
     <span class="storage-badge" id="storage-badge">Speicher wird geladen</span>
@@ -1136,7 +1107,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 <!-- Der SW-Starter bleibt absichtlich unabhaengig vom Hauptmodul. So kann ein
      alter defekter app.js-Cache durch einen neuen Service Worker heilen. -->
 <script src="sw-register.js" defer></script>
-<script type="module" src="js/app.js?v=v77"></script>
+<script type="module" src="js/app.js?v=v78"></script>
 <!-- app.js behandelt beide async-Reihenfolgen per load-Listener und prueft
      zusaetzlich, ob Google GIS beim Boot bereits verfuegbar ist. -->
 <script id="google-gis-script" src="https://accounts.google.com/gsi/client" async defer></script>

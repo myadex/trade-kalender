@@ -3,7 +3,9 @@
 Dieses Dokument beschreibt den technischen Aufbau des Trade Kalenders. Es ist
 der Einstieg für Änderungen an Struktur, Datenfluss oder Infrastruktur. Die
 verbindlichen Arbeitsregeln stehen ergänzend in [Agent.md](../Agent.md), der
-fachliche Datenvertrag in [DATA_MODEL.md](DATA_MODEL.md).
+fachliche Datenvertrag in [DATA_MODEL.md](DATA_MODEL.md). Eine Übersetzung der
+Module und Muster in C#/.NET-Begriffe bietet der
+[.NET-Leitfaden](DOTNET-GUIDE.md).
 
 ## Kontext und Leitplanken
 
@@ -179,4 +181,3 @@ die ES-Modul-Kette brechen.
   Datenminimierung dokumentieren und testen.
 - Strukturumbau: nur in kleinen, jeweils grünen Etappen ohne gleichzeitige
   Fachänderung.
-

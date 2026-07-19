@@ -23,6 +23,7 @@ Lies vor einer Änderung:
 
 - [Architektur](docs/ARCHITECTURE.md)
 - [Datenmodell](docs/DATA_MODEL.md)
+- [.NET-Leitfaden](docs/DOTNET-GUIDE.md)
 - [Agent-Regeln](Agent.md)
 - [Test-Harness](test/README.md)
 - [Security-Leitfaden](SECURITY.md)
@@ -104,4 +105,3 @@ Das Repository enthält derzeit keine ausdrückliche Open-Source-Lizenz. Bis der
 Eigentümer eine Lizenz festlegt, dürfen Dritte den Code nicht automatisch wie
 ein frei lizenziertes Projekt weiterverwenden. Beiträge sollten deshalb vorab
 mit dem Repository-Eigentümer abgestimmt werden.
-

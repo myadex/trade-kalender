@@ -36,6 +36,8 @@ cached die lokale App-Shell für den Offline-Start.
 
 - [Architektur](docs/ARCHITECTURE.md) – Schichten, Datenfluss, APIs und PWA
 - [Datenmodell](docs/DATA_MODEL.md) – persistenter Vertrag und Invarianten
+- [Für .NET-Entwickler](docs/DOTNET-GUIDE.md) – Module als C#-Konzepte lesen
+  und JavaScript gegen Blazor abwägen
 - [Beiträge](CONTRIBUTING.md) – lokales Setup und Änderungsworkflow
 - [Sicherheit](SECURITY.md) – Finanzdaten, OAuth, Backups und Meldungen
 - [Tests](test/README.md) – Aufbau und Regeln des Test-Harness

@@ -442,8 +442,8 @@ Wartbarkeit bzw. Komfort.
 
 ### Projektstruktur schrittweise ordnen
 
-- **Status:** In Arbeit; Etappe 1 in v83 und Entwickler-Onboarding in v84
-  abgeschlossen.
+- **Status:** In Arbeit; Etappe 1 in v83, Entwickler-Onboarding in v84 und
+  der .NET-Lernleitfaden in v85 abgeschlossen.
 - **Ziel:** Fachlogik, Infrastruktur, UI und gemeinsame Hilfen klarer ordnen,
   ohne Framework oder Build-Pipeline einzufuehren.
 - **Etappe 1:** Das vollstaendige App-CSS liegt in `css/app.css` statt im
@@ -454,6 +454,11 @@ Wartbarkeit bzw. Komfort.
   Beitragsworkflow und Security-Grenzen stehen in eigenen, verlinkten
   Dokumenten. Permanente Tests sichern Inhalte, lokale Links, Textkodierung
   und die kurze Uebersicht tatsaechlich offener Arbeit.
+- **.NET-Lernpfad:** Ein eigener Leitfaden uebersetzt ES-Module, pure
+  Funktionen, Datenobjekte, Promise, DOM und Browseradapter in vertraute
+  C#-Konzepte. Er dokumentiert ausserdem, warum die laufende PWA nicht neu
+  geschrieben werden sollte und wie ein separater Blazor-Lern-Port bei der
+  puren FIFO-Domaene beginnen kann.
 - **Sicherung:** Strukturtests erzwingen externen CSS-Link, fehlenden
   eingebetteten Styleblock und den Service-Worker-Cacheeintrag. Alle bisherigen
   CSS-Vertraege pruefen jetzt direkt die externe Datei.

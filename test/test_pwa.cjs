@@ -127,6 +127,7 @@ const agentPath = DIR + '/Agent.md';
 const agentGuide = fs.existsSync(agentPath) ? fs.readFileSync(agentPath, 'utf8') : '';
 const architecturePath = DIR + '/docs/ARCHITECTURE.md';
 const dataModelPath = DIR + '/docs/DATA_MODEL.md';
+const dotnetGuidePath = DIR + '/docs/DOTNET-GUIDE.md';
 const contributingPath = DIR + '/CONTRIBUTING.md';
 const securityPath = DIR + '/SECURITY.md';
 const architectureDoc = fs.existsSync(architecturePath)
@@ -134,6 +135,9 @@ const architectureDoc = fs.existsSync(architecturePath)
   : '';
 const dataModelDoc = fs.existsSync(dataModelPath)
   ? fs.readFileSync(dataModelPath, 'utf8')
+  : '';
+const dotnetGuideDoc = fs.existsSync(dotnetGuidePath)
+  ? fs.readFileSync(dotnetGuidePath, 'utf8')
   : '';
 const contributingDoc = fs.existsSync(contributingPath)
   ? fs.readFileSync(contributingPath, 'utf8')
@@ -168,6 +172,27 @@ check('Dokumentation: kanonisches Datenmodell ist vollständig beschrieben',
   dataModelDoc.includes('YYYY-MM-DD') &&
   dataModelDoc.includes('normalizeAppData') &&
   dataModelDoc.includes('Steuer'));
+check('Dokumentation: .NET-Leitfaden ist aus README und Agent-Regeln erreichbar',
+  readme.includes('[Für .NET-Entwickler](docs/DOTNET-GUIDE.md)') &&
+  agentGuide.includes('docs/DOTNET-GUIDE.md'));
+check('Dokumentation: .NET-Leitfaden übersetzt Module und Sprachkonzepte nach C#',
+  dotnetGuideDoc.includes('# Von .NET zu diesem Projekt') &&
+  dotnetGuideDoc.includes('## Warum kaum Klassen?') &&
+  dotnetGuideDoc.includes('## Modul-zu-.NET-Zuordnung') &&
+  ['app.js', 'app-data.js', 'fifo.js', 'views.js', 'storage.js',
+    'local-storage.js', 'navigation.js']
+    .every(moduleName => dotnetGuideDoc.includes('`' + moduleName + '`')) &&
+  dotnetGuideDoc.includes('Composition Root') &&
+  dotnetGuideDoc.includes('record Trade') &&
+  dotnetGuideDoc.includes('ITradeRepository') &&
+  dotnetGuideDoc.includes('Task'));
+check('Dokumentation: .NET-Leitfaden enthält eine klare Blazor-Entscheidung und Lernroute',
+  dotnetGuideDoc.includes('## JavaScript oder Blazor?') &&
+  dotnetGuideDoc.includes('nicht neu schreiben') &&
+  dotnetGuideDoc.includes('separaten Lern-Port') &&
+  dotnetGuideDoc.includes('Blazor WebAssembly') &&
+  dotnetGuideDoc.includes('JavaScript-Interop') &&
+  dotnetGuideDoc.includes('TradeCalendar.Domain'));
 check('Dokumentation: Beitragsleitfaden sichert Test-, Versions- und Datenschutzworkflow',
   contributingDoc.includes('# Beitragen') &&
   contributingDoc.includes('npm test') &&
@@ -195,6 +220,7 @@ check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
       [backlogPath, backlog],
       [architecturePath, architectureDoc],
       [dataModelPath, dataModelDoc],
+      [dotnetGuidePath, dotnetGuideDoc],
       [contributingPath, contributingDoc],
       [securityPath, securityDoc]
     ];
@@ -210,7 +236,7 @@ check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
   })());
 check('Dokumentation: Texte enthalten keine sichtbaren Unicode-Escape-Sequenzen',
   !/\\u[0-9a-f]{4}/i.test([
-    readme, agentGuide, backlog, architectureDoc, dataModelDoc,
+    readme, agentGuide, backlog, architectureDoc, dataModelDoc, dotnetGuideDoc,
     contributingDoc, securityDoc
   ].join('\n')));
 check('Dokumentation: Agent-Leitfaden ist korrekt benannt und verweist auf die Entwicklerdokumente',

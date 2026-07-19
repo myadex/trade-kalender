@@ -33,6 +33,7 @@ sw-register.js  Unabhaengiger SW-Update-Starter vor dem Hauptmodul
 test/           Test-Harness (siehe test/README.md)
 docs/ARCHITECTURE.md Schichten, Datenfluss, APIs und Betriebsgrenzen
 docs/DATA_MODEL.md Kanonischer persistenter Vertrag und Invarianten
+docs/DOTNET-GUIDE.md Uebersetzung der Module in C#/.NET-Denkmodelle
 CONTRIBUTING.md  Lokales Setup, Aenderungsworkflow und PR-Checkliste
 SECURITY.md      Umgang mit Finanzdaten, OAuth, Backups und Vorfaellen
 ```
@@ -130,6 +131,8 @@ Lokal: VS Code + statischer Server
 [CONTRIBUTING.md](CONTRIBUTING.md). Architekturentscheidungen und persistente
 Felder werden gleichzeitig in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 beziehungsweise [docs/DATA_MODEL.md](docs/DATA_MODEL.md) aktualisiert.
+Fuer den Einstieg aus C#/.NET-Sicht gilt
+[docs/DOTNET-GUIDE.md](docs/DOTNET-GUIDE.md).
 Sicherheitsgrenzen stehen in [SECURITY.md](SECURITY.md).
 
 Test: `npm test` (Details siehe [test/README.md](test/README.md)). Deploy:

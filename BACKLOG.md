@@ -5,6 +5,17 @@ Ein Punkt wird erst nach Test, Dokumentation und Verifikation auf erledigt
 gesetzt. `P1` betrifft Daten oder Sicherheit, `P2` den Produktfluss und `P3`
 Wartbarkeit bzw. Komfort.
 
+## Aktuell offen
+
+- **P1 – Git-Historie von Finanzdaten bereinigen:** Die normalen Branches sind
+  bereinigt; GitHub Support muss den noch direkt per alter SHA erreichbaren
+  Server-Cache entfernen.
+- **P3 – Projektstruktur schrittweise ordnen:** Nach externem CSS und dem
+  Entwickler-Onboarding folgen die pure Aufteilung von `views.js` und danach
+  die Kalender-/Statistik-Renderer aus `app.js`.
+- **Warteliste – Dashboard konfigurierbar machen:** Kennzahlenkarten optional
+  ausblenden oder anordnen; derzeit bewusst niedrige Prioritaet.
+
 ## Prioritaet 1
 
 ### Git-Historie von Finanzdaten bereinigen
@@ -428,6 +439,27 @@ Wartbarkeit bzw. Komfort.
   Testkommando gemeinsam. Ein Gegenlauf ohne `type: module` macht den Check rot
   und reproduziert die `MODULE_TYPELESS_PACKAGE_JSON`-Warnung; der finale
   Komplettlauf ist warnungsfrei.
+
+### Projektstruktur schrittweise ordnen
+
+- **Status:** In Arbeit; Etappe 1 in v83 und Entwickler-Onboarding in v84
+  abgeschlossen.
+- **Ziel:** Fachlogik, Infrastruktur, UI und gemeinsame Hilfen klarer ordnen,
+  ohne Framework oder Build-Pipeline einzufuehren.
+- **Etappe 1:** Das vollstaendige App-CSS liegt in `css/app.css` statt im
+  mehr als tausend Zeilen langen `index.html`. Das Stylesheet bleibt Teil der
+  versionierten Offline-App-Shell.
+- **Dokumentation:** `README.md` bietet einen ausfuehrbaren Schnellstart und
+  einen Dokumentationsindex. Architektur, persistentes Datenmodell,
+  Beitragsworkflow und Security-Grenzen stehen in eigenen, verlinkten
+  Dokumenten. Permanente Tests sichern Inhalte, lokale Links, Textkodierung
+  und die kurze Uebersicht tatsaechlich offener Arbeit.
+- **Sicherung:** Strukturtests erzwingen externen CSS-Link, fehlenden
+  eingebetteten Styleblock und den Service-Worker-Cacheeintrag. Alle bisherigen
+  CSS-Vertraege pruefen jetzt direkt die externe Datei.
+- **Naechste Etappen:** Die pure Statistiklogik aus `views.js` fachlich
+  aufteilen, danach Kalender- und Statistik-Renderer aus `app.js` loesen.
+  Jede Etappe bleibt ein eigener, vollstaendig getesteter Schnitt.
 
 ### UI-Controller weiter aufteilen
 

@@ -29,6 +29,9 @@ Stand reproduzierbar mit `npm ci`.
 ## Was geprüft wird (Kategorien)
 
 1.  **Syntax/Parse** — jede js/-Datei + sw.js wird per acorn geparst
+1a. **Entwicklungsvertrag und Dokumentation** — Standardkommando, CI,
+    Schnellstart, Architektur, Datenmodell, Security, Beitragsworkflow,
+    lokale Markdown-Links und Textkodierung
 1b. **Modul-Verträge** — jeder `import { X } from './y.js'` hat ein
     passendes `export` (per AST; fängt Teil-Deploy-Fehler)
 2.  **ID-Referenzen** — im Code benutzte Element-IDs existieren im HTML

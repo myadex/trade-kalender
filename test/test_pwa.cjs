@@ -102,6 +102,18 @@ const swRegisterJs = fs.existsSync(swRegisterPath)
   ? fs.readFileSync(swRegisterPath, 'utf8')
   : '';
 const html = fs.readFileSync(DIR + '/index.html', 'utf8');
+const appCssPath = DIR + '/css/app.css';
+const inlineAppCss = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] || '';
+// Der Fallback haelt Fehlermeldungen gezielt: Wird CSS versehentlich wieder
+// eingebettet, melden die Strukturtests genau diesen Rueckfall, waehrend die
+// unabhaengigen CSS-Verhaltenstests nicht als Folgefehler rauschen.
+const appCss = fs.existsSync(appCssPath)
+  ? fs.readFileSync(appCssPath, 'utf8')
+  : inlineAppCss;
+check('Projektstruktur: App-CSS liegt extern statt im HTML',
+  fs.existsSync(appCssPath) &&
+  html.includes('<link rel="stylesheet" href="css/app.css">') &&
+  !/<style>[\s\S]*<\/style>/.test(html));
 check('PWA: unabhaengiger SW-Starter kann einen kaputten App-Modulcache erneuern',
   fs.existsSync(swRegisterPath) &&
   html.indexOf('src="sw-register.js"') >= 0 &&
@@ -111,8 +123,107 @@ check('PWA: unabhaengiger SW-Starter kann einen kaputten App-Modulcache erneuern
 const backlogPath = DIR + '/BACKLOG.md';
 const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8') : '';
 const readme = fs.readFileSync(DIR + '/README.md', 'utf8');
+const agentPath = DIR + '/Agent.md';
+const agentGuide = fs.existsSync(agentPath) ? fs.readFileSync(agentPath, 'utf8') : '';
+const architecturePath = DIR + '/docs/ARCHITECTURE.md';
+const dataModelPath = DIR + '/docs/DATA_MODEL.md';
+const contributingPath = DIR + '/CONTRIBUTING.md';
+const securityPath = DIR + '/SECURITY.md';
+const architectureDoc = fs.existsSync(architecturePath)
+  ? fs.readFileSync(architecturePath, 'utf8')
+  : '';
+const dataModelDoc = fs.existsSync(dataModelPath)
+  ? fs.readFileSync(dataModelPath, 'utf8')
+  : '';
+const contributingDoc = fs.existsSync(contributingPath)
+  ? fs.readFileSync(contributingPath, 'utf8')
+  : '';
+const securityDoc = fs.existsSync(securityPath)
+  ? fs.readFileSync(securityPath, 'utf8')
+  : '';
 check('Projekt-Backlog mit offenen Punkten vorhanden',
   backlog.includes('# App-Backlog') && backlog.includes('## Prioritaet 1'));
+check('Dokumentation: README bietet einen ausführbaren Schnellstart und einen Dokumentationsindex',
+  readme.includes('## Schnellstart') &&
+  readme.includes('npm ci') &&
+  readme.includes('npm test') &&
+  readme.includes('http://127.0.0.1:5500/index.html') &&
+  readme.includes('[Architektur](docs/ARCHITECTURE.md)') &&
+  readme.includes('[Datenmodell](docs/DATA_MODEL.md)') &&
+  readme.includes('[Beiträge](CONTRIBUTING.md)') &&
+  readme.includes('[Sicherheit](SECURITY.md)'));
+check('Dokumentation: Architektur beschreibt Schichten, Datenfluss und Betriebsgrenzen',
+  architectureDoc.includes('# Architektur') &&
+  architectureDoc.includes('## Schichten') &&
+  architectureDoc.includes('## Datenfluss') &&
+  architectureDoc.includes('IndexedDB') &&
+  architectureDoc.includes('Google Drive') &&
+  architectureDoc.includes('Service Worker') &&
+  architectureDoc.includes('app.js'));
+check('Dokumentation: kanonisches Datenmodell ist vollständig beschrieben',
+  dataModelDoc.includes('# Datenmodell') &&
+  ['trades', 'openLots', 'capital', 'importRows', 'importBaseOpenLots',
+    'hiddenOpenPositions', 'safetyBackups']
+    .every(field => dataModelDoc.includes('`' + field + '`')) &&
+  dataModelDoc.includes('YYYY-MM-DD') &&
+  dataModelDoc.includes('normalizeAppData') &&
+  dataModelDoc.includes('Steuer'));
+check('Dokumentation: Beitragsleitfaden sichert Test-, Versions- und Datenschutzworkflow',
+  contributingDoc.includes('# Beitragen') &&
+  contributingDoc.includes('npm test') &&
+  contributingDoc.includes('Rot') &&
+  contributingDoc.includes('Gegenprobe') &&
+  contributingDoc.includes('APP_VERSION') &&
+  contributingDoc.includes('RELEASE') &&
+  contributingDoc.includes('CACHE') &&
+  contributingDoc.includes('Broker-Exporte'));
+check('Dokumentation: Security-Leitfaden deckt OAuth, Finanzdaten und Backups ab',
+  securityDoc.includes('# Sicherheit') &&
+  securityDoc.includes('drive.file') &&
+  securityDoc.includes('OAuth-Client-ID') &&
+  securityDoc.includes('keine geheimen') &&
+  securityDoc.includes('AES-256-GCM') &&
+  securityDoc.includes('Passphrase') &&
+  securityDoc.includes('Broker-Export') &&
+  securityDoc.includes('privaten Kanal'));
+check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
+  (() => {
+    const path = require('path');
+    const documents = [
+      [DIR + '/README.md', readme],
+      [agentPath, agentGuide],
+      [backlogPath, backlog],
+      [architecturePath, architectureDoc],
+      [dataModelPath, dataModelDoc],
+      [contributingPath, contributingDoc],
+      [securityPath, securityDoc]
+    ];
+    return documents.every(([sourcePath, content]) => {
+      if (!content) return false;
+      const links = [...content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map(match => match[1]);
+      return links.every(target => {
+        if (/^(?:https?:|mailto:|#)/.test(target)) return true;
+        const fileTarget = target.split('#')[0];
+        return fileTarget && fs.existsSync(path.resolve(path.dirname(sourcePath), fileTarget));
+      });
+    });
+  })());
+check('Dokumentation: Texte enthalten keine sichtbaren Unicode-Escape-Sequenzen',
+  !/\\u[0-9a-f]{4}/i.test([
+    readme, agentGuide, backlog, architectureDoc, dataModelDoc,
+    contributingDoc, securityDoc
+  ].join('\n')));
+check('Dokumentation: Agent-Leitfaden ist korrekt benannt und verweist auf die Entwicklerdokumente',
+  agentGuide.startsWith('# Agent.md') &&
+  agentGuide.includes('docs/ARCHITECTURE.md') &&
+  agentGuide.includes('docs/DATA_MODEL.md') &&
+  agentGuide.includes('CONTRIBUTING.md') &&
+  agentGuide.includes('SECURITY.md'));
+check('Dokumentation: Backlog besitzt eine kurze Übersicht der tatsächlich offenen Arbeit',
+  backlog.includes('## Aktuell offen') &&
+  backlog.includes('Git-Historie von Finanzdaten bereinigen') &&
+  backlog.includes('Projektstruktur schrittweise ordnen') &&
+  backlog.includes('Dashboard konfigurierbar machen'));
 check('Backlog: Vergleich mit anderen Tradern ist vollstaendig entfernt',
   !backlog.includes('### Vergleich mit einem guten Trader-Profil') &&
   !backlog.includes('Orientierungsprofil'));
@@ -137,7 +248,7 @@ catch (e) { check('sw.js parses (' + e.message + ')', false); }
 try { acorn.parse(swRegisterJs, { ecmaVersion: 2020 }); check('sw-register.js parses', true); }
 catch (e) { check('sw-register.js parses (' + e.message + ')', false); }
 const offlineAssets = [
-  './index.html', './manifest.json', './icon-192.png', './icon-512.png', './sw-register.js',
+  './index.html', './manifest.json', './icon-192.png', './icon-512.png', './sw-register.js', './css/app.css',
   './js/app.js', './js/app-data.js', './js/backup-crypto.js', './js/config.js', './js/fifo.js', './js/helpers.js',
   './js/dialog-accessibility.js', './js/import-dialogs.js', './js/import.js', './js/navigation.js',
   './js/metrics-view.js', './js/position-dialog.js', './js/storage.js',
@@ -295,23 +406,23 @@ check('Mobile: Hauptnavigation, Aktionsmenü und Safe-Area sind semantisch abges
   accessibilityDocument.getElementById('bottom-bar')?.tagName === 'NAV' &&
   accessibilityDocument.getElementById('mobile-actions-toggle')?.getAttribute('aria-controls') === 'mobile-actions' &&
   accessibilityDocument.getElementById('mobile-actions-toggle')?.getAttribute('aria-expanded') === 'false' &&
-  html.includes('env(safe-area-inset-bottom'));
+  appCss.includes('env(safe-area-inset-bottom'));
 check('Mobile: langes Aktionsmenue bleibt auf kleinen Displays scrollbar und kontrastreich',
-  /#mobile-actions\s*\{[\s\S]*?max-height:calc\(100dvh[\s\S]*?overflow-y:auto/.test(html) &&
-  /#mobile-actions button\s*\{[\s\S]*?background:\s*var\(--bg\)/.test(html));
+  /#mobile-actions\s*\{[\s\S]*?max-height:calc\(100dvh[\s\S]*?overflow-y:auto/.test(appCss) &&
+  /#mobile-actions button\s*\{[\s\S]*?background:\s*var\(--bg\)/.test(appCss));
 check('Mobile: Touchziele und Eingaben sind mindestens fingerfreundlich definiert',
-  html.includes('min-height:44px') && html.includes('font-size:16px'));
-const mobileHeaderCss = html.slice(html.indexOf('@media (max-width: 720px)'), html.indexOf('</style>'));
+  appCss.includes('min-height:44px') && appCss.includes('font-size:16px'));
+const mobileHeaderCss = appCss.slice(appCss.indexOf('@media (max-width: 720px)'));
 check('Mobile: Kompaktheader uebernimmt keine vertikale Desktop-Flexbasis',
   /\.header-summary\s*\{[^}]*flex:\s*0 0 auto/.test(mobileHeaderCss));
-const headerMetricRule = html.match(/\.header-metric\{([^}]*)\}/)?.[1] || '';
+const headerMetricRule = appCss.match(/\.header-metric\{([^}]*)\}/)?.[1] || '';
 check('Header: alle drei Kennzahlen teilen linke Achse und feste Wertezeile',
   headerMetricRule.includes('text-align:left') &&
   headerMetricRule.includes('display:grid') &&
   headerMetricRule.includes('grid-template-rows:'));
 check('A11y: Fokus ist global sichtbar und Formularfelder bleiben kontrastreich',
-  html.includes(':focus-visible') &&
-  html.includes('background:var(--bg);color:var(--ink)'));
+  appCss.includes(':focus-visible') &&
+  appCss.includes('background:var(--bg);color:var(--ink)'));
 check('A11y: Kalendertage werden als beschriftete Buttons gerendert',
   appControllerJs.includes("cell.className = 'calendar-day-button'") &&
   appControllerJs.includes("cell.setAttribute('aria-label'"));
@@ -449,11 +560,10 @@ console.log('\n=== 3b. MODULE: CSP-KOMPATIBLE VERDRAHTUNG ===');
 }
 
 console.log('\n=== 4. CSS ORDERING (media query must win) ===');
-const mqPos = html.indexOf('@media (max-width: 720px)');
+const mqPos = appCss.indexOf('@media (max-width: 720px)');
 check('media query present', mqPos > -1);
 // any plain (non-media) rule for #bottom-bar / #mobile-actions after the MQ would override it
-const styleEnd = html.indexOf('</style>');
-const afterMq = html.slice(mqPos, styleEnd);
+const afterMq = appCss.slice(mqPos);
 // find end of media query block by brace counting
 let depth = 0, i = afterMq.indexOf('{'), endMq = -1;
 for (; i < afterMq.length; i++) {
@@ -462,7 +572,7 @@ for (; i < afterMq.length; i++) {
 }
 const trailing = afterMq.slice(endMq + 1).trim();
 check('no CSS rules after media query block', trailing.length === 0);
-check('desktop #bottom-bar default before media query', html.indexOf('#bottom-bar { display: none; }') < mqPos);
+check('desktop #bottom-bar default before media query', appCss.indexOf('#bottom-bar { display: none; }') < mqPos);
 
 console.log('\n=== 5. NO KNOWN BUGS ===');
 check('no Math.abs(tax) in P&L math', !appJs.includes('- Math.abs(tax)') && !appJs.includes('-Math.abs(tax)'));
@@ -2353,7 +2463,7 @@ check('buildInsights wird aufgerufen', appJs.includes('buildInsights();'));
 check('Stunden-Diagnose gerendert bei roten Stunden', appJs.includes('ts-hour-diag') && appJs.includes('function diagText'));
 check('Disziplin-Trend-Tabelle vorhanden', html.includes('id="ts-discipline"') && appJs.includes('function buildDiscipline'));
 check('FOMO-Befund-Text vorhanden', appJs.includes('FOMO-Check'));
-check('CSS fuer Stunden-Richtungszeile', html.includes('.ts-hour-dir{'));
+check('CSS fuer Stunden-Richtungszeile', appCss.includes('.ts-hour-dir{'));
 check('Statistik-Tab in Tab-Order', appJs.includes("'open', 'timestats'"));
 check('buildTimeStats vorhanden + in rebuildAll', appJs.includes('function buildTimeStats') && /rebuildAll[\s\S]{0,400}buildTimeStats\(\)/.test(appJs) || appJs.includes('buildTimeStats();'));
 check('HTML: Statistik-Section vorhanden', html.includes('id="tab-timestats"') && html.includes('ts-blocks'));
@@ -2392,8 +2502,8 @@ check('Statistik-UI: interne Tabs sind per Pfeiltasten erreichbar',
   appJs.includes('function handleStatsViewKey(event)') &&
   appJs.includes("'ArrowLeft', 'ArrowRight', 'Home', 'End'"));
 check('Statistik-UI: Untermenue bleibt auf kleinen Displays horizontal bedienbar',
-  html.includes('.stats-view-nav{') && html.includes('overflow-x:auto') &&
-  html.includes('.stats-view-nav-btn{'));
+  appCss.includes('.stats-view-nav{') && appCss.includes('overflow-x:auto') &&
+  appCss.includes('.stats-view-nav-btn{'));
 check('Trade-Suche: alle kombinierbaren Filter und Ergebnisbereich vorhanden',
   html.includes('id="search-overlay"') && html.includes('id="search-query"') &&
   html.includes('id="search-from"') && html.includes('id="search-to"') &&

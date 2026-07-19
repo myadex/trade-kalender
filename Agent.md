@@ -1,4 +1,4 @@
-# CLAUDE.md — Trade Kalender PWA
+# Agent.md — Trade Kalender PWA
 
 Hinterlegte Standards für dieses Repo. Gilt für jede Session, jeden Assistenten, jeden Menschen.
 
@@ -7,6 +7,7 @@ Hinterlegte Standards für dieses Repo. Gilt für jede Session, jeden Assistente
 Persönlicher Trade-Kalender als PWA. Vanilla JS (ES-Module, kein Framework, keine Build-Pipeline), GitHub Pages. Datenquelle: Scalable-Capital-CSV (Semikolon, deutsches Zahlenformat). Persistenz: wahlweise IndexedDB auf einem Gerät oder `trade-kalender.json` in Google Drive (drive.file-Scope). Kernlogik: FIFO-Matching + deutsche Abgeltungsteuer (26,375%).
 
 ```
+css/app.css     Gesamtes App-Layout inkl. mobiler Regeln
 js/config.js    Konstanten + APP_VERSION
 js/app-data.js  Kanonisches persistentes Datenmodell und Normalisierung (pure)
 js/backup-crypto.js Versioniertes AES-GCM-Backupformat (pure, Web Crypto injizierbar)
@@ -30,6 +31,10 @@ js/app.js       UI-Verdrahtung, Rendering, Auth-Flow
 sw.js           Service Worker (CACHE-Name = Version)
 sw-register.js  Unabhaengiger SW-Update-Starter vor dem Hauptmodul
 test/           Test-Harness (siehe test/README.md)
+docs/ARCHITECTURE.md Schichten, Datenfluss, APIs und Betriebsgrenzen
+docs/DATA_MODEL.md Kanonischer persistenter Vertrag und Invarianten
+CONTRIBUTING.md  Lokales Setup, Aenderungsworkflow und PR-Checkliste
+SECURITY.md      Umgang mit Finanzdaten, OAuth, Backups und Vorfaellen
 ```
 
 ## Nicht verhandelbare Regeln
@@ -119,4 +124,14 @@ als Test-Fixture eingecheckt werden.
 
 ## Workflow
 
-Lokal: VS Code + Live Server (`http://127.0.0.1:5500/index.html`). Test: `npm test` (Setup siehe test/README.md). Deploy: `git add . && git commit && git push` → GitHub Pages. Danach: Hard-Reload, Versionsnummer im Header verifizieren.
+Lokal: VS Code + statischer Server
+(`http://127.0.0.1:5500/index.html`). Einstieg und Setup stehen in
+[README.md](README.md), der vollstaendige Aenderungsworkflow in
+[CONTRIBUTING.md](CONTRIBUTING.md). Architekturentscheidungen und persistente
+Felder werden gleichzeitig in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+beziehungsweise [docs/DATA_MODEL.md](docs/DATA_MODEL.md) aktualisiert.
+Sicherheitsgrenzen stehen in [SECURITY.md](SECURITY.md).
+
+Test: `npm test` (Details siehe [test/README.md](test/README.md)). Deploy:
+`git add . && git commit && git push` → GitHub Pages. Danach: Hard-Reload,
+Versionsnummer im Header verifizieren.

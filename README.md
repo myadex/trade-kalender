@@ -3,6 +3,54 @@
 Persönlicher Trade-Kalender als installierbare PWA. Die App läuft ohne
 Framework und ohne Build-Schritt direkt im Browser.
 
+## Schnellstart
+
+Voraussetzung ist Node.js 24 oder neuer. Im Projekt-Root:
+
+```powershell
+npm ci
+npm test
+python -m http.server 5500 --bind 127.0.0.1
+```
+
+Danach die App unter `http://127.0.0.1:5500/index.html` öffnen. Für die lokale
+Entwicklung ist keine Google-Anmeldung notwendig: **Nur auf diesem Gerät**
+verwendet IndexedDB im aktuellen Browserprofil. **Mit Google Drive starten**
+benötigt eine Onlineverbindung und ein für die konfigurierte OAuth-Client-ID
+freigeschaltetes Google-Konto.
+
+VS Code Live Server kann alternativ verwendet werden. Sein injiziertes
+Live-Reload-Skript wird von der strengen Content Security Policy absichtlich
+blockiert; das betrifft nur Live-Reload, nicht die App.
+
+## Architektur in Kürze
+
+Die App besteht aus nativen ES-Modulen. `js/app.js` koordiniert Zustand,
+Ereignisse, Rendering und Persistenz. Berechnungen, FIFO, Import und
+Validierung liegen als pure Funktionen in eigenen Modulen. Der kanonische
+Zustand wird wahlweise in IndexedDB oder als `trade-kalender.json` im
+Google-Drive-`drive.file`-Scope gespeichert. Ein versionierter Service Worker
+cached die lokale App-Shell für den Offline-Start.
+
+## Dokumentation
+
+- [Architektur](docs/ARCHITECTURE.md) – Schichten, Datenfluss, APIs und PWA
+- [Datenmodell](docs/DATA_MODEL.md) – persistenter Vertrag und Invarianten
+- [Beiträge](CONTRIBUTING.md) – lokales Setup und Änderungsworkflow
+- [Sicherheit](SECURITY.md) – Finanzdaten, OAuth, Backups und Meldungen
+- [Tests](test/README.md) – Aufbau und Regeln des Test-Harness
+- [Backlog](BACKLOG.md) – priorisierte offene und abgeschlossene Arbeit
+- [Agent-Regeln](Agent.md) – verbindliche technische Leitplanken
+
+## Projektstruktur ab v83
+
+Das vollstaendige App-Stylesheet liegt in `css/app.css` statt im HTML-Dokument.
+`index.html` enthaelt dadurch nur noch Struktur und Ressourcenverweise. Der
+Service Worker cached das Stylesheet als Teil der versionierten App-Shell,
+sodass die Darstellung weiterhin offline verfuegbar bleibt. Permanente Tests
+sichern den externen Link, das Fehlen eines eingebetteten Styleblocks und den
+Cacheeintrag.
+
 ## Sachlicher Kennzahlenbereich ab v81
 
 Der Kennzahlenbereich konzentriert sich ausschliesslich auf die messbaren
@@ -81,69 +129,69 @@ automatischer Sync.
 ## Import-Ledger ab v35
 
 Bestehende `trades` und `openLots` bleiben Legacy-Daten. Ab dem ersten neuen
-CSV-Import speichert die Drive-JSON zus\u00e4tzlich die unver\u00e4nderten
+CSV-Import speichert die Drive-JSON zusätzlich die unveränderten
 `importRows` und den einmaligen `importBaseOpenLots`-Snapshot. Daraus werden
 neue Import-Trades und offene Lots bei jedem Replay reproduzierbar abgeleitet.
 
 Der erste Ledger-Import darf deshalb nur neue Brokerzeilen enthalten. Der
-normale CSV-Import erg\u00e4nzt ausschlie\u00dflich noch unbekannte Brokerzeilen.
+normale CSV-Import ergänzt ausschließlich noch unbekannte Brokerzeilen.
 
 ## Importierte Trades bearbeiten ab v43
 
-Der Bearbeiten-Button eines importierten Trades \u00e4ndert dessen gespeicherte
+Der Bearbeiten-Button eines importierten Trades ändert dessen gespeicherte
 Broker-Verkaufszeile. Danach wird das gesamte Import-Ledger neu abgespielt, sodass
 Einstand, P&L und offene Lots weiterhin aus FIFO entstehen. Datum, Produkt,
-St\u00fcckzahl, Verkaufsbetrag und Steuer sind editierbar. Kaufbetrag und Broker
-bleiben schreibgesch\u00fctzt, weil sie nicht Teil der Verkaufszeile sind.
+Stückzahl, Verkaufsbetrag und Steuer sind editierbar. Kaufbetrag und Broker
+bleiben schreibgeschützt, weil sie nicht Teil der Verkaufszeile sind.
 
-Ung\u00fcltige Eingaben, doppelte Rohzeilen und Verk\u00e4ufe ohne ausreichende offene
+Ungültige Eingaben, doppelte Rohzeilen und Verkäufe ohne ausreichende offene
 Lots werden vor dem Speichern abgelehnt. Legacy- und manuell angelegte Trades
 verwenden weiterhin den direkten Editor.
 
-## Kein vollst\u00e4ndiger CSV-Neuaufbau
+## Kein vollständiger CSV-Neuaufbau
 
 Der zeitweise erprobte Komplett-Neuaufbau wurde in v43 bewusst entfernt. Ein
-Broker-Export enth\u00e4lt keine manuellen Korrekturen und ist deshalb nicht die
-ma\u00dfgebliche Quelle f\u00fcr den gesamten Datenbestand. Der normale CSV-Import
-erg\u00e4nzt weiterhin nur neue Brokerzeilen, ohne Legacy-Daten zu ersetzen.
+Broker-Export enthält keine manuellen Korrekturen und ist deshalb nicht die
+maßgebliche Quelle für den gesamten Datenbestand. Der normale CSV-Import
+ergänzt weiterhin nur neue Brokerzeilen, ohne Legacy-Daten zu ersetzen.
 
 ## Offene Positionen entfernen ab v44
 
-"Position entfernen" l\u00f6scht keine Brokerzeile. Die App speichert stattdessen
-einen versionierten Ausschluss f\u00fcr die stabilen IDs der aktuell offenen Lots.
-Dadurch bleiben Brokerhistorie, FIFO, P&L und Steuer unver\u00e4ndert und die
+"Position entfernen" löscht keine Brokerzeile. Die App speichert stattdessen
+einen versionierten Ausschluss für die stabilen IDs der aktuell offenen Lots.
+Dadurch bleiben Brokerhistorie, FIFO, P&L und Steuer unverändert und die
 Position bleibt auch nach einem Import-Ledger-Replay aus der normalen Ansicht
 entfernt.
 
-Sp\u00e4tere K\u00e4ufe derselben ISIN erhalten neue Lot-IDs und bleiben sichtbar. Alle
-aktiven Ausschl\u00fcsse stehen unter **"Entfernte Positionen"** und k\u00f6nnen dort mit
-**"Wieder anzeigen"** dauerhaft r\u00fcckg\u00e4ngig gemacht werden. Nach einem echten
+Spätere Käufe derselben ISIN erhalten neue Lot-IDs und bleiben sichtbar. Alle
+aktiven Ausschlüsse stehen unter **"Entfernte Positionen"** und können dort mit
+**"Wieder anzeigen"** dauerhaft rückgängig gemacht werden. Nach einem echten
 Verkauf erzeugen geschlossene Lots dort keinen veralteten Eintrag. Das Feld
 `hiddenOpenPositions` ist optional, damit bestehende Drive-JSON-Dateien und alte
 Sicherungen weiterhin ohne Migration geladen werden.
 
 ## Drive-Sicherheit ab v37
 
-Jeder Drive-HTTP-Fehler au\u00dfer 401 wird mit Status und Servermeldung angezeigt.
-Eine ung\u00fcltige Drive-JSON wird nicht als leerer Bestand interpretiert. Lokale
-Schreibauftr\u00e4ge werden mit einem eigenen Daten-Snapshot nacheinander gespeichert,
-damit schnelle aufeinanderfolgende Aktionen sich nicht gegenseitig \u00fcberschreiben.
+Jeder Drive-HTTP-Fehler außer 401 wird mit Status und Servermeldung angezeigt.
+Eine ungültige Drive-JSON wird nicht als leerer Bestand interpretiert. Lokale
+Schreibaufträge werden mit einem eigenen Daten-Snapshot nacheinander gespeichert,
+damit schnelle aufeinanderfolgende Aktionen sich nicht gegenseitig überschreiben.
 
 ## Drive-Konfliktschutz ab v42
 
-Jeder geladene Drive-Stand wird mit einer starken Versionskennung verkn\u00fcpft.
+Jeder geladene Drive-Stand wird mit einer starken Versionskennung verknüpft.
 Beim Speichern sendet die App diese Kennung als `If-Match`; hat ein anderer Tab
-oder ein anderes Ger\u00e4t die Datei inzwischen ge\u00e4ndert, lehnt Drive den
-Schreibvorgang atomar mit HTTP 412 ab. Die App \u00fcberschreibt dann nichts, l\u00e4dt
+oder ein anderes Gerät die Datei inzwischen geändert, lehnt Drive den
+Schreibvorgang atomar mit HTTP 412 ab. Die App überschreibt dann nichts, lädt
 den neuesten Drive-Stand und fordert dazu auf, die verworfene Aktion bei Bedarf
 zu wiederholen.
 
-Die Drive API v3 bleibt f\u00fcr Suche, Erstellung und Download zust\u00e4ndig. Da ihre
-Dateirepr\u00e4sentation kein `etag`-Feld anbietet, nutzt nur der Versionsabruf und
+Die Drive API v3 bleibt für Suche, Erstellung und Download zuständig. Da ihre
+Dateirepräsentation kein `etag`-Feld anbietet, nutzt nur der Versionsabruf und
 der bedingte Update den weiterhin offiziellen v2-Dateivertrag. Diese begrenzte
 Kombination wurde einem nicht atomaren Vorabvergleich der v3-`version`
 vorgezogen, weil zwischen Vergleich und Schreiben sonst weiterhin ein
-Race-Condition-Fenster best\u00fcnde.
+Race-Condition-Fenster bestünde.
 
 ## Datenschutz
 
@@ -156,7 +204,7 @@ anschließendem Force-Push ist eine separate, bewusste Sicherheitsmaßnahme.
 
 ## Offline-PWA ab v39
 
-Die App-H\u00fclle, alle lokalen JavaScript-Module und Icons werden beim Service-
+Die App-Hülle, alle lokalen JavaScript-Module und Icons werden beim Service-
 Worker-Install vorgeladen. Offline kann eine Navigation daher die vorhandene
 `index.html` anzeigen. Der lokale Modus kann danach seine IndexedDB-Daten ohne
 Netz verwenden. Google-Anmeldung, Drive-Daten und Google-Fonts bleiben bewusst

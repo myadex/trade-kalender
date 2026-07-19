@@ -1,10 +1,11 @@
-const CACHE = 'trade-kalender-v82';
+const CACHE = 'trade-kalender-v84';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
+  './css/app.css',
   './sw-register.js',
   './js/app.js',
   './js/app-data.js',

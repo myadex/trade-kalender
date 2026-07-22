@@ -5,7 +5,8 @@
 // Es kennt weder globalen App-State noch Persistenz; die Auswahl eines Tages
 // meldet es ueber einen Callback an den App-Controller zurueck.
 
-import { $, escapeHtml, fmtDE } from './helpers.js';
+import { $, escapeHtml } from './helpers.js';
+import { formatViewMoney, formatViewIsin } from './invis-view.js';
 import { filterTrades, holdMinutes, tradeDirection } from './views.js';
 import { openAccessibleDialog, closeAccessibleDialog } from './dialog-accessibility.js';
 
@@ -42,7 +43,7 @@ export function closeTradeSearch() {
   closeAccessibleDialog('search-overlay');
 }
 
-export function renderTradeSearch(trades, onShowDetail) {
+export function renderTradeSearch(trades, onShowDetail, viewOptions = {}) {
   const source = Array.isArray(trades) ? trades : [];
   const result = filterTrades(source, readTradeSearchFilters());
   const summary = $('search-summary');
@@ -59,7 +60,7 @@ export function renderTradeSearch(trades, onShowDetail) {
   summary.className = 'search-summary';
   summary.innerHTML = '<span><strong>' + result.count + '</strong> von ' + source.length + ' Trades</span>' +
     '<span>Netto-P&amp;L <strong class="' + (result.totalPnl >= 0 ? 'pos' : 'neg') + '">' +
-    fmtDE(result.totalPnl) + '</strong></span>' +
+    formatViewMoney(result.totalPnl, viewOptions) + '</strong></span>' +
     '<span><strong class="pos">' + result.wins + ' W</strong> \u00b7 <strong class="neg">' +
     result.losses + ' L</strong> \u00b7 ' + result.flat + ' neutral</span>';
 
@@ -77,10 +78,10 @@ export function renderTradeSearch(trades, onShowDetail) {
     row.innerHTML = '<div class="search-result-date"><strong>' + escapeHtml(searchDateLabel(trade.date)) + '</strong>' +
       '<span>' + escapeHtml(trade.time || '') + '</span></div>' +
       '<div class="search-result-product"><strong>' + escapeHtml(trade.desc || 'Ohne Produkt') + '</strong>' +
-      '<span>' + escapeHtml(trade.isin || 'Manueller Trade') + '</span></div>' +
+      '<span>' + escapeHtml(formatViewIsin(trade.isin || 'Manueller Trade', viewOptions)) + '</span></div>' +
       '<div class="search-result-meta"><span class="search-direction ' + direction + '">' + directionLabel + '</span>' +
       '<span>' + escapeHtml(searchHoldLabel(trade)) + '</span></div>' +
-      '<div class="search-result-pnl ' + (pnl >= 0 ? 'pos' : 'neg') + '">' + fmtDE(pnl) + '</div>' +
+      '<div class="search-result-pnl ' + (pnl >= 0 ? 'pos' : 'neg') + '">' + formatViewMoney(pnl, viewOptions) + '</div>' +
       '<button type="button" class="search-result-open">Tag anzeigen</button>';
     row.querySelector('.search-result-open').onclick = () => {
       closeTradeSearch();
@@ -90,18 +91,18 @@ export function renderTradeSearch(trades, onShowDetail) {
   });
 }
 
-export function openTradeSearchDialog(trades, onShowDetail) {
-  renderTradeSearch(trades, onShowDetail);
+export function openTradeSearchDialog(trades, onShowDetail, viewOptions = {}) {
+  renderTradeSearch(trades, onShowDetail, viewOptions);
   openAccessibleDialog('search-overlay', 'search-query');
 }
 
-export function resetTradeSearchDialog(trades, onShowDetail) {
+export function resetTradeSearchDialog(trades, onShowDetail, viewOptions = {}) {
   $('search-query').value = '';
   $('search-from').value = '';
   $('search-to').value = '';
   $('search-direction').value = 'all';
   $('search-result').value = 'all';
   $('search-hold').value = 'all';
-  renderTradeSearch(trades, onShowDetail);
+  renderTradeSearch(trades, onShowDetail, viewOptions);
   $('search-query').focus();
 }

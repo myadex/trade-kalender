@@ -141,6 +141,30 @@ Wartbarkeit bzw. Komfort.
 
 ## Prioritaet 2
 
+### Invis-Modus fuer diskrete Prozentansicht
+
+- **Status:** Erledigt in v88.
+- **Ziel:** Bei Bildschirmfreigaben oder Blicken von aussen soll keine
+  konkrete Geldsumme sichtbar sein. Aussagekraeftige Prozentwerte und bereits
+  dimensionslose Kennzahlen wie Winrate, Profit Factor und Payoff-Ratio
+  bleiben lesbar.
+- **Bezugsbasis:** Jede konkrete Geldsumme wird durch ihren Anteil am festen
+  hinterlegten Startkapital ersetzt. Ohne positives Startkapital wird kein
+  Prozentwert erfunden. Vorhandene dimensionslose Kennzahlen bleiben
+  unveraendert.
+- **Umfang:** Produktnamen, Daten und Trade-Anzahlen bleiben sichtbar. ISIN und
+  Stueckzahl werden maskiert. Kalender, Wochen, Monate, offene Positionen,
+  Equity, Details, Suche und Statistik verwenden dieselbe Formatierungsgrenze.
+- **Nur ansehen:** Hinzufuegen, Bearbeiten, Loeschen, Import, Export, Restore,
+  Backups, Kapitalaenderung und Drive-Verbindung sind ausgeblendet und im
+  Controller gesperrt. Navigation, Suche und Filter bleiben erlaubt.
+- **Bedienung:** Der Header-Schalter gilt nur fuer die laufende Sitzung.
+  Aktivierung schliesst offene Dialoge und zeigt `INVIS · NUR ANSEHEN`;
+  Entsperren benoetigt eine Bestaetigung. Ein Reload startet normal.
+- **Sicherheitsgrenze:** Das ist Sichtschutz im UI, keine Verschluesselung.
+  Daten bleiben im DOM beziehungsweise App-State und duerfen nicht als vor
+  technisch versierten Betrachtern geschuetzt gelten.
+
 ### Google-Anmeldung beim ersten Versuch stabilisieren
 
 - **Status:** Erledigt in v80.
@@ -320,7 +344,7 @@ Wartbarkeit bzw. Komfort.
 
 ### Typische Trading-Kennzahlen
 
-- **Status:** Erledigt in v61.
+- **Status:** Erledigt in v61; Payoff-Ausreisservergleich in v87 ergaenzt.
 - **Ziel:** Einen kompakten Kennzahlenbereich fuer die Gesamtperformance und
   frei waehlbare Zeitraeume bereitstellen. Vorhandene Werte werden
   wiederverwendet und nicht mit abweichender Berechnung doppelt eingefuehrt.
@@ -350,6 +374,10 @@ Wartbarkeit bzw. Komfort.
 - **Bewusste Grenze:** Sharpe/Sortino bleiben aus, bis eine fachlich eindeutige
   periodische Renditereihe festgelegt ist. R-Multiples bleiben ohne geplantes
   Risiko bzw. Stop-Abstand nicht berechenbar.
+- **Payoff-Ausreisservergleich:** Dieselbe Karte zeigt `mit allen Trades`
+  gegen `ohne die drei schlimmsten Verlust-Trades`. Die zweite Ratio wird aus
+  demselben gewaehlten Ausstiegszeitraum berechnet, veraendert keine Daten und
+  bleibt leer, wenn nach dem Entfernen kein Verlust als Nenner uebrig ist.
 
 ## Prioritaet 3
 
@@ -443,7 +471,8 @@ Wartbarkeit bzw. Komfort.
 ### Projektstruktur schrittweise ordnen
 
 - **Status:** In Arbeit; Etappe 1 in v83, Entwickler-Onboarding in v84 und
-  der .NET-Lernleitfaden in v85 abgeschlossen.
+  der .NET-Lernleitfaden in v85 abgeschlossen. Der moderne .NET-/Agenten-
+  Lernpfad und der automatisch auffindbare Agent-Einstieg folgen in v86.
 - **Ziel:** Fachlogik, Infrastruktur, UI und gemeinsame Hilfen klarer ordnen,
   ohne Framework oder Build-Pipeline einzufuehren.
 - **Etappe 1:** Das vollstaendige App-CSS liegt in `css/app.css` statt im
@@ -459,6 +488,12 @@ Wartbarkeit bzw. Komfort.
   C#-Konzepte. Er dokumentiert ausserdem, warum die laufende PWA nicht neu
   geschrieben werden sollte und wie ein separater Blazor-Lern-Port bei der
   puren FIFO-Domaene beginnen kann.
+- **Modernes .NET und Agents:** Der ergaenzende Praxisplan dokumentiert den
+  tatsaechlich vorhandenen VS-Code-/SDK-Stand, die Installation von .NET 10
+  LTS, einen phasenweisen Lern-Port und die klare Trennung zwischen
+  Eigenarbeit, begrenzter Delegation und menschlicher Kontrolle. Eine kurze
+  `AGENTS.md` macht die bestehenden Projekt- und Promptregeln fuer Codex
+  automatisch auffindbar.
 - **Sicherung:** Strukturtests erzwingen externen CSS-Link, fehlenden
   eingebetteten Styleblock und den Service-Worker-Cacheeintrag. Alle bisherigen
   CSS-Vertraege pruefen jetzt direkt die externe Datei.

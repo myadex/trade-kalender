@@ -5,7 +5,8 @@
 // Ergebnis. Es kennt weder App-State noch Drive und fuehrt keine Berechnung
 // auf Trades aus; diese bleibt als pure Funktion in views.js.
 
-import { $, fmtDE, escapeHtml } from './helpers.js';
+import { $, escapeHtml } from './helpers.js';
+import { formatViewMoney } from './invis-view.js';
 
 export function readTradingMetricRange() {
   return {
@@ -66,7 +67,17 @@ function card(label, value, cssClass = '', meta = '') {
     '</article>';
 }
 
-export function renderTradingMetrics(result) {
+function payoffComparisonCard(result) {
+  const comparison = ratio(result.payoffRatio) + ' → ' +
+    ratio(result.payoffRatioWithoutWorst3);
+  const availability = result.payoffRatioWithoutWorst3 === null && result.payoffExcludedLosses > 0
+    ? ' · danach kein weiterer Verlust als Nenner'
+    : '';
+  return card('Payoff-Ratio', comparison, '',
+    'Mit allen Trades → ohne 3 schlimmste Verluste' + availability);
+}
+
+export function renderTradingMetrics(result, viewOptions = {}) {
   const summary = $('metrics-summary');
   const grid = $('metrics-grid');
   const note = $('metrics-note');
@@ -85,35 +96,36 @@ export function renderTradingMetrics(result) {
   if (result.count === 0) {
     grid.innerHTML = '<div class="metrics-empty">Für diesen Zeitraum sind keine auswertbaren Trades vorhanden.</div>';
   } else {
+    const money = value => formatViewMoney(value, viewOptions);
     const drawdownPct = result.maxDrawdownPct === null
       ? ''
       : ' · ' + percent(result.maxDrawdownPct);
     grid.innerHTML =
-      card('Netto-P&L', fmtDE(result.totalPnl), result.totalPnl >= 0 ? 'pos' : 'neg',
+      card('Netto-P&L', money(result.totalPnl), result.totalPnl >= 0 ? 'pos' : 'neg',
         'Summe im gewählten Zeitraum') +
       card('Trade-Winrate', percent(result.winrate), '',
         result.wins + ' von ' + result.decisiveTrades + ' entschiedenen Trades') +
       card('Profit Factor', ratio(result.profitFactor),
         result.profitFactor === null ? '' : (result.profitFactor >= 1 ? 'pos' : 'neg'),
         'Gewinnsumme ÷ Verlustsumme') +
-      card('Erwartungswert / Trade', fmtDE(result.expectancy),
+      card('Erwartungswert / Trade', money(result.expectancy),
         result.expectancy >= 0 ? 'pos' : 'neg', 'Netto-P&L ÷ alle Trades') +
-      card('Ø Gewinn', result.avgWin === null ? '—' : fmtDE(result.avgWin),
+      card('Ø Gewinn', result.avgWin === null ? '—' : money(result.avgWin),
         result.avgWin === null ? '' : 'pos',
         result.wins + ' Gewinn-Trades') +
-      card('Ø Verlust', result.avgLoss === null ? '—' : fmtDE(result.avgLoss),
+      card('Ø Verlust', result.avgLoss === null ? '—' : money(result.avgLoss),
         result.avgLoss === null ? '' : 'neg',
         result.losses + ' Verlust-Trades') +
-      card('Payoff-Ratio', ratio(result.payoffRatio), '', 'Ø Gewinn ÷ |Ø Verlust|') +
-      card('Bester Trade', result.bestTrade ? fmtDE(result.bestTrade.pnl) : '—',
+      payoffComparisonCard(result) +
+      card('Bester Trade', result.bestTrade ? money(result.bestTrade.pnl) : '—',
         result.bestTrade ? pnlClass(result.bestTrade.pnl) : '',
         tradeMeta(result.bestTrade)) +
-      card('Schlechtester Trade', result.worstTrade ? fmtDE(result.worstTrade.pnl) : '—',
+      card('Schlechtester Trade', result.worstTrade ? money(result.worstTrade.pnl) : '—',
         result.worstTrade ? pnlClass(result.worstTrade.pnl) : '',
         tradeMeta(result.worstTrade)) +
       card('Max. Gewinnserie', String(result.maxWinStreak), '', 'Aufeinanderfolgende Gewinn-Trades') +
       card('Max. Verlustserie', String(result.maxLossStreak), '', 'Aufeinanderfolgende Verlust-Trades') +
-      card('Max. Drawdown', result.maxDrawdown > 0 ? fmtDE(-result.maxDrawdown) : '0,00 €',
+      card('Max. Drawdown', result.maxDrawdown > 0 ? money(-result.maxDrawdown) : money(0),
         result.maxDrawdown > 0 ? 'neg' : '',
         'Realisierte Tagesendstände' + drawdownPct) +
       card('Recovery Factor', ratio(result.recoveryFactor),

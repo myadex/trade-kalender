@@ -67,6 +67,14 @@ const metricsViewJs = fs.existsSync(metricsViewPath)
   : '';
 check('UI-Controller: Trading-Kennzahlen liegen in einem eigenen UI-Modul',
   fs.existsSync(metricsViewPath) && appControllerJs.includes("from './metrics-view.js'"));
+const invisViewPath = DIR + '/js/invis-view.js';
+const invisViewJs = fs.existsSync(invisViewPath)
+  ? fs.readFileSync(invisViewPath, 'utf8')
+  : '';
+check('Invis-Modus: diskrete Anzeige liegt in einem eigenen pure Modul',
+  fs.existsSync(invisViewPath) && appControllerJs.includes("from './invis-view.js'") &&
+  !invisViewJs.includes('document.') && !invisViewJs.includes('localStorage') &&
+  !invisViewJs.includes('sessionStorage'));
 const dialogAccessibilityPath = DIR + '/js/dialog-accessibility.js';
 check('Barrierefreiheit: Dialogsteuerung liegt in einem gemeinsamen UI-Modul',
   fs.existsSync(dialogAccessibilityPath) &&
@@ -125,9 +133,17 @@ const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8'
 const readme = fs.readFileSync(DIR + '/README.md', 'utf8');
 const agentPath = DIR + '/Agent.md';
 const agentGuide = fs.existsSync(agentPath) ? fs.readFileSync(agentPath, 'utf8') : '';
+const agentsEntryPath = DIR + '/AGENTS.md';
+const agentsEntry = fs.existsSync(agentsEntryPath)
+  ? fs.readFileSync(agentsEntryPath, 'utf8')
+  : '';
 const architecturePath = DIR + '/docs/ARCHITECTURE.md';
 const dataModelPath = DIR + '/docs/DATA_MODEL.md';
 const dotnetGuidePath = DIR + '/docs/DOTNET-GUIDE.md';
+const dotnetAgentLearningPath = DIR + '/docs/DOTNET-AGENT-LEARNING.md';
+const featureHandbookIndexPath = DIR + '/docs/feature-handbuch/README.md';
+const featureCatalogPath = DIR + '/docs/feature-handbuch/FEATURES.md';
+const featureWorkflowsPath = DIR + '/docs/feature-handbuch/ABLAEUFE.md';
 const contributingPath = DIR + '/CONTRIBUTING.md';
 const securityPath = DIR + '/SECURITY.md';
 const architectureDoc = fs.existsSync(architecturePath)
@@ -138,6 +154,18 @@ const dataModelDoc = fs.existsSync(dataModelPath)
   : '';
 const dotnetGuideDoc = fs.existsSync(dotnetGuidePath)
   ? fs.readFileSync(dotnetGuidePath, 'utf8')
+  : '';
+const dotnetAgentLearningDoc = fs.existsSync(dotnetAgentLearningPath)
+  ? fs.readFileSync(dotnetAgentLearningPath, 'utf8')
+  : '';
+const featureHandbookIndex = fs.existsSync(featureHandbookIndexPath)
+  ? fs.readFileSync(featureHandbookIndexPath, 'utf8')
+  : '';
+const featureCatalogDoc = fs.existsSync(featureCatalogPath)
+  ? fs.readFileSync(featureCatalogPath, 'utf8')
+  : '';
+const featureWorkflowsDoc = fs.existsSync(featureWorkflowsPath)
+  ? fs.readFileSync(featureWorkflowsPath, 'utf8')
   : '';
 const contributingDoc = fs.existsSync(contributingPath)
   ? fs.readFileSync(contributingPath, 'utf8')
@@ -156,6 +184,34 @@ check('Dokumentation: README bietet einen ausführbaren Schnellstart und einen D
   readme.includes('[Datenmodell](docs/DATA_MODEL.md)') &&
   readme.includes('[Beiträge](CONTRIBUTING.md)') &&
   readme.includes('[Sicherheit](SECURITY.md)'));
+check('Dokumentation: Feature-Handbuch ist vollstaendig angelegt und vom README erreichbar',
+  fs.existsSync(featureHandbookIndexPath) &&
+  fs.existsSync(featureCatalogPath) &&
+  fs.existsSync(featureWorkflowsPath) &&
+  readme.includes('[Feature-Handbuch](docs/feature-handbuch/README.md)') &&
+  featureHandbookIndex.includes('[Funktionskatalog](FEATURES.md)') &&
+  featureHandbookIndex.includes('[Nutzerabläufe](ABLAEUFE.md)'));
+check('Dokumentation: Feature-Katalog deckt die ausgelieferten Produktbereiche und Grenzen ab',
+  ['Speichern und Synchronisieren', 'Trades und Positionen', 'Ansichten und Navigation',
+    'Statistik und Auswertung', 'Datenschutz, Sicherheit und Wiederherstellung',
+    'PWA, Mobilgerät und Offline-Betrieb', 'Bewusste Grenzen']
+    .every(section => featureCatalogDoc.includes(section)) &&
+  ['Google Drive', 'IndexedDB', 'CSV-Import', 'FIFO', 'Payoff-Ratio',
+    'Invis-Modus', 'Safety-Sicherungen', 'Service Worker']
+    .every(capability => featureCatalogDoc.includes(capability)));
+check('Dokumentation: Nutzerablaeufe beschreiben die zentralen End-to-End-Wege',
+  ['Erster Start nur auf diesem Gerät', 'Erster Start mit Google Drive',
+    'Scalable-CSV importieren', 'Trade manuell erfassen',
+    'Offene Position schließen oder ausblenden', 'Invis-Modus verwenden',
+    'Verschlüsseltes Backup erstellen und wiederherstellen',
+    'Lokalen Stand später mit Google Drive verbinden']
+    .every(workflow => featureWorkflowsDoc.includes(workflow)));
+check('Dokumentation: Handbuch erklaert die Rollen der Projektdokumente und ihre Pflege',
+  ['README', 'Feature-Handbuch', 'Architektur', 'Datenmodell', 'Security',
+    'Backlog', 'Changelog', 'Tests', 'Definition of Done']
+    .every(documentType => featureHandbookIndex.includes(documentType)) &&
+  featureHandbookIndex.includes('nicht aus dem Backlog') &&
+  featureHandbookIndex.includes('Bei jeder fachlich sichtbaren'));
 check('Dokumentation: Architektur beschreibt Schichten, Datenfluss und Betriebsgrenzen',
   architectureDoc.includes('# Architektur') &&
   architectureDoc.includes('## Schichten') &&
@@ -193,6 +249,49 @@ check('Dokumentation: .NET-Leitfaden enthält eine klare Blazor-Entscheidung und
   dotnetGuideDoc.includes('Blazor WebAssembly') &&
   dotnetGuideDoc.includes('JavaScript-Interop') &&
   dotnetGuideDoc.includes('TradeCalendar.Domain'));
+check('Dokumentation: moderner .NET-/Agenten-Lernplan ist im Projekt auffindbar',
+  readme.includes('[Lernplan: modernes .NET mit Agents](docs/DOTNET-AGENT-LEARNING.md)') &&
+  agentGuide.includes('docs/DOTNET-AGENT-LEARNING.md') &&
+  dotnetGuideDoc.includes('DOTNET-AGENT-LEARNING.md'));
+check('Dokumentation: Lernplan bildet den lokalen VS-Code-Ausgangsstand und .NET 10 korrekt ab',
+  dotnetAgentLearningDoc.includes('# Lernplan: von .NET Framework 4.8 zu modernem .NET mit Agents') &&
+  dotnetAgentLearningDoc.includes('## Dein aktueller Stand') &&
+  dotnetAgentLearningDoc.includes('.NET SDK 6.0.101') &&
+  dotnetAgentLearningDoc.includes('.NET 10') &&
+  dotnetAgentLearningDoc.includes('C# Dev Kit') &&
+  dotnetAgentLearningDoc.includes('winget install Microsoft.DotNet.SDK.10') &&
+  dotnetAgentLearningDoc.includes('dotnet --list-sdks') &&
+  dotnetAgentLearningDoc.includes('SDK-style'));
+check('Dokumentation: Lernplan trennt Eigenarbeit, Agentenarbeit und menschliche Kontrolle',
+  dotnetAgentLearningDoc.includes('## Was du selbst machen solltest') &&
+  dotnetAgentLearningDoc.includes('## Was der Agent machen darf') &&
+  dotnetAgentLearningDoc.includes('## Was du niemals blind delegierst') &&
+  dotnetAgentLearningDoc.includes('Teach-back') &&
+  dotnetAgentLearningDoc.includes('Akzeptanzkriterien') &&
+  dotnetAgentLearningDoc.includes('git diff') &&
+  dotnetAgentLearningDoc.includes('dotnet test'));
+check('Dokumentation: Lernplan enthält Lernphasen und wiederverwendbare Agenten-Prompts',
+  dotnetAgentLearningDoc.includes('## Lernpfad') &&
+  dotnetAgentLearningDoc.includes('TradeCalendar.Domain') &&
+  dotnetAgentLearningDoc.includes('xUnit') &&
+  dotnetAgentLearningDoc.includes('Blazor') &&
+  dotnetAgentLearningDoc.includes('## Prompt-Vorlagen') &&
+  dotnetAgentLearningDoc.includes('Ziel:') &&
+  dotnetAgentLearningDoc.includes('Kontext:') &&
+  dotnetAgentLearningDoc.includes('Grenzen:') &&
+  dotnetAgentLearningDoc.includes('Fertig wenn:'));
+check('Dokumentation: Lernplan verweist auf aktuelle offizielle Primärquellen',
+  dotnetAgentLearningDoc.includes('https://dotnet.microsoft.com/en-us/download/dotnet') &&
+  dotnetAgentLearningDoc.includes('https://learn.microsoft.com/en-us/dotnet/core/install/windows') &&
+  dotnetAgentLearningDoc.includes('https://code.visualstudio.com/docs/csharp/cs-dev-kit-faq') &&
+  dotnetAgentLearningDoc.includes('https://learn.chatgpt.com/guides/best-practices'));
+check('Dokumentation: AGENTS.md lädt die dauerhaften Projekt- und Lernregeln',
+  agentsEntry.startsWith('# AGENTS.md') &&
+  agentsEntry.includes('[Agent.md](Agent.md)') &&
+  agentsEntry.includes('[dev-prompts-vorlagen.md](dev-prompts-vorlagen.md)') &&
+  agentsEntry.includes('[.NET-/Agenten-Lernplan](docs/DOTNET-AGENT-LEARNING.md)') &&
+  agentsEntry.includes('npm test') &&
+  agentsEntry.includes('Finanzdaten'));
 check('Dokumentation: Beitragsleitfaden sichert Test-, Versions- und Datenschutzworkflow',
   contributingDoc.includes('# Beitragen') &&
   contributingDoc.includes('npm test') &&
@@ -217,10 +316,15 @@ check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
     const documents = [
       [DIR + '/README.md', readme],
       [agentPath, agentGuide],
+      [agentsEntryPath, agentsEntry],
       [backlogPath, backlog],
       [architecturePath, architectureDoc],
       [dataModelPath, dataModelDoc],
       [dotnetGuidePath, dotnetGuideDoc],
+      [dotnetAgentLearningPath, dotnetAgentLearningDoc],
+      [featureHandbookIndexPath, featureHandbookIndex],
+      [featureCatalogPath, featureCatalogDoc],
+      [featureWorkflowsPath, featureWorkflowsDoc],
       [contributingPath, contributingDoc],
       [securityPath, securityDoc]
     ];
@@ -236,8 +340,9 @@ check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
   })());
 check('Dokumentation: Texte enthalten keine sichtbaren Unicode-Escape-Sequenzen',
   !/\\u[0-9a-f]{4}/i.test([
-    readme, agentGuide, backlog, architectureDoc, dataModelDoc, dotnetGuideDoc,
-    contributingDoc, securityDoc
+    readme, agentGuide, agentsEntry, backlog, architectureDoc, dataModelDoc,
+    dotnetGuideDoc, dotnetAgentLearningDoc, featureHandbookIndex,
+    featureCatalogDoc, featureWorkflowsDoc, contributingDoc, securityDoc
   ].join('\n')));
 check('Dokumentation: Agent-Leitfaden ist korrekt benannt und verweist auf die Entwicklerdokumente',
   agentGuide.startsWith('# Agent.md') &&
@@ -1121,12 +1226,34 @@ const realFifoCheck = (async () => {
     const metricsviewmod = fs.existsSync(metricsViewPath)
       ? await import('file://' + metricsViewPath)
       : null;
+    const invisviewmod = fs.existsSync(invisViewPath)
+      ? await import('file://' + invisViewPath)
+      : null;
     const dialoga11ymod = fs.existsSync(dialogAccessibilityPath)
       ? await import('file://' + dialogAccessibilityPath)
       : null;
     check('dialogA11y: Oeffnen, Schliessen und Tastatursteuerung sind exportiert',
       !!dialoga11ymod && ['openAccessibleDialog', 'closeAccessibleDialog',
         'handleAccessibleDialogKey'].every(name => typeof dialoga11ymod[name] === 'function'));
+    check('Invis-Modus: Geldwerte werden gegen festes Startkapital prozentualisiert',
+      !!invisviewmod &&
+      invisviewmod.formatViewMoney(500, { enabled: true, capital: 100000 }) === '+0,50 %' &&
+      invisviewmod.formatViewAmount(40000, { enabled: true, capital: 100000 }) === '40,00 %' &&
+      invisviewmod.formatViewMoney(-1250, { enabled: true, capital: 100000 }) === '-1,25 %');
+    check('Invis-Modus: ungueltiges Startkapital erzeugt keine irrefuehrende Prozentzahl',
+      !!invisviewmod &&
+      invisviewmod.formatViewMoney(500, { enabled: true, capital: 0 }) === '\u2014' &&
+      invisviewmod.formatViewAmount(500, { enabled: true, capital: null }) === '\u2014');
+    check('Invis-Modus: Normalansicht behaelt Euroformat und sensible Positionsdaten werden nur diskret maskiert',
+      !!invisviewmod &&
+      invisviewmod.formatViewMoney(500, { enabled: false, capital: 100000 }) === '+500,00 \u20ac' &&
+      invisviewmod.formatViewAmount(40000, { enabled: false, capital: 100000 }) === '40.000,00 \u20ac' &&
+      invisviewmod.formatViewAmount(-1250, { enabled: true, capital: 100000 }) === '-1,25 %' &&
+      invisviewmod.formatViewIsin('SYNTH-ISIN', { enabled: true, capital: 100000 }) === 'ISIN verborgen' &&
+      invisviewmod.formatViewShares(12.5, { enabled: true, capital: 100000 }) === 'Stückzahl verborgen' &&
+      invisviewmod.formatViewIsin('SYNTH-ISIN', { enabled: false, capital: 100000 }) === 'SYNTH-ISIN' &&
+      invisviewmod.allowViewMutation({ enabled: true }) === false &&
+      invisviewmod.allowViewMutation({ enabled: false }) === true);
     const dialogA11yDom = new JSDOM(
       '<!doctype html><html><body><button id="trigger">Öffnen</button>' +
       '<div id="test-overlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="test-title">' +
@@ -1565,6 +1692,17 @@ const realFifoCheck = (async () => {
         !!searchmod && searchDom.window.document.querySelector('#search-results img') === null &&
         searchRows[1].textContent.includes('<img src=x> DAX Long'));
 
+      if (searchmod) searchmod.renderTradeSearch(
+        searchTrades,
+        () => {},
+        { enabled: true, capital: 1000 }
+      );
+      check('tradeSearch: Invis-Ansicht zeigt Kapitalanteile und maskiert ISINs',
+        !!searchmod &&
+        searchDom.window.document.getElementById('search-summary').textContent.includes('+2,00 %') &&
+        searchDom.window.document.querySelectorAll('.search-result-product span')[0].textContent === 'ISIN verborgen' &&
+        !searchDom.window.document.getElementById('search-results').textContent.includes('DE000NEW'));
+
       if (searchRows[0]) searchRows[0].querySelector('.search-result-open').click();
       check('tradeSearch: Tag anzeigen schliesst den Dialog und meldet das Datum zurueck',
         shownDate === '2026-07-14' &&
@@ -1711,6 +1849,24 @@ const realFifoCheck = (async () => {
       !!metrics && metrics.grossProfit === 180 && metrics.grossLoss === 100 &&
       Math.abs(metrics.profitFactor - 1.8) < 0.0001 && metrics.avgWin === 60 &&
       metrics.avgLoss === -50 && Math.abs(metrics.payoffRatio - 1.2) < 0.0001);
+    const robustPayoffTrades = [
+      { date: '2026-02-01', time: '09:00', desc: 'Gewinn A', pnl: 100 },
+      { date: '2026-02-02', time: '09:00', desc: 'Gewinn B', pnl: 50 },
+      { date: '2026-02-03', time: '09:00', desc: 'Verlust klein', pnl: -25 },
+      { date: '2026-02-04', time: '09:00', desc: 'Verlust mittel A', pnl: -50 },
+      { date: '2026-02-05', time: '09:00', desc: 'Verlust mittel B', pnl: -100 },
+      { date: '2026-02-06', time: '09:00', desc: 'Verlust gross', pnl: -200 }
+    ];
+    const robustPayoffBefore = JSON.stringify(robustPayoffTrades);
+    const robustPayoffMetrics = typeof vmod.computeTradingMetrics === 'function'
+      ? vmod.computeTradingMetrics(robustPayoffTrades, {})
+      : null;
+    check('metrics: Payoff vergleicht alle Trades mit dem Stand ohne drei groesste Verluste',
+      !!robustPayoffMetrics && Math.abs(robustPayoffMetrics.payoffRatio - 0.8) < 0.0001 &&
+      Math.abs(robustPayoffMetrics.payoffRatioWithoutWorst3 - 3) < 0.0001 &&
+      robustPayoffMetrics.payoffExcludedLosses === 3);
+    check('metrics: Payoff-Ausreisservergleich mutiert Trades nicht',
+      JSON.stringify(robustPayoffTrades) === robustPayoffBefore);
     check('metrics: Erwartungswert, bester und schlechtester Trade stimmen',
       !!metrics && Math.abs(metrics.expectancy - (80 / 6)) < 0.0001 &&
       metrics.bestTrade.pnl === 100 && metrics.worstTrade.pnl === -60);
@@ -1742,7 +1898,11 @@ const realFifoCheck = (async () => {
     check('metrics: leere Eingabe und fehlende Nenner bleiben ehrlich leer',
       !!emptyMetrics && emptyMetrics.count === 0 && emptyMetrics.winrate === null &&
       emptyMetrics.profitFactor === null && emptyMetrics.payoffRatio === null &&
+      emptyMetrics.payoffRatioWithoutWorst3 === null && emptyMetrics.payoffExcludedLosses === 0 &&
       emptyMetrics.recoveryFactor === null && emptyMetrics.bestTrade === null);
+    check('metrics: weniger als vier Verluste ergeben keinen erfundenen robusten Payoff',
+      !!metrics && metrics.losses === 2 && metrics.payoffRatioWithoutWorst3 === null &&
+      metrics.payoffExcludedLosses === 2);
     const winnerMetrics = typeof vmod.computeTradingMetrics === 'function'
       ? vmod.computeTradingMetrics(metricTrades.slice(0, 2), {})
       : null;
@@ -1759,6 +1919,14 @@ const realFifoCheck = (async () => {
     global.window = metricDom.window;
     global.document = metricDom.window.document;
     try {
+      if (metricsviewmod && robustPayoffMetrics) {
+        metricsviewmod.renderTradingMetrics(robustPayoffMetrics);
+      }
+      check('metricsView: Payoff-Karte zeigt beide Ratios in einer kompakten Gegenueberstellung',
+        !!metricsviewmod &&
+        metricDom.window.document.getElementById('metrics-grid').textContent.includes('0,80') &&
+        metricDom.window.document.getElementById('metrics-grid').textContent.includes('3,00') &&
+        metricDom.window.document.getElementById('metrics-grid').textContent.includes('ohne 3 schlimmste Verluste'));
       if (metricsviewmod && metrics) {
         metricsviewmod.renderTradingMetrics(Object.assign({}, metrics, {
           bestTrade: Object.assign({}, metrics.bestTrade, { desc: '<img src=x onerror=alert(1)>' })
@@ -2501,6 +2669,36 @@ check('Kennzahlen-UI: Zeitraum, Datenabdeckung und Ergebnisraster vorhanden',
   html.includes('id="metrics-from"') && html.includes('id="metrics-to"') &&
   html.includes('id="metrics-summary"') && html.includes('id="metrics-grid"') &&
   html.includes('id="metrics-note"'));
+check('Backlog: Invis-Modus dokumentiert den abgeschlossenen Nur-Ansehen-Vertrag',
+  backlog.includes('### Invis-Modus fuer diskrete Prozentansicht') &&
+  backlog.includes('Status:** Erledigt in v88') &&
+  backlog.includes('Jede konkrete Geldsumme') && backlog.includes('Nur ansehen'));
+check('Invis-Modus: Header bietet einen zugaenglichen Sitzungsschalter und Nur-Ansehen-Status',
+  html.includes('id="invis-toggle"') && html.includes('aria-pressed="false"') &&
+  html.includes('id="invis-status"') && html.includes('NUR ANSEHEN'));
+check('Invis-Modus: statische Schreib- und Exportaktionen sind vollstaendig markiert',
+  ['btn-add', 'btn-import', 'btn-export', 'btn-restore', 'btn-backups',
+    'btn-encrypted-backup', 'btn-connect-drive', 'btn-reset', 'btn-add-m',
+    'btn-import-m', 'btn-export-m', 'btn-restore-m', 'btn-backups-m',
+    'btn-encrypted-backup-m', 'btn-connect-drive-m', 'btn-reset-m']
+    .every(id => new RegExp('id="' + id + '"[^>]*data-invis-write').test(html) ||
+      new RegExp('data-invis-write[^>]*id="' + id + '"').test(html)));
+check('Invis-Modus: Controller sperrt Persistenz und bestaetigt das Entsperren',
+  appControllerJs.includes('let invisMode = false') &&
+  /function persist\(\)[\s\S]{0,300}if \(!allowDataMutation\(\)\)/.test(appControllerJs) &&
+  /function toggleInvisMode[\s\S]{0,700}confirm\(/.test(appControllerJs));
+check('Invis-Modus: dynamische Trade- und Positionsaktionen werden im Nur-Ansehen-Modus nicht gerendert',
+  /function showDetail[\s\S]{0,1800}!invisMode[\s\S]{0,500}btn-edit/.test(appControllerJs) &&
+  /function buildOpenPositions[\s\S]{0,1800}!invisMode[\s\S]{0,500}btn-close-pos/.test(appControllerJs));
+check('Invis-Modus: Desktop und Mobil verstecken markierte Schreibaktionen ohne das Suchwerkzeug zu sperren',
+  appCss.includes('body.invis-mode [data-invis-write]') &&
+  html.includes('id="btn-search"') && html.includes('id="btn-search-m"') &&
+  !/id="btn-search(?:-m)?"[^>]*data-invis-write/.test(html));
+check('Invis-Modus: Hauptansichten umgehen die zentrale Geldformatierung nicht',
+  !appControllerJs.includes('fmtDE(') && !metricsViewJs.includes('fmtDE(') &&
+  !tradeSearchJs.includes('fmtDE(') &&
+  /function buildWeekly[\s\S]{0,1200}viewAmount\(rev/.test(appControllerJs) &&
+  /function buildMonthly[\s\S]{0,1600}viewAmount\(rev/.test(appControllerJs));
 check('Kompaktheader zeigt genau Ergebnis, abgefuehrte Steuern und Rendite',
   (html.match(/class="header-metric(?:\s|\")/g) || []).length === 3 &&
   html.includes('id="hdr-pnl"') && html.includes('Realisiertes Gesamt-P&amp;L') &&
@@ -2536,7 +2734,7 @@ check('Trade-Suche: alle kombinierbaren Filter und Ergebnisbereich vorhanden',
   html.includes('id="search-direction"') && html.includes('id="search-result"') &&
   html.includes('id="search-hold"') && html.includes('id="search-results"'));
 check('Trade-Suche: Renderer nutzt die pure Filterlogik ohne Speichervorgang',
-  tradeSearchJs.includes('function renderTradeSearch(trades, onShowDetail)') &&
+  tradeSearchJs.includes('function renderTradeSearch(trades, onShowDetail, viewOptions = {})') &&
   tradeSearchJs.includes('filterTrades(source, readTradeSearchFilters())') &&
   !/function renderTradeSearch[\s\S]{0,5000}persist\(\)/.test(tradeSearchJs));
 check('Trade-Suche: auf Desktop und Mobil erreichbar',

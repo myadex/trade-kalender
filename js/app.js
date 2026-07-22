@@ -5,7 +5,11 @@
 // ============================================================
 import { CLIENT_ID, SCOPE, APP_VERSION } from './config.js';
 import { emptyAppData, isAppDataDocument, normalizeAppData } from './app-data.js';
-import { $, fmtDE, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml, csvCell } from './helpers.js';
+import { $, fmtPlain, fmtK, setStatus, toLocalDateStr, escapeHtml, csvCell } from './helpers.js';
+import {
+  formatViewMoney, formatViewAmount, formatViewCompactMoney,
+  formatViewIsin, formatViewShares, allowViewMutation
+} from './invis-view.js';
 import {
   showTab, handleMainTabKey, setStatsView, handleStatsViewKey,
   mobileTab, toggleMobileActions, closeMobileActions
@@ -96,9 +100,65 @@ let pendingDriveData = null;
 let migrationCommitInProgress = false;
 const enqueuePersist = createWriteQueue();
 let currentDetailDate = null;
+// Reiner Sitzungszustand: wird absichtlich weder in DATA noch in Browser- oder
+// Drive-Speicher geschrieben. Ein Neuladen startet immer in der Normalansicht.
+let invisMode = false;
 // Aktuell angezeigter Monat im Kalender (Jahr + Monat 0-11). Standard: aktueller Monat.
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
+
+function invisView() { return { enabled: invisMode, capital: DATA.capital }; }
+function viewMoney(value, digits = 2) { return formatViewMoney(value, invisView(), digits); }
+function viewAmount(value, digits = 2) { return formatViewAmount(value, invisView(), digits); }
+function viewCompactMoney(value) { return formatViewCompactMoney(value, invisView()); }
+function viewIsin(value) { return formatViewIsin(value, invisView()); }
+function viewShares(value, digits = 3) { return formatViewShares(value, invisView(), digits); }
+
+function allowDataMutation() {
+  const allowed = allowViewMutation(invisView());
+  if (!allowed) setStatus('Invis-Modus: Nur ansehen. Zum Aendern zuerst entsperren.', true);
+  return allowed;
+}
+
+function closeAllDialogsForInvis() {
+  document.querySelectorAll('.modal-overlay.open, .detail-overlay.open')
+    .forEach(dialog => closeAccessibleDialog(dialog, false));
+  currentDetailDate = null;
+  closeMobileActions();
+}
+
+function applyInvisModeUi() {
+  document.body.classList.toggle('invis-mode', invisMode);
+  const toggle = $('invis-toggle');
+  if (toggle) {
+    toggle.setAttribute('aria-pressed', String(invisMode));
+    toggle.textContent = invisMode ? 'Invis an' : 'Invis';
+  }
+  const status = $('invis-status');
+  if (status) status.hidden = !invisMode;
+  const returnCard = $('s-rendite-card');
+  if (returnCard) {
+    returnCard.disabled = invisMode;
+    returnCard.setAttribute('aria-label', invisMode
+      ? 'Rendite auf festes Startkapital'
+      : 'Startkapital bearbeiten');
+    const label = returnCard.querySelector('.total-label');
+    if (label) label.textContent = invisMode ? 'Rendite' : 'Rendite \u270e';
+  }
+}
+
+function setInvisMode(enabled) {
+  invisMode = enabled === true;
+  if (invisMode) closeAllDialogsForInvis();
+  applyInvisModeUi();
+  rebuildAll();
+  setStatus(invisMode ? 'Invis-Modus aktiv: Nur ansehen.' : 'Invis-Modus beendet.');
+}
+
+function toggleInvisMode() {
+  if (invisMode && !confirm('Invis-Modus beenden und Bearbeitung wieder freigeben?')) return;
+  setInvisMode(!invisMode);
+}
 
 /* ============================================================
    GOOGLE AUTH (Google Identity Services, token flow)
@@ -148,6 +208,7 @@ function signIn() {
 }
 
 function connectDrive() {
+  if (!allowDataMutation()) return;
   authIntent = 'connect-local';
   requestGoogleAccess();
 }
@@ -336,6 +397,7 @@ async function reloadMigrationComparison(message) {
 }
 
 async function confirmStorageMigration(choice) {
+  if (!allowDataMutation()) return;
   if (!pendingDriveData || storageMode !== STORAGE_MODE_LOCAL) return;
   const localChoice = choice === 'local';
   const question = localChoice
@@ -398,6 +460,7 @@ async function saveToDrive(isCreate, data = DATA) {
 }
 
 function persist() {
+  if (!allowDataMutation()) return Promise.resolve({ ok: false, conflict: false, readOnly: true });
   // Jede Aktion speichert ihren eigenen Zustandsschnappschuss. Ohne Snapshot
   // koennte eine spaetere Mutation waehrend eines laufenden Requests in den
   // falschen Schreibauftrag gelangen.
@@ -491,9 +554,9 @@ function replayStoredImports(importRows = DATA.importRows, importBaseOpenLots = 
 function rebuildStats() {
   const s = computeStats(dayMapDATA(), DATA.capital);
 
-  $('hdr-pnl').textContent = fmtDE(s.totalPnl);
+  $('hdr-pnl').textContent = viewMoney(s.totalPnl);
   $('hdr-pnl').className = 'total-pnl ' + (s.totalPnl >= 0 ? 'pos' : 'neg');
-  $('s-tax').textContent = fmtPlain(Math.abs(s.totalTax)) + ' \u20ac';
+  $('s-tax').textContent = viewAmount(Math.abs(s.totalTax));
 
   const renditeEl = $('s-rendite');
   if (renditeEl) {
@@ -513,7 +576,7 @@ function buildTradingMetrics() {
     from: range.from,
     to: range.to,
     capital: DATA.capital
-  }));
+  }), invisView());
 }
 
 function resetTradingMetrics() {
@@ -601,10 +664,10 @@ function buildCalendar() {
     sr.style.cssText = 'display:flex;gap:1.5rem;margin-bottom:1rem;font-family:"JetBrains Mono",monospace;font-size:.65rem;color:var(--muted);flex-wrap:wrap;';
     const c = mPnl >= 0 ? 'var(--green)' : 'var(--red)';
     sr.innerHTML =
-      '<span>P&L: <strong style="color:' + c + '">' + fmtDE(mPnl) + '</strong></span>' +
+      '<span>P&L: <strong style="color:' + c + '">' + viewMoney(mPnl) + '</strong></span>' +
       '<span>' + mTrades.length + ' Trades</span>' +
       '<span>' + wins + 'W / ' + losses + 'L</span>' +
-      '<span>Steuer: ' + fmtPlain(Math.abs(mTax)) + ' \u20ac</span>';
+      '<span>Steuer: ' + viewAmount(Math.abs(mTax)) + '</span>';
     container.appendChild(sr);
   } else {
     const empty = document.createElement('div');
@@ -656,7 +719,7 @@ function buildCalendar() {
       String(calMonth + 1).padStart(2, '0') + '.' + calYear +
       (data
         ? ': ' + data.n + (data.n === 1 ? ' Trade, ' : ' Trades, ') +
-          'Netto P&L ' + fmtPlain(data.pnl, 2) + ' Euro'
+          'Netto P&L ' + viewMoney(data.pnl)
         : ': Keine Trades'));
 
     const dnum = document.createElement('div');
@@ -666,9 +729,8 @@ function buildCalendar() {
 
     if (data) {
       const amt = document.createElement('div');
-      const sign = data.pnl >= 0 ? '+' : '';
       amt.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:.7rem;font-weight:700;line-height:1.1;color:' + textColor(data.pnl, maxAbs) + ';';
-      amt.textContent = sign + Math.round(data.pnl) + '\u20ac';
+      amt.textContent = invisMode ? viewMoney(data.pnl) : viewMoney(data.pnl, 0);
       cell.appendChild(amt);
       const cnt = document.createElement('div');
       cnt.style.cssText = 'font-family:"JetBrains Mono",monospace;font-size:.52rem;opacity:.7;color:' + textColor(data.pnl, maxAbs) + ';';
@@ -721,37 +783,37 @@ function renderPeriodReview(prefix, result) {
       }
       return '<article class="period-review-card"><div class="period-review-card-label">' + title + '</div>' +
         '<div class="period-review-card-value ' + cssClass + '">' + escapeHtml(pattern.label) + '</div>' +
-        '<div class="period-review-card-meta"><strong>' + fmtDE(pattern.avg) + ' / Trade</strong><br>' +
-        pattern.n + ' Trades &middot; gesamt ' + fmtDE(pattern.pnl) + '</div></article>';
+        '<div class="period-review-card-meta"><strong>' + viewMoney(pattern.avg) + ' / Trade</strong><br>' +
+        pattern.n + ' Trades &middot; gesamt ' + viewMoney(pattern.pnl) + '</div></article>';
     };
     const lossDetails = loss.n === 0
       ? 'Keine Verlusttrades in dieser Periode.'
-      : '<strong>' + loss.n + ' Verluste &middot; ' + fmtDE(loss.pnl) + '</strong><br>' +
+      : '<strong>' + loss.n + ' Verluste &middot; ' + viewMoney(loss.pnl) + '</strong><br>' +
         (loss.worstTrade
-          ? 'Schlimmster Trade: ' + escapeHtml(loss.worstTrade.desc || 'Ohne Produkt') + ' (' + fmtDE(loss.worstTrade.pnl) + ')<br>'
+          ? 'Schlimmster Trade: ' + escapeHtml(loss.worstTrade.desc || 'Ohne Produkt') + ' (' + viewMoney(loss.worstTrade.pnl) + ')<br>'
           : '') +
         (loss.dominantDirection
-          ? 'Richtung: ' + escapeHtml(loss.dominantDirection.label) + ' (' + fmtDE(loss.dominantDirection.pnl) + ')<br>'
+          ? 'Richtung: ' + escapeHtml(loss.dominantDirection.label) + ' (' + viewMoney(loss.dominantDirection.pnl) + ')<br>'
           : '') +
         (loss.dominantPhase
-          ? 'Einstiegsphase: ' + escapeHtml(loss.dominantPhase.label) + ' (' + fmtDE(loss.dominantPhase.pnl) + ')<br>'
+          ? 'Einstiegsphase: ' + escapeHtml(loss.dominantPhase.label) + ' (' + viewMoney(loss.dominantPhase.pnl) + ')<br>'
           : '') +
         (loss.overnight.n > 0
-          ? 'Overnight: ' + loss.overnight.n + ' &middot; ' + fmtDE(loss.overnight.pnl)
+          ? 'Overnight: ' + loss.overnight.n + ' &middot; ' + viewMoney(loss.overnight.pnl)
           : 'Overnight: keine Verluste');
 
     grid.innerHTML =
       '<article class="period-review-card"><div class="period-review-card-label">Periodenergebnis</div>' +
-        '<div class="period-review-card-value ' + (summary.pnl >= 0 ? 'pos' : 'neg') + '">' + fmtDE(summary.pnl) + '</div>' +
+        '<div class="period-review-card-value ' + (summary.pnl >= 0 ? 'pos' : 'neg') + '">' + viewMoney(summary.pnl) + '</div>' +
         '<div class="period-review-card-meta"><strong>' + summary.n + ' Trades &middot; ' + fmtPlain(summary.winrate, 1) + '% Treffer</strong><br>' +
-        '&Oslash; ' + fmtDE(summary.avg) + ' / Trade &middot; Steuer ' + fmtDE(summary.tax) +
-        (phase ? '<br>Auff&auml;llige Phase: ' + escapeHtml(phase.label) + ' (' + fmtDE(phase.avg) + ' / Trade)' : '') +
+        '&Oslash; ' + viewMoney(summary.avg) + ' / Trade &middot; Steuer ' + viewMoney(summary.tax) +
+        (phase ? '<br>Auff&auml;llige Phase: ' + escapeHtml(phase.label) + ' (' + viewMoney(phase.avg) + ' / Trade)' : '') +
         '</div></article>' +
       patternCard('St\u00e4rkstes Muster', strongest, 'pos', 'Kein positives Muster mit mindestens ' + result.minSample + ' Trades.') +
       patternCard('Schw\u00e4chstes Muster', weakest, 'neg', 'Kein negatives Muster mit mindestens ' + result.minSample + ' Trades.') +
       '<article class="period-review-card"><div class="period-review-card-label">Verlustursachen</div>' +
         '<div class="period-review-card-value ' + (loss.n > 0 ? 'neg' : 'pos') + '">' +
-        (loss.n > 0 ? fmtDE(loss.pnl) : 'Keine') + '</div>' +
+        (loss.n > 0 ? viewMoney(loss.pnl) : 'Keine') + '</div>' +
         '<div class="period-review-card-meta">' + lossDetails + '</div></article>';
     note.textContent = 'Muster werden erst ab ' + result.minSample + ' gleichartigen Trades bewertet. ' +
       'Gruppierung nach Ausstiegsdatum.' +
@@ -775,7 +837,7 @@ function buildWeekly() {
   sorted.forEach(({ label, pnl, rev, n }) => {
     const pct = Math.round((Math.abs(pnl) / maxAbs) * 100);
     const cls = pnl >= 0 ? 'pos' : 'neg';
-    tbody.innerHTML += '<tr><td>' + escapeHtml(label) + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td><td><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div></td></tr>';
+    tbody.innerHTML += '<tr><td>' + escapeHtml(label) + '</td><td class="r ' + cls + '">' + viewMoney(pnl) + '</td><td class="r">' + viewAmount(rev, invisMode ? 2 : 0) + '</td><td class="r">' + n + '</td><td><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div></td></tr>';
   });
 }
 
@@ -793,14 +855,14 @@ function buildMonthly() {
   sorted.forEach(({ month, pnl }) => {
     const pct = Math.max(Math.round((Math.abs(pnl) / maxAbs) * 100), 2);
     const cls = pnl >= 0 ? 'pos' : 'neg';
-    bars += '<div class="month-bar-col"><div class="month-bar ' + cls + '" style="height:' + pct + '%" title="' + fmtDE(pnl) + '"></div><div class="month-bar-lbl">' + MON[month.slice(5)] + '</div><div class="month-bar-val ' + cls + '">' + fmtK(pnl) + '</div></div>';
+    bars += '<div class="month-bar-col"><div class="month-bar ' + cls + '" style="height:' + pct + '%" title="' + viewMoney(pnl) + '"></div><div class="month-bar-lbl">' + MON[month.slice(5)] + '</div><div class="month-bar-val ' + cls + '">' + viewCompactMoney(pnl) + '</div></div>';
   });
   barsWrap.innerHTML = bars + '</div>';
   const tbody = $('monthly-tbody');
   tbody.innerHTML = '';
   sorted.forEach(({ month, pnl, rev, n }) => {
     const cls = pnl >= 0 ? 'pos' : 'neg';
-    tbody.innerHTML += '<tr><td>' + escapeHtml(MON[month.slice(5)] + ' ' + month.slice(0, 4)) + '</td><td class="r ' + cls + '">' + fmtDE(pnl) + '</td><td class="r">' + fmtPlain(rev, 0) + ' \u20ac</td><td class="r">' + n + '</td></tr>';
+    tbody.innerHTML += '<tr><td>' + escapeHtml(MON[month.slice(5)] + ' ' + month.slice(0, 4)) + '</td><td class="r ' + cls + '">' + viewMoney(pnl) + '</td><td class="r">' + viewAmount(rev, invisMode ? 2 : 0) + '</td><td class="r">' + n + '</td></tr>';
   });
 }
 
@@ -810,6 +872,7 @@ function buildMonthly() {
 let closingIsin = null;
 
 function openClosePosModal(isin) {
+  if (!allowDataMutation()) return;
   closingIsin = isin;
   const lots = DATA.openLots.filter(l => l.isin === isin);
   if (lots.length === 0) { alert('Position nicht gefunden.'); return; }
@@ -822,6 +885,7 @@ function closeClosePosModal() {
 }
 
 async function confirmClosePos() {
+  if (!allowDataMutation()) return;
   if (!closingIsin) return;
   const lots = DATA.openLots.filter(l => l.isin === closingIsin);
   if (lots.length === 0) { alert('Position nicht gefunden.'); return; }
@@ -883,21 +947,23 @@ function buildOpenPositions() {
     card.className = 'open-pos-card';
     card.innerHTML =
       '<div><div class="op-name">' + escapeHtml(p.desc) + '</div>' +
-      '<div class="op-isin">' + escapeHtml(p.isin) + '</div>' +
+      '<div class="op-isin">' + escapeHtml(viewIsin(p.isin)) + '</div>' +
       '<div class="op-badge">' + escapeHtml(p.dir) + ' \u00b7 offen seit ' + escapeHtml(p.since) + '</div></div>' +
       '<div class="op-nums">' +
-      '<div><div class="op-num-lbl">St\u00fcck</div><div class="op-num-val">' + p.shares.toLocaleString('de-DE') + '</div></div>' +
-      '<div><div class="op-num-lbl">\u00d8 Preis</div><div class="op-num-val">' + fmtPlain(p.avgPrice, 4) + '</div></div>' +
+      '<div><div class="op-num-lbl">St\u00fcck</div><div class="op-num-val">' + escapeHtml(viewShares(p.shares)) + '</div></div>' +
+      '<div><div class="op-num-lbl">\u00d8 Preis</div><div class="op-num-val">' + viewAmount(p.avgPrice, 4) + '</div></div>' +
       '<div><div class="op-num-lbl">Lots</div><div class="op-num-val">' + p.lots + '</div></div>' +
-      '<div><div class="op-num-lbl">Einstand</div><div class="op-num-val">' + fmtPlain(p.cost, 0) + ' \u20ac</div></div>' +
+      '<div><div class="op-num-lbl">Einstand</div><div class="op-num-val">' + viewAmount(p.cost, invisMode ? 2 : 0) + '</div></div>' +
       '</div>' +
-      '<div class="op-btns">' +
-      '<button type="button" class="btn-close-pos" data-isin="' + escapeHtml(p.isin) + '">Schlie\u00dfen</button>' +
-      '<button type="button" class="btn-del-pos" data-isin="' + escapeHtml(p.isin) +
-        '" aria-label="' + escapeHtml(p.desc) + ' aus dem Tracking entfernen, ohne P&L-Buchung">\u2715</button>' +
-      '</div>';
-    card.querySelector('.btn-close-pos').onclick = () => openClosePosModal(p.isin);
-    card.querySelector('.btn-del-pos').onclick = () => deleteOpenPosition(p.isin);
+      (!invisMode
+        ? '<div class="op-btns"><button type="button" class="btn-close-pos" data-isin="' + escapeHtml(p.isin) + '">Schlie\u00dfen</button>' +
+          '<button type="button" class="btn-del-pos" data-isin="' + escapeHtml(p.isin) +
+          '" aria-label="' + escapeHtml(p.desc) + ' aus dem Tracking entfernen, ohne P&L-Buchung">\u2715</button></div>'
+        : '');
+    if (!invisMode) {
+      card.querySelector('.btn-close-pos').onclick = () => openClosePosModal(p.isin);
+      card.querySelector('.btn-del-pos').onclick = () => deleteOpenPosition(p.isin);
+    }
     wrap.appendChild(card);
   });
 }
@@ -916,11 +982,11 @@ function buildHiddenOpenPositions() {
     const row = document.createElement('div');
     row.className = 'hidden-pos-row';
     row.innerHTML = '<div><div class="hidden-pos-desc">' + escapeHtml(event.desc || event.isin) + '</div>' +
-      '<div class="hidden-pos-meta">' + escapeHtml(event.isin) + ' \u00b7 ' +
-      Number(event.shares || 0).toLocaleString('de-DE') + ' St\u00fcck \u00b7 Einstand ' +
-      fmtPlain(Number(event.cost || 0), 2) + ' \u20ac</div></div>' +
-      '<button class="btn restore-hidden-pos">Wieder anzeigen</button>';
-    row.querySelector('.restore-hidden-pos').onclick = () => undoDeleteOpenPosition(event.id);
+      '<div class="hidden-pos-meta">' + escapeHtml(viewIsin(event.isin)) + ' \u00b7 ' +
+      escapeHtml(viewShares(Number(event.shares || 0))) + ' \u00b7 Einstand ' +
+      viewAmount(Number(event.cost || 0)) + '</div></div>' +
+      (!invisMode ? '<button class="btn restore-hidden-pos">Wieder anzeigen</button>' : '');
+    if (!invisMode) row.querySelector('.restore-hidden-pos').onclick = () => undoDeleteOpenPosition(event.id);
     wrap.appendChild(row);
   });
 }
@@ -929,6 +995,7 @@ function buildHiddenOpenPositions() {
 // Brokerhistorie bleibt vollstaendig, damit FIFO und spaetere Verkaeufe korrekt
 // bleiben; der versionierte Ausschluss kann jederzeit rueckgaengig werden.
 async function deleteOpenPosition(isin) {
+  if (!allowDataMutation()) return;
   let canonicalLots;
   if (hasImportLedger()) {
     try {
@@ -968,6 +1035,7 @@ async function deleteOpenPosition(isin) {
 }
 
 async function undoDeleteOpenPosition(eventId) {
+  if (!allowDataMutation()) return;
   const hidden = hiddenOpenPositionsDATA();
   const restored = restoreHiddenOpenPosition(hidden, eventId);
   if (restored.length === hidden.length) return;
@@ -1003,8 +1071,8 @@ function buildEquityCurve() {
     ? ''
     : ' (' + value.toFixed(1).replace('.', ',') + ' %)';
   const drawdownValue = (amount, pct) => amount > 0
-    ? '\u2212' + fmtPlain(amount) + ' \u20ac' + percentage(pct)
-    : '0,00 \u20ac' + percentage(pct);
+    ? (invisMode ? viewMoney(-amount) : '\u2212' + fmtPlain(amount) + ' \u20ac') + percentage(pct)
+    : (invisMode ? viewMoney(0) : '0,00 \u20ac') + percentage(pct);
   const card = (label, value, cls, sub) =>
     '<div class="equity-card"><div class="equity-card-label">' + label + '</div>' +
     '<div class="equity-card-value ' + (cls || '') + '">' + value + '</div>' +
@@ -1013,11 +1081,11 @@ function buildEquityCurve() {
   const currentLabel = hasCapital ? 'Aktueller Stand' : 'P&L kumuliert';
   const highLabel = hasCapital ? 'H\u00f6chststand' : 'P&L-Hoch';
   const currentValue = hasCapital
-    ? fmtPlain(result.currentEquity) + ' \u20ac'
-    : fmtDE(result.netPnl);
+    ? viewAmount(result.currentEquity)
+    : viewMoney(result.netPnl);
   const highValue = hasCapital
-    ? fmtPlain(result.highWaterMark) + ' \u20ac'
-    : fmtDE(result.highWaterMark);
+    ? viewAmount(result.highWaterMark)
+    : viewMoney(result.highWaterMark);
   summary.innerHTML =
     card(currentLabel, currentValue, result.netPnl >= 0 ? 'pos' : 'neg') +
     card(highLabel, highValue, '') +
@@ -1055,7 +1123,7 @@ function buildEquityCurve() {
     const value = maxValue - ((maxValue - minValue) * i / 4);
     const y = yFor(value).toFixed(1);
     grid += '<line class="equity-grid-line" x1="' + left + '" y1="' + y + '" x2="' + (width - right) + '" y2="' + y + '"></line>' +
-      '<text class="equity-axis-label" x="' + (left - 6) + '" y="' + (+y + 3) + '" text-anchor="end">' + escapeHtml(fmtK(value)) + '</text>';
+      '<text class="equity-axis-label" x="' + (left - 6) + '" y="' + (+y + 3) + '" text-anchor="end">' + escapeHtml(invisMode ? viewAmount(value) : fmtK(value)) + '</text>';
   }
 
   const maxPointIndex = result.maxDrawdownDate
@@ -1064,7 +1132,7 @@ function buildEquityCurve() {
   const marker = maxPointIndex >= 0 && result.maxDrawdown > 0
     ? '<circle class="equity-dd-marker" cx="' + xFor(maxPointIndex).toFixed(1) + '" cy="' +
       yFor(result.points[maxPointIndex].equity).toFixed(1) + '" r="4"><title>Max. Drawdown am ' +
-      escapeHtml(result.maxDrawdownDate) + ': ' + escapeHtml(fmtPlain(result.maxDrawdown)) + ' \u20ac</title></circle>'
+      escapeHtml(result.maxDrawdownDate) + ': ' + escapeHtml(invisMode ? viewMoney(-result.maxDrawdown) : fmtPlain(result.maxDrawdown) + ' \u20ac') + '</title></circle>'
     : '';
   const shortDate = value => value.slice(8, 10) + '.' + value.slice(5, 7) + '.' + value.slice(2, 4);
 
@@ -1114,7 +1182,7 @@ function buildWeekdayStats() {
   const formatFactor = value => value === null
     ? '\u2014'
     : (value === Infinity ? '\u221e' : fmtPlain(value, 2));
-  const formatMoney = (bucket, value) => bucket.n > 0 ? fmtDE(value) : '\u2014';
+  const formatMoney = (bucket, value) => bucket.n > 0 ? viewMoney(value) : '\u2014';
   const directionBlock = (key, label, bucket) => {
     const remaining = Math.max(0, result.minSample - bucket.n);
     const sampleText = bucket.significant
@@ -1127,7 +1195,7 @@ function buildWeekdayStats() {
       (bucket.avg >= 0 ? 'pos' : 'neg') + '">' + formatMoney(bucket, bucket.avg) + '</strong></div>' +
       '<div class="weekday-metrics">' +
       '<div><span>Netto-P&amp;L</span><b>' + formatMoney(bucket, bucket.pnl) + '</b></div>' +
-      '<div><span>Median</span><b>' + (bucket.median === null ? '\u2014' : fmtDE(bucket.median)) + '</b></div>' +
+      '<div><span>Median</span><b>' + (bucket.median === null ? '\u2014' : viewMoney(bucket.median)) + '</b></div>' +
       '<div><span>Winrate</span><b>' + formatPercent(bucket.winrate) + '</b></div>' +
       '<div><span>Profit Factor</span><b>' + formatFactor(bucket.profitFactor) + '</b></div>' +
       '</div><div class="weekday-sample ' + (bucket.significant ? 'ready' : '') + '">' + sampleText + '</div></div>';
@@ -1143,7 +1211,7 @@ function buildWeekdayStats() {
       tendencyClass = 'tie';
     } else {
       const winner = day.comparison.winner === 'long' ? 'Long' : 'Short';
-      tendency = 'Tendenz ' + winner + ' \u00b7 Vorsprung \u00d8 ' + fmtPlain(day.comparison.edge) + ' \u20ac/Trade';
+      tendency = 'Tendenz ' + winner + ' \u00b7 Vorsprung \u00d8 ' + viewMoney(day.comparison.edge) + '/Trade';
       tendencyClass = day.comparison.winner;
     }
     return '<article class="weekday-card">' +
@@ -1209,7 +1277,7 @@ function buildTimeStats() {
     onEl.className = 'ts-on';
     onEl.innerHTML = '<b>\u00dcber Nacht gehalten:</b> ' + overnight.n + ' Trades \u00b7 Trefferquote ' +
       (overnight.winrate === null ? '\u2014' : overnight.winrate.toFixed(1).replace('.', ',') + ' %') +
-      ' \u00b7 P&L <span style="color:' + col + '">' + fmtDE(overnight.pnl) + '</span>' +
+      ' \u00b7 P&L <span style="color:' + col + '">' + viewMoney(overnight.pnl) + '</span>' +
       ' \u00b7 Long ' + overnight.long.n + ' / Short ' + overnight.short.n +
       ' \u2014 diese Trades stecken auch in den Phasen unten (' + (tsMode === 'buy' ? 'nach Einstiegszeit' : 'nach Ausstiegszeit') + ' einsortiert).';
     onEl.style.display = 'block';
@@ -1236,7 +1304,7 @@ function buildTimeStats() {
       if (d.n === 0) return '<span style="color:var(--muted)">' + name + ': \u2014</span>';
       const col = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
       const wr = d.winrate === null ? '\u2014' : d.winrate.toFixed(0) + '%';
-      return '<span>' + name + ': <b>' + d.n + '</b> \u00b7 ' + wr + ' \u00b7 <span style="color:' + col + '">' + fmtK(d.pnl) + '</span></span>';
+      return '<span>' + name + ': <b>' + d.n + '</b> \u00b7 ' + wr + ' \u00b7 <span style="color:' + col + '">' + viewCompactMoney(d.pnl) + '</span></span>';
     };
     div.innerHTML =
       '<div class="ts-block-label"><div class="ts-block-name">' + b.label + '</div>' +
@@ -1244,8 +1312,8 @@ function buildTimeStats() {
       '<div class="ts-block-stats">' +
       '<div class="ts-stat"><div class="ts-stat-lbl">Trades</div><div class="ts-stat-val">' + b.n + '</div></div>' +
       '<div class="ts-stat"><div class="ts-stat-lbl">Trefferquote</div><div class="ts-stat-val" ' + wrCls + '>' + (b.winrate === null ? '\u2014' : b.winrate.toFixed(1).replace('.', ',') + ' %') + '</div></div>' +
-      '<div class="ts-stat"><div class="ts-stat-lbl">P&L</div><div class="ts-stat-val" ' + pnlCls + '>' + fmtDE(b.pnl) + '</div></div>' +
-      '<div class="ts-stat"><div class="ts-stat-lbl">\u00d8/Trade</div><div class="ts-stat-val">' + fmtDE(b.avg) + '</div></div>' +
+      '<div class="ts-stat"><div class="ts-stat-lbl">P&L</div><div class="ts-stat-val" ' + pnlCls + '>' + viewMoney(b.pnl) + '</div></div>' +
+      '<div class="ts-stat"><div class="ts-stat-lbl">\u00d8/Trade</div><div class="ts-stat-val">' + viewMoney(b.avg) + '</div></div>' +
       '</div>' +
       '<div class="ts-dir-row">' + dirLine(b.long, 'Long') + dirLine(b.short, 'Short') + '</div>';
     wrap.appendChild(div);
@@ -1266,7 +1334,7 @@ function buildTimeStats() {
     row.innerHTML =
       '<div class="ts-hour-lbl">' + String(h).padStart(2, '0') + '\u2013' + String(h + 1).padStart(2, '0') + '</div>' +
       '<div class="ts-hour-track"><div class="ts-hour-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
-      '<div class="ts-hour-val" style="color:' + col + '">' + fmtDE(b.pnl) + ' \u00b7 ' + b.n + ' T \u00b7 ' + (b.winrate === null ? '\u2014' : b.winrate.toFixed(0) + '%') + '</div>';
+      '<div class="ts-hour-val" style="color:' + col + '">' + viewMoney(b.pnl) + ' \u00b7 ' + b.n + ' T \u00b7 ' + (b.winrate === null ? '\u2014' : b.winrate.toFixed(0) + '%') + '</div>';
     hw.appendChild(row);
     // Long/Short-Detailzeile unter dem Balken
     if (b.long.n > 0 || b.short.n > 0) {
@@ -1274,7 +1342,7 @@ function buildTimeStats() {
         if (d.n === 0) return name + ': \u2014';
         const c = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
         const wr = d.winrate === null ? '\u2014' : d.winrate.toFixed(0) + '%';
-        return name + ': ' + d.n + ' \u00b7 ' + wr + ' \u00b7 <span style="color:' + c + '">' + fmtK(d.pnl) + '</span>';
+        return name + ': ' + d.n + ' \u00b7 ' + wr + ' \u00b7 <span style="color:' + c + '">' + viewCompactMoney(d.pnl) + '</span>';
       };
       const sub = document.createElement('div');
       sub.className = 'ts-hour-dir';
@@ -1301,7 +1369,7 @@ function buildTimeStats() {
 function diagText(d) {
   const parts = [];
   if (d.tags.includes('outlier')) {
-    parts.push(d.outlierShare + '% der Verluste aus nur ' + Math.min(2, d.lossCount) + ' Trade' + (d.lossCount > 1 ? 's' : '') + ' (' + fmtK(d.top2) + ')');
+    parts.push(d.outlierShare + '% der Verluste aus nur ' + Math.min(2, d.lossCount) + ' Trade' + (d.lossCount > 1 ? 's' : '') + ' (' + viewCompactMoney(d.top2) + ')');
   }
   if (d.tags.includes('overnight')) {
     parts.push(d.overnightCount + ' Overnight-Verlust' + (d.overnightCount !== 1 ? 'e' : '') + ' = ' + d.overnightShare + '% der Verlustsumme');
@@ -1333,7 +1401,7 @@ function buildInsights() {
   const wrap = $('ts-insights');
   wrap.innerHTML = '';
 
-  const money = v => '<span style="color:' + (v >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtDE(v) + '</span>';
+  const money = v => '<span style="color:' + (v >= 0 ? 'var(--green)' : 'var(--red)') + '">' + viewMoney(v) + '</span>';
   const wr = d => d.winrate === null ? '\u2014' : d.winrate.toFixed(0) + '%';
   const hasStuck = findings.some(f => f.id === 'overnight-stuck');
 
@@ -1392,7 +1460,7 @@ function buildInsights() {
   let html = '<table class="ts-on-table"><tr><th>Kategorie</th><th style="text-align:right">Trades</th><th style="text-align:right">Trefferquote</th><th style="text-align:right">P&L</th></tr>';
   cats.forEach(([label, d]) => {
     const col = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
-    html += '<tr><td>' + label + '</td><td class="r">' + d.n + '</td><td class="r">' + wr(d) + '</td><td class="r" style="color:' + col + '">' + fmtDE(d.pnl) + '</td></tr>';
+    html += '<tr><td>' + label + '</td><td class="r">' + d.n + '</td><td class="r">' + wr(d) + '</td><td class="r" style="color:' + col + '">' + viewMoney(d.pnl) + '</td></tr>';
   });
   det.innerHTML = html + '</table>';
 
@@ -1415,18 +1483,19 @@ function buildDiscipline() {
   if (!el) return;
   const months = computeMonthlyDiscipline(DATA.trades);
   if (months.length === 0) { el.innerHTML = ''; return; }
-  const money = v => '<span style="color:' + (v >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtK(v) + '</span>';
+  const money = v => '<span style="color:' + (v >= 0 ? 'var(--green)' : 'var(--red)') + '">' + viewCompactMoney(v) + '</span>';
   const MON = { '01': 'Jan', '02': 'Feb', '03': 'M\u00e4r', '04': 'Apr', '05': 'Mai', '06': 'Jun', '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Okt', '11': 'Nov', '12': 'Dez' };
-  let html = '<table class="ts-on-table"><tr><th>Monat</th><th style="text-align:right">Trades</th><th style="text-align:right">P&L</th><th style="text-align:right">\u00d8-Verlust</th><th style="text-align:right">Overnight</th><th style="text-align:right">Verluste &gt;1k</th><th style="text-align:right">Payoff</th><th style="text-align:right">Haltezeit V/G</th></tr>';
+  const largeLossLabel = invisMode ? 'Grossverluste' : 'Verluste &gt;1k';
+  let html = '<table class="ts-on-table"><tr><th>Monat</th><th style="text-align:right">Trades</th><th style="text-align:right">P&L</th><th style="text-align:right">\u00d8-Verlust</th><th style="text-align:right">Overnight</th><th style="text-align:right">' + largeLossLabel + '</th><th style="text-align:right">Payoff</th><th style="text-align:right">Haltezeit V/G</th></tr>';
   months.forEach(m => {
     const bigCol = m.bigLossN > 0 ? 'var(--red)' : 'var(--muted)';
     const payoffCol = m.payoff === null ? 'var(--muted)' : (m.payoff >= 1 ? 'var(--green)' : 'var(--amber)');
     html += '<tr><td>' + escapeHtml(MON[m.month.slice(5)] + ' ' + m.month.slice(2, 4)) + '</td>' +
       '<td class="r">' + m.n + '</td>' +
       '<td class="r">' + money(m.pnl) + '</td>' +
-      '<td class="r" style="color:var(--muted)">' + (m.avgLoss ? fmtK(m.avgLoss) : '\u2014') + '</td>' +
+      '<td class="r" style="color:var(--muted)">' + (m.avgLoss ? viewCompactMoney(m.avgLoss) : '\u2014') + '</td>' +
       '<td class="r">' + (m.overnightN ? money(m.overnightPnl) : '\u2014') + '</td>' +
-      '<td class="r" style="color:' + bigCol + '">' + m.bigLossN + (m.bigLossN ? ' (' + fmtK(m.bigLossSum) + ')' : '') + '</td>' +
+      '<td class="r" style="color:' + bigCol + '">' + m.bigLossN + (m.bigLossN ? ' (' + viewCompactMoney(m.bigLossSum) + ')' : '') + '</td>' +
       '<td class="r" style="color:' + payoffCol + '">' + (m.payoff === null ? '\u2014' : String(m.payoff).replace('.', ',')) + '</td>' +
       '<td class="r" style="color:var(--muted)">' + fmtHold(m.holdLossMedian) + ' / ' + fmtHold(m.holdWinMedian) + '</td></tr>';
   });
@@ -1444,9 +1513,9 @@ function showDetail(key) {
   const v = dm[key] || { pnl: 0, rev: 0, tax: 0, n: 0 };
   const p = key.split('-');
   $('detail-date').textContent = p[2] + '.' + p[1] + '.' + p[0];
-  $('detail-summary').textContent = v.n + ' Trades \u00b7 ' + fmtPlain(v.rev, 0) + ' \u20ac Umsatz \u00b7 ' + fmtPlain(Math.abs(v.tax), 2) + ' \u20ac Steuer';
+  $('detail-summary').textContent = v.n + ' Trades \u00b7 ' + viewAmount(v.rev, invisMode ? 2 : 0) + ' Umsatz \u00b7 ' + viewAmount(Math.abs(v.tax)) + ' Steuer';
   const ph = $('detail-pnl-hdr');
-  ph.textContent = fmtDE(v.pnl);
+  ph.textContent = viewMoney(v.pnl);
   ph.style.color = v.pnl >= 0 ? 'var(--green)' : 'var(--red)';
   const c = $('detail-trades');
   c.innerHTML = '';
@@ -1460,20 +1529,24 @@ function showDetail(key) {
     row.innerHTML = '<div class="trade-left">' +
       '<div class="trade-desc">' + escapeHtml(t.desc) + ' <span class="broker-tag ' + bc + '">' + bl + '</span></div>' +
       '<div class="trade-meta">' +
-      '<span>Kauf: ' + fmtPlain(t.buy) + ' \u20ac</span>' +
-      '<span>Verkauf: ' + fmtPlain(t.sell) + ' \u20ac</span>' +
-      '<span>Steuer: ' + fmtPlain(t.tax) + ' \u20ac</span>' +
+      '<span>Kauf: ' + viewAmount(t.buy) + '</span>' +
+      '<span>Verkauf: ' + viewAmount(t.sell) + '</span>' +
+      '<span>Steuer: ' + viewAmount(t.tax) + '</span>' +
       '</div></div>' +
       '<div class="trade-right">' +
-      '<div class="trade-pnl ' + pnlCls + '">' + fmtDE(t.pnl) + '</div>' +
-      '<button type="button" class="btn-edit" aria-label="' + escapeHtml(t.desc) + ' bearbeiten">\u270e</button>' +
-      '<button type="button" class="btn-del" aria-label="' + escapeHtml(t.desc) + ' l\u00f6schen">\u2715</button>' +
+      '<div class="trade-pnl ' + pnlCls + '">' + viewMoney(t.pnl) + '</div>' +
+      (!invisMode
+        ? '<button type="button" class="btn-edit" aria-label="' + escapeHtml(t.desc) + ' bearbeiten">\u270e</button>' +
+          '<button type="button" class="btn-del" aria-label="' + escapeHtml(t.desc) + ' l\u00f6schen">\u2715</button>'
+        : '') +
       '</div>';
-    row.querySelector('.btn-edit').onclick = () => openEditModal(uid);
-    row.querySelector('.btn-del').onclick = () => deleteTrade(uid, key);
+    if (!invisMode) {
+      row.querySelector('.btn-edit').onclick = () => openEditModal(uid);
+      row.querySelector('.btn-del').onclick = () => deleteTrade(uid, key);
+    }
     c.appendChild(row);
   });
-  $('add-day-btn').style.display = 'flex';
+  $('add-day-btn').style.display = invisMode ? 'none' : 'flex';
   openAccessibleDialog('detail-overlay', 'detail-close-btn');
 }
 
@@ -1484,13 +1557,14 @@ function openDetailNew(key) {
   $('detail-summary').textContent = 'Noch keine Trades';
   $('detail-pnl-hdr').textContent = '';
   $('detail-trades').innerHTML = '<div style="color:var(--muted);font-size:.7rem;padding:.5rem 0">Kein Trade f\u00fcr diesen Tag.</div>';
-  $('add-day-btn').style.display = 'flex';
+  $('add-day-btn').style.display = invisMode ? 'none' : 'flex';
   openAccessibleDialog('detail-overlay', 'detail-close-btn');
 }
 
 function closeDetail() { closeAccessibleDialog('detail-overlay'); currentDetailDate = null; }
 
 async function deleteTrade(uid, date) {
+  if (!allowDataMutation()) return;
   if (!uid) { alert('Kein UID \u2014 Trade kann nicht gel\u00f6scht werden.'); return; }
   if (!confirm('Trade l\u00f6schen?')) return;
   const trade = DATA.trades.find(t => t.uid === uid);
@@ -1521,13 +1595,20 @@ async function deleteTrade(uid, date) {
 /* ============================================================
    ADD / EDIT TRADE
    ============================================================ */
+function openNewTrade() {
+  if (!allowDataMutation()) return;
+  openAddModal();
+}
+
 function openAddModalForDate() {
+  if (!allowDataMutation()) return;
   const preferredDate = currentDetailDate || '';
   closeDetail();
   openAddModal(preferredDate);
 }
 
 async function saveTrade() {
+  if (!allowDataMutation()) return;
   const { date, desc, broker, shares, buy, sell, tax } = readAddTradeForm();
   if (!date || !desc || !buy || !sell) { alert('Bitte Datum, Produkt, Kauf- und Verkaufsbetrag ausf\u00fcllen.'); return; }
   const pnl = parseFloat((sell - buy - tax).toFixed(2));
@@ -1541,6 +1622,7 @@ async function saveTrade() {
 }
 
 function openEditModal(uid) {
+  if (!allowDataMutation()) return;
   const t = DATA.trades.find(x => x.uid === uid);
   if (!t) { alert('Trade nicht gefunden.'); return; }
   const isImported = t.source === 'import';
@@ -1549,6 +1631,7 @@ function openEditModal(uid) {
 }
 
 async function saveEdit() {
+  if (!allowDataMutation()) return;
   const { uid, date, desc, broker, shares, buy, sell, tax } = readEditTradeForm();
   const idx = DATA.trades.findIndex(x => x.uid === uid);
   if (idx === -1) { alert('Trade nicht gefunden.'); return; }
@@ -1600,6 +1683,7 @@ async function saveEdit() {
    CSV IMPORT (FIFO, Buy-before-Sell tiebreak, UID dedup)
    ============================================================ */
 function openImportModal() {
+  if (!allowDataMutation()) return;
   pendingImport = []; pendingOpenLots = []; pendingImportRows = null; pendingImportBaseOpenLots = null; pendingImportReport = null;
   openImportDialog();
 }
@@ -1610,6 +1694,7 @@ function handleDragOver(event) { handleImportDragOver(event); }
 function handleDragLeave() { handleImportDragLeave(); }
 function handleDrop(event) { handleImportDrop(event, handleFileSelect); }
 function handleFileSelect(file) {
+  if (!allowDataMutation()) return;
   readImportFile(file, parseImport, importError);
 }
 
@@ -1626,6 +1711,7 @@ function showImportMigration(migration) {
 }
 
 function parseImport(text) {
+  if (!allowDataMutation()) return;
   // Parsen + Validieren passiert in import.js (pure). Hier nur Fehleranzeige + Rendering.
   const result = parseScalableCsv(text);
   if (result.error) { importError(result.error); return; }
@@ -1683,6 +1769,7 @@ function parseImport(text) {
 }
 
 async function confirmImport() {
+  if (!allowDataMutation()) return;
   if (!pendingImportRows || !pendingImportBaseOpenLots) return;
   const importedTrades = pendingImport.map(t => {
     const o = Object.assign({}, t);
@@ -1716,6 +1803,7 @@ function recomputeOpenLots() {
    EXPORT CSV
    ============================================================ */
 async function resetAllData() {
+  if (!allowDataMutation()) return;
   if (!confirm('Wirklich ALLE Trades l\u00f6schen? Vor dem Leeren wird automatisch eine Sicherung angelegt.')) return;
   const protectedData = addSafetyBackup(DATA, 'reset');
   const nextData = Object.assign(emptyData(), { safetyBackups: protectedData.safetyBackups });
@@ -1741,11 +1829,13 @@ function downloadTextFile(content, filename, type) {
 }
 
 function openEncryptedBackups() {
+  if (!allowDataMutation()) return;
   closeMobileActions();
   openEncryptedBackupDialog();
 }
 
 async function createEncryptedBackup() {
+  if (!allowDataMutation()) return;
   const { password, confirmation } = readEncryptedExportPasswords();
   if (password !== confirmation) {
     setEncryptedBackupStatus('Die beiden Passphrasen stimmen nicht ueberein.', true);
@@ -1769,6 +1859,7 @@ async function createEncryptedBackup() {
 }
 
 async function restoreEncryptedBackup() {
+  if (!allowDataMutation()) return;
   const { file, password } = readEncryptedImport();
   if (!file) {
     setEncryptedBackupStatus('Bitte zuerst eine verschluesselte Backup-Datei auswaehlen.', true);
@@ -1808,14 +1899,17 @@ async function restoreEncryptedBackup() {
 }
 
 function openRestoreJson() {
+  if (!allowDataMutation()) return;
   $('json-input').value = '';
   $('json-input').click();
 }
 
 async function handleJsonRestore(file) {
+  if (!allowDataMutation()) return;
   if (!file) return;
   const reader = new FileReader();
   reader.onload = async (e) => {
+    if (!allowDataMutation()) return;
     let parsed;
     try {
       parsed = JSON.parse(e.target.result);
@@ -1848,10 +1942,12 @@ async function handleJsonRestore(file) {
 }
 
 function openSafetyBackups() {
+  if (!allowDataMutation()) return;
   openSafetyBackupDialog(DATA.safetyBackups, restoreSafetyBackupById);
 }
 
 async function restoreSafetyBackupById(backupId) {
+  if (!allowDataMutation()) return;
   if (!confirm('Diesen gesicherten Stand wiederherstellen? Der aktuelle Stand wird vorher ebenfalls gesichert.')) return;
   const nextData = restoreSafetyBackup(DATA, backupId);
   if (!nextData) {
@@ -1865,6 +1961,7 @@ async function restoreSafetyBackupById(backupId) {
 }
 
 function exportCSV() {
+  if (!allowDataMutation()) return;
   const rows = ['UID;Datum;Zeit;ISIN;Produkt;Broker;Kauf;Verkauf;Steuer;P&L'];
   DATA.trades.slice().sort((a, b) => a.date.localeCompare(b.date)).forEach(t => {
     rows.push([t.uid || '', t.date, t.time || '', t.isin || '', t.desc, t.broker || '', t.buy, t.sell, t.tax, t.pnl]
@@ -1883,6 +1980,7 @@ function exportCSV() {
    REBUILD
    ============================================================ */
 async function setCapital() {
+  if (!allowDataMutation()) return;
   const cur = DATA.capital || 0;
   const input = prompt('Einstand / Startkapital in Euro eingeben:', cur > 0 ? String(cur) : '');
   if (input === null) return;
@@ -1900,15 +1998,15 @@ async function setCapital() {
    ============================================================ */
 function openTradeSearch() {
   closeMobileActions();
-  openTradeSearchDialog(DATA.trades, showDetail);
+  openTradeSearchDialog(DATA.trades, showDetail, invisView());
 }
 
 function resetTradeSearch() {
-  resetTradeSearchDialog(DATA.trades, showDetail);
+  resetTradeSearchDialog(DATA.trades, showDetail, invisView());
 }
 
 function buildTradeSearch() {
-  renderTradeSearch(DATA.trades, showDetail);
+  renderTradeSearch(DATA.trades, showDetail, invisView());
 }
 
 function rebuildAll() {
@@ -1977,8 +2075,9 @@ function bootApp() {
   bind('btn-login', 'click', signIn);
   bind('btn-local-mode', 'click', startLocalMode);
   bind('btn-logout', 'click', signOut);
+  bind('invis-toggle', 'click', toggleInvisMode);
   bind('btn-connect-drive', 'click', connectDrive);
-  bind('btn-add', 'click', openAddModal);
+  bind('btn-add', 'click', openNewTrade);
   bind('btn-search', 'click', openTradeSearch);
   bind('btn-import', 'click', openImportModal);
   bind('btn-export', 'click', exportCSV);
@@ -2062,7 +2161,7 @@ function bootApp() {
   bind('metrics-to', 'change', buildTradingMetrics);
   bind('metrics-reset', 'click', resetTradingMetrics);
 
-  bindMobileAction('btn-add-m', openAddModal);
+  bindMobileAction('btn-add-m', openNewTrade);
   bind('btn-search-m', 'click', openTradeSearch);
   bindMobileAction('btn-import-m', openImportModal);
   bindMobileAction('btn-export-m', exportCSV);
@@ -2086,6 +2185,7 @@ function bootApp() {
     }
   });
   bind('s-rendite-card', 'click', setCapital);
+  applyInvisModeUi();
 
   // Ein lokal gewaehlter Modus kann ohne Google und ohne Netz sofort starten.
   // Drive bleibt wegen des bewusst interaktiven OAuth-Dialogs auf dem Login.

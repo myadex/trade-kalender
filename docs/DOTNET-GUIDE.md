@@ -10,6 +10,10 @@ Die wichtigste Erkenntnis zuerst: In diesem Projekt gibt es kaum `class`-
 Deklarationen, aber sehr wohl klar getrennte Verantwortungen. Die Einheit, die
 du in C# oft als Klasse oder Service kennst, ist hier meistens ein ES-Modul.
 
+Wenn du modernes .NET nicht nur zuordnen, sondern mit VS Code und Coding-Agents
+praktisch lernen willst, gehe danach mit dem
+[.NET-/Agenten-Lernplan](DOTNET-AGENT-LEARNING.md) weiter.
+
 ## Das mentale Übersetzungsmodell
 
 | C#/.NET | Dieses Projekt |

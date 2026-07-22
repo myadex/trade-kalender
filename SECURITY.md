@@ -81,6 +81,22 @@ zusätzlich ein interner Safety-Snapshot.
 Die Service-Worker-Reparatur löscht nur versionierte
 `trade-kalender-*`-App-Shell-Caches. Sie löscht weder IndexedDB noch Drive-Daten.
 
+## Invis-Modus und Sichtschutz
+
+Der Invis-Modus reduziert sichtbare Finanzdetails bei Bildschirmfreigaben.
+Geldwerte werden relativ zum festen Startkapital dargestellt; ISINs und
+Stueckzahlen werden maskiert. Der Controller versteckt nicht nur
+Bearbeitungsaktionen, sondern blockiert zusaetzlich mutierende Einstiegspunkte
+und die zentrale Persistenz. Export, Restore, Backups und Speicherwechsel sind
+in diesem Zustand ebenfalls nicht erreichbar.
+
+Das ist kein kryptografischer Schutz und keine Zugriffskontrolle. Exakte Werte
+bleiben in `DATA`, IndexedDB beziehungsweise Google Drive und koennen von
+technisch versierten Personen mit Browserwerkzeugen gelesen werden. Der Modus
+wird nicht persistiert, gilt nur fuer die laufende Seite und startet nach einem
+Reload deaktiviert. Fuer Schutz ruhender Daten bleiben verschluesselte Backups,
+Geraeteschutz und ein vertrauenswuerdiges Browserprofil erforderlich.
+
 ## Schwachstelle melden
 
 Veröffentliche keine Schwachstelle zusammen mit Finanzdaten, Tokens oder einer
@@ -120,4 +136,3 @@ Invarianten verglichen.
 Sicherheitskorrekturen werden nur für die aktuell veröffentlichte
 PWA-Version vorgenommen. Die sichtbare Version im Login und Header muss mit
 App-Modul, Service-Worker-Starter und Cache-Version übereinstimmen.
-

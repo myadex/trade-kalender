@@ -33,6 +33,13 @@ gesamte Layout einschließlich der mobilen Regeln. Kleine UI-Module wie
 schreiben ausschließlich DOM-Zustand. Sie erhalten Fachdaten und Callbacks als
 Parameter und persistieren selbst nichts.
 
+`invis-view.js` ist eine DOM-freie Anzeigegrenze. Das Modul erhaelt Betrag,
+Startkapital und den expliziten Sitzungsmodus als Parameter und liefert nur
+formatierte Prozent- beziehungsweise Maskierungstexte. Es kennt weder `DATA`
+noch Browser-Speicher. Dadurch bleibt die Datenschutzdarstellung isoliert
+testbar und kann nicht versehentlich zu einem zweiten persistenten Datenmodell
+werden.
+
 ### Anwendungssteuerung
 
 [`js/app.js`](../js/app.js) ist der zentrale Controller. Das Modul hält den
@@ -59,6 +66,7 @@ Diese Module kennen weder DOM noch Netzwerk:
 | `safety-backups.js` | Interne, versionierte Zustands-Snapshots |
 | `storage-migration.js` | Lokalen und Drive-Stand vergleichen und einen Zielstand bilden |
 | `helpers.js` | Datum, Ausgabeformatierung, HTML- und CSV-Sicherheit |
+| `invis-view.js` | Geldwerte relativ zum Startkapital formatieren und ISIN/Stueckzahl maskieren |
 | `backup-crypto.js` | Versioniertes verschlüsseltes Backupformat über Web Crypto |
 
 Alle fachlichen Funktionen erhalten Daten und Abhängigkeiten als Parameter.
@@ -117,12 +125,15 @@ das Hauptmodul selbst nicht mehr startet.
 
 ### Mutation und Speichern
 
-1. Der Controller bildet einen neuen vollständigen Zustand, statt während
+1. Der Controller prueft zuerst die sitzungsweite Nur-Ansehen-Sperre. Im
+   Invis-Modus werden mutierende Einstiegspunkte und `persist()` abgewiesen;
+   reine Navigation, Filter und Suche bleiben erlaubt.
+2. Der Controller bildet einen neuen vollständigen Zustand, statt während
    eines asynchronen Schreibens weiter ein veränderliches Objekt zu benutzen.
-2. Sicherheitsrelevante Aktionen erzeugen vorher einen Safety-Snapshot.
-3. Lokale Daten werden normalisiert in IndexedDB geschrieben. Drive-Schreiben
+3. Sicherheitsrelevante Aktionen erzeugen vorher einen Safety-Snapshot.
+4. Lokale Daten werden normalisiert in IndexedDB geschrieben. Drive-Schreiben
    laufen seriell und mit dem zuletzt gelesenen ETag.
-4. Bei einem Drive-Konflikt wird nichts überschrieben; die App lädt den
+5. Bei einem Drive-Konflikt wird nichts überschrieben; die App lädt den
    aktuellen Serverstand und fordert zur Wiederholung der Aktion auf.
 
 ## Zustands- und Vertrauensgrenzen

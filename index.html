@@ -24,15 +24,20 @@
   </div>
   <p class="login-note">Lokale Daten verlassen dieses Ger&auml;t nicht. Gel&ouml;schte Browserdaten oder eine Deinstallation k&ouml;nnen sie jedoch entfernen.</p>
   <div id="login-status" role="status" aria-live="polite"></div>
-  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v85</div>
+  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v89</div>
 </div>
 
 <!-- APP -->
 <div id="app-main" style="display:none">
   <div class="header">
-    <div>
-      <h1>Trade Kalender</h1>
-      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v85</span></p>
+    <div class="header-title">
+      <div class="header-title-row">
+        <h1>Trade Kalender</h1>
+        <button id="invis-toggle" class="invis-toggle" type="button" aria-pressed="false"
+          aria-describedby="invis-status">Invis</button>
+      </div>
+      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v89</span></p>
+      <div id="invis-status" class="invis-status" role="status" hidden>INVIS &middot; NUR ANSEHEN</div>
     </div>
     <div class="header-summary" aria-label="Realisierte Gesamtergebnisse">
       <div class="header-metric header-metric-primary">
@@ -55,15 +60,15 @@
 
   <div class="toolbar">
     <span class="storage-badge" id="storage-badge">Speicher wird geladen</span>
-    <button class="btn" id="btn-add">+ Trade hinzuf&uuml;gen</button>
+    <button class="btn" id="btn-add" data-invis-write>+ Trade hinzuf&uuml;gen</button>
     <button class="btn" id="btn-search">&#128269; Trades suchen</button>
-    <button class="btn" id="btn-import">&uarr; CSV importieren</button>
-    <button class="btn" id="btn-export">&darr; Export CSV</button>
-    <button class="btn" id="btn-restore">&#8593; JSON unverschl&uuml;sselt</button>
-    <button class="btn" id="btn-backups">&#128737; Sicherungen</button>
-    <button class="btn" id="btn-encrypted-backup">&#128274; Backup-Datei</button>
-    <button class="btn" id="btn-connect-drive" style="display:none">Mit Google Drive verbinden</button>
-    <button class="btn" id="btn-reset" style="border-color:var(--red-mid);color:var(--red)">&#8635; Reset</button>
+    <button class="btn" id="btn-import" data-invis-write>&uarr; CSV importieren</button>
+    <button class="btn" id="btn-export" data-invis-write>&darr; Export CSV</button>
+    <button class="btn" id="btn-restore" data-invis-write>&#8593; JSON unverschl&uuml;sselt</button>
+    <button class="btn" id="btn-backups" data-invis-write>&#128737; Sicherungen</button>
+    <button class="btn" id="btn-encrypted-backup" data-invis-write>&#128274; Backup-Datei</button>
+    <button class="btn" id="btn-connect-drive" data-invis-write style="display:none">Mit Google Drive verbinden</button>
+    <button class="btn" id="btn-reset" data-invis-write style="border-color:var(--red-mid);color:var(--red)">&#8635; Reset</button>
     <button class="btn" id="btn-logout" style="display:none">Abmelden</button>
   </div>
 
@@ -524,7 +529,7 @@
 <!-- Der SW-Starter bleibt absichtlich unabhaengig vom Hauptmodul. So kann ein
      alter defekter app.js-Cache durch einen neuen Service Worker heilen. -->
 <script src="sw-register.js" defer></script>
-<script type="module" src="js/app.js?v=v85"></script>
+<script type="module" src="js/app.js?v=v89"></script>
 <!-- app.js behandelt beide async-Reihenfolgen per load-Listener und prueft
      zusaetzlich, ob Google GIS beim Boot bereits verfuegbar ist. -->
 <script id="google-gis-script" src="https://accounts.google.com/gsi/client" async defer></script>
@@ -542,15 +547,15 @@
 
 <!-- MOBILE ACTION SHEET -->
 <div id="mobile-actions" role="group" aria-label="Aktionen">
-  <button type="button" id="btn-add-m">+ Trade hinzuf&uuml;gen</button>
+  <button type="button" id="btn-add-m" data-invis-write>+ Trade hinzuf&uuml;gen</button>
   <button type="button" id="btn-search-m">&#128269; Trades suchen</button>
-  <button type="button" id="btn-import-m">&uarr; CSV importieren</button>
-  <button type="button" id="btn-export-m">&darr; Export CSV</button>
-  <button type="button" id="btn-restore-m">&#8593; JSON unverschl&uuml;sselt</button>
-  <button type="button" id="btn-backups-m">&#128737; Sicherungen</button>
-  <button type="button" id="btn-encrypted-backup-m">&#128274; Backup-Datei</button>
-  <button type="button" id="btn-connect-drive-m" style="display:none">Mit Google Drive verbinden</button>
-  <button type="button" class="danger" id="btn-reset-m">&#8635; Alle Daten l&ouml;schen</button>
+  <button type="button" id="btn-import-m" data-invis-write>&uarr; CSV importieren</button>
+  <button type="button" id="btn-export-m" data-invis-write>&darr; Export CSV</button>
+  <button type="button" id="btn-restore-m" data-invis-write>&#8593; JSON unverschl&uuml;sselt</button>
+  <button type="button" id="btn-backups-m" data-invis-write>&#128737; Sicherungen</button>
+  <button type="button" id="btn-encrypted-backup-m" data-invis-write>&#128274; Backup-Datei</button>
+  <button type="button" id="btn-connect-drive-m" data-invis-write style="display:none">Mit Google Drive verbinden</button>
+  <button type="button" class="danger" id="btn-reset-m" data-invis-write>&#8635; Alle Daten l&ouml;schen</button>
 </div>
 
 <input type="file" id="json-input" accept=".json,application/json" style="display:none">

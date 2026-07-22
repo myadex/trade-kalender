@@ -31,7 +31,8 @@ Stand reproduzierbar mit `npm ci`.
 1.  **Syntax/Parse** — jede js/-Datei + sw.js wird per acorn geparst
 1a. **Entwicklungsvertrag und Dokumentation** — Standardkommando, CI,
     Schnellstart, Architektur, Datenmodell, Security, Beitragsworkflow,
-    .NET-Lernleitfaden, lokale Markdown-Links und Textkodierung
+    .NET-Lernleitfaden, moderner .NET-/Agenten-Lernplan, lokale
+    Markdown-Links und Textkodierung
 1b. **Modul-Verträge** — jeder `import { X } from './y.js'` hat ein
     passendes `export` (per AST; fängt Teil-Deploy-Fehler)
 2.  **ID-Referenzen** — im Code benutzte Element-IDs existieren im HTML
@@ -44,6 +45,7 @@ Stand reproduzierbar mit `npm ci`.
     fifoMatch: exakt 10 Trades / 1115.44 P&L / 460 Steuer / 3 offene Lots /
     1525 offener Einstand (golden.json)
 6b. **Feature-Rechnungen** — Close/Totalverlust/Steuer gegen Handwerte
+    sowie Invis-Prozentformatierung, Maskierung und Schreibsperren
 7.  **DOM/Struktur** — jsdom: Tabs vollständig, Sektionen sind
     Geschwister im selben Container, DOCTYPE intakt, kein Streutext
 +   **Echte Module** — views/fifo/import/helpers werden dynamisch

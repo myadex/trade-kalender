@@ -195,6 +195,20 @@ export function computeTradingMetrics(trades, options = {}) {
   const payoffRatio = avgWin !== null && avgLoss !== null
     ? avgWin / Math.abs(avgLoss)
     : null;
+  // Die Vergleichskennzahl zeigt, wie stark wenige Extremverluste den Payoff
+  // verzerren. Nur die drei negativsten Verlust-Trades werden entfernt;
+  // Gewinne, Nuller und der gespeicherte Datenbestand bleiben unveraendert.
+  const payoffExcludedLosses = Math.min(3, losses.length);
+  const lossesWithoutWorst3 = losses
+    .slice()
+    .sort((a, b) => a.pnl - b.pnl || a.index - b.index)
+    .slice(payoffExcludedLosses);
+  const avgLossWithoutWorst3 = lossesWithoutWorst3.length > 0
+    ? lossesWithoutWorst3.reduce((sum, trade) => sum + trade.pnl, 0) / lossesWithoutWorst3.length
+    : null;
+  const payoffRatioWithoutWorst3 = avgWin !== null && avgLossWithoutWorst3 !== null
+    ? avgWin / Math.abs(avgLossWithoutWorst3)
+    : null;
   const expectancy = eligible.length > 0 ? totalPnl / eligible.length : null;
 
   let maxWinStreak = 0;
@@ -251,6 +265,8 @@ export function computeTradingMetrics(trades, options = {}) {
     avgWin,
     avgLoss,
     payoffRatio,
+    payoffRatioWithoutWorst3,
+    payoffExcludedLosses,
     profitFactor,
     expectancy,
     bestTrade: publicTrade(best),

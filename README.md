@@ -34,15 +34,20 @@ cached die lokale App-Shell für den Offline-Start.
 
 ## Dokumentation
 
+- [Feature-Handbuch](docs/feature-handbuch/README.md) – ausgelieferter
+  Funktionsumfang, Produktgrenzen und typische Nutzerabläufe
 - [Architektur](docs/ARCHITECTURE.md) – Schichten, Datenfluss, APIs und PWA
 - [Datenmodell](docs/DATA_MODEL.md) – persistenter Vertrag und Invarianten
 - [Für .NET-Entwickler](docs/DOTNET-GUIDE.md) – Module als C#-Konzepte lesen
   und JavaScript gegen Blazor abwägen
+- [Lernplan: modernes .NET mit Agents](docs/DOTNET-AGENT-LEARNING.md) –
+  VS-Code-Setup, Lernphasen und klare Aufgabenteilung mit Coding-Agents
 - [Beiträge](CONTRIBUTING.md) – lokales Setup und Änderungsworkflow
 - [Sicherheit](SECURITY.md) – Finanzdaten, OAuth, Backups und Meldungen
 - [Tests](test/README.md) – Aufbau und Regeln des Test-Harness
 - [Backlog](BACKLOG.md) – priorisierte offene und abgeschlossene Arbeit
 - [Agent-Regeln](Agent.md) – verbindliche technische Leitplanken
+- [Agent-Einstieg](AGENTS.md) – automatisch auffindbare Kurzfassung
 
 ## Projektstruktur ab v83
 
@@ -58,6 +63,32 @@ Cacheeintrag.
 Der Kennzahlenbereich konzentriert sich ausschliesslich auf die messbaren
 Trading-Auswertungen. Spielerische Fortschrittskarten, Grafiken, Kataloge und
 Zeitstrahlen sind vollstaendig aus UI, Controller und Berechnungslogik entfernt.
+
+Seit v87 stellt die Payoff-Karte die normale Ratio der Vergleichsratio ohne
+die drei negativsten Verlust-Trades gegenueber. Beide Werte verwenden denselben
+gewaehlten Ausstiegszeitraum. Bleibt nach dem Entfernen kein weiterer Verlust
+als Nenner uebrig, zeigt die robuste Sicht bewusst keinen erfundenen Wert.
+
+## Invis-Modus ab v88
+
+Der dezente Schalter **Invis** im Header aktiviert eine diskrete, rein lesende
+Ansicht. Alle konkreten Geldbetraege werden als Anteil am fest hinterlegten
+Startkapital angezeigt. Das gilt auch fuer Kalender, Wochen, Monate, Umsatz,
+Steuer, Einstand, Kauf und Verkauf, offene Positionen, Equity sowie die
+Statistik. Bereits dimensionslose Werte wie Rendite, Winrate, Profit Factor,
+Payoff-Ratio und Drawdown-Quote bleiben Prozent beziehungsweise Ratio.
+
+Produktnamen, Daten und Anzahlen bleiben sichtbar. ISINs und Stueckzahlen
+werden maskiert. Hinzufuegen, Bearbeiten, Loeschen, Import, Export, Backups,
+Restore, Kapitalaenderung und der Wechsel zu Drive sind gesperrt. Suche,
+Filter, Navigation und Detailansichten bleiben verfuegbar. Beim Aktivieren
+schliesst die App offene Dialoge; das Entsperren muss bestaetigt werden.
+
+Der Modus wird absichtlich nicht gespeichert und startet nach jedem Reload
+deaktiviert. Er ist Sichtschutz fuer Bildschirmfreigaben und neugierige Blicke,
+keine Verschluesselung: Die exakten Daten bleiben im Arbeitsspeicher und im
+gewaehlten Datenspeicher erhalten. Ohne positives Startkapital zeigt die
+diskrete Geldanzeige einen Gedankenstrich statt einer falschen Prozentzahl.
 
 ## Kompakter Ergebnis-Header ab v78
 

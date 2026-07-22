@@ -17,6 +17,7 @@ js/fifo.js      FIFO-Matching, Steuer, buyDate/buyTime   [KERN — Golden Values
 js/views.js     Aggregation, Statistik, Insights, Diagnosen (pure)
 js/import.js    CSV-Parsing + Validierung (pure)
 js/import-dialogs.js CSV-Auswahl, Importvorschau und Kontrollberichte
+js/invis-view.js Prozentanzeige und Maskierung fuer den sitzungsweiten Nur-Ansehen-Modus (pure)
 js/local-storage.js Lokale IndexedDB-Persistenz und Speichermodus
 js/safety-backups.js Automatische Zustands-Snapshots (pure)
 js/safety-backup-dialog.js Sicherungsverlauf und Wiederherstellungsdialog
@@ -33,7 +34,9 @@ sw-register.js  Unabhaengiger SW-Update-Starter vor dem Hauptmodul
 test/           Test-Harness (siehe test/README.md)
 docs/ARCHITECTURE.md Schichten, Datenfluss, APIs und Betriebsgrenzen
 docs/DATA_MODEL.md Kanonischer persistenter Vertrag und Invarianten
+docs/feature-handbuch/ Fachlicher Funktionsumfang und Nutzerablaeufe
 docs/DOTNET-GUIDE.md Uebersetzung der Module in C#/.NET-Denkmodelle
+docs/DOTNET-AGENT-LEARNING.md Moderner .NET-/VS-Code-Lernpfad mit Agents
 CONTRIBUTING.md  Lokales Setup, Aenderungsworkflow und PR-Checkliste
 SECURITY.md      Umgang mit Finanzdaten, OAuth, Backups und Vorfaellen
 ```
@@ -133,6 +136,8 @@ Felder werden gleichzeitig in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 beziehungsweise [docs/DATA_MODEL.md](docs/DATA_MODEL.md) aktualisiert.
 Fuer den Einstieg aus C#/.NET-Sicht gilt
 [docs/DOTNET-GUIDE.md](docs/DOTNET-GUIDE.md).
+Der praktische Modernisierungs- und Agenten-Lernpfad steht in
+[docs/DOTNET-AGENT-LEARNING.md](docs/DOTNET-AGENT-LEARNING.md).
 Sicherheitsgrenzen stehen in [SECURITY.md](SECURITY.md).
 
 Test: `npm test` (Details siehe [test/README.md](test/README.md)). Deploy:

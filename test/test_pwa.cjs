@@ -67,6 +67,14 @@ const metricsViewJs = fs.existsSync(metricsViewPath)
   : '';
 check('UI-Controller: Trading-Kennzahlen liegen in einem eigenen UI-Modul',
   fs.existsSync(metricsViewPath) && appControllerJs.includes("from './metrics-view.js'"));
+const performanceViewPath = DIR + '/js/performance-view.js';
+const performanceViewJs = fs.existsSync(performanceViewPath)
+  ? fs.readFileSync(performanceViewPath, 'utf8')
+  : '';
+check('UI-Controller: Kombinierter Performance-Chart liegt in einem eigenen UI-Modul',
+  fs.existsSync(performanceViewPath) &&
+  appControllerJs.includes("from './performance-view.js'") &&
+  performanceViewJs.includes('export function renderPerformance('));
 const invisViewPath = DIR + '/js/invis-view.js';
 const invisViewJs = fs.existsSync(invisViewPath)
   ? fs.readFileSync(invisViewPath, 'utf8')
@@ -139,11 +147,20 @@ const agentsEntry = fs.existsSync(agentsEntryPath)
   : '';
 const architecturePath = DIR + '/docs/ARCHITECTURE.md';
 const dataModelPath = DIR + '/docs/DATA_MODEL.md';
+const designConceptPath = DIR + '/docs/DESIGN-KONZEPT.md';
 const dotnetGuidePath = DIR + '/docs/DOTNET-GUIDE.md';
 const dotnetAgentLearningPath = DIR + '/docs/DOTNET-AGENT-LEARNING.md';
-const featureHandbookIndexPath = DIR + '/docs/feature-handbuch/README.md';
-const featureCatalogPath = DIR + '/docs/feature-handbuch/FEATURES.md';
-const featureWorkflowsPath = DIR + '/docs/feature-handbuch/ABLAEUFE.md';
+const requirementsIndexPath = DIR + '/docs/anforderungen/README.md';
+const requirementPaths = [
+  DIR + '/docs/anforderungen/01-PRODUKTKONTEXT.md',
+  DIR + '/docs/anforderungen/02-DATENQUELLEN.md',
+  DIR + '/docs/anforderungen/03-DATENHALTUNG.md',
+  DIR + '/docs/anforderungen/04-FACHLOGIK.md',
+  DIR + '/docs/anforderungen/05-BENUTZEROBERFLAECHE.md',
+  DIR + '/docs/anforderungen/06-SICHERHEIT.md',
+  DIR + '/docs/anforderungen/07-QUALITAETSANFORDERUNGEN.md',
+  DIR + '/docs/anforderungen/08-ANWENDUNGSFAELLE.md'
+];
 const contributingPath = DIR + '/CONTRIBUTING.md';
 const securityPath = DIR + '/SECURITY.md';
 const architectureDoc = fs.existsSync(architecturePath)
@@ -152,21 +169,23 @@ const architectureDoc = fs.existsSync(architecturePath)
 const dataModelDoc = fs.existsSync(dataModelPath)
   ? fs.readFileSync(dataModelPath, 'utf8')
   : '';
+const designConceptDoc = fs.existsSync(designConceptPath)
+  ? fs.readFileSync(designConceptPath, 'utf8')
+  : '';
 const dotnetGuideDoc = fs.existsSync(dotnetGuidePath)
   ? fs.readFileSync(dotnetGuidePath, 'utf8')
   : '';
 const dotnetAgentLearningDoc = fs.existsSync(dotnetAgentLearningPath)
   ? fs.readFileSync(dotnetAgentLearningPath, 'utf8')
   : '';
-const featureHandbookIndex = fs.existsSync(featureHandbookIndexPath)
-  ? fs.readFileSync(featureHandbookIndexPath, 'utf8')
+const requirementsIndex = fs.existsSync(requirementsIndexPath)
+  ? fs.readFileSync(requirementsIndexPath, 'utf8')
   : '';
-const featureCatalogDoc = fs.existsSync(featureCatalogPath)
-  ? fs.readFileSync(featureCatalogPath, 'utf8')
-  : '';
-const featureWorkflowsDoc = fs.existsSync(featureWorkflowsPath)
-  ? fs.readFileSync(featureWorkflowsPath, 'utf8')
-  : '';
+const requirementDocs = requirementPaths.map(requirementPath =>
+  fs.existsSync(requirementPath) ? fs.readFileSync(requirementPath, 'utf8') : '');
+const [productRequirements, sourceRequirements, storageRequirements,
+  logicRequirements, uiRequirements, securityRequirements,
+  qualityRequirements, useCaseRequirements] = requirementDocs;
 const contributingDoc = fs.existsSync(contributingPath)
   ? fs.readFileSync(contributingPath, 'utf8')
   : '';
@@ -184,34 +203,80 @@ check('Dokumentation: README bietet einen ausführbaren Schnellstart und einen D
   readme.includes('[Datenmodell](docs/DATA_MODEL.md)') &&
   readme.includes('[Beiträge](CONTRIBUTING.md)') &&
   readme.includes('[Sicherheit](SECURITY.md)'));
-check('Dokumentation: Feature-Handbuch ist vollstaendig angelegt und vom README erreichbar',
-  fs.existsSync(featureHandbookIndexPath) &&
-  fs.existsSync(featureCatalogPath) &&
-  fs.existsSync(featureWorkflowsPath) &&
-  readme.includes('[Feature-Handbuch](docs/feature-handbuch/README.md)') &&
-  featureHandbookIndex.includes('[Funktionskatalog](FEATURES.md)') &&
-  featureHandbookIndex.includes('[Nutzerabläufe](ABLAEUFE.md)'));
-check('Dokumentation: Feature-Katalog deckt die ausgelieferten Produktbereiche und Grenzen ab',
-  ['Speichern und Synchronisieren', 'Trades und Positionen', 'Ansichten und Navigation',
-    'Statistik und Auswertung', 'Datenschutz, Sicherheit und Wiederherstellung',
-    'PWA, Mobilgerät und Offline-Betrieb', 'Bewusste Grenzen']
-    .every(section => featureCatalogDoc.includes(section)) &&
-  ['Google Drive', 'IndexedDB', 'CSV-Import', 'FIFO', 'Payoff-Ratio',
-    'Invis-Modus', 'Safety-Sicherungen', 'Service Worker']
-    .every(capability => featureCatalogDoc.includes(capability)));
-check('Dokumentation: Nutzerablaeufe beschreiben die zentralen End-to-End-Wege',
-  ['Erster Start nur auf diesem Gerät', 'Erster Start mit Google Drive',
-    'Scalable-CSV importieren', 'Trade manuell erfassen',
-    'Offene Position schließen oder ausblenden', 'Invis-Modus verwenden',
-    'Verschlüsseltes Backup erstellen und wiederherstellen',
-    'Lokalen Stand später mit Google Drive verbinden']
-    .every(workflow => featureWorkflowsDoc.includes(workflow)));
-check('Dokumentation: Handbuch erklaert die Rollen der Projektdokumente und ihre Pflege',
-  ['README', 'Feature-Handbuch', 'Architektur', 'Datenmodell', 'Security',
-    'Backlog', 'Changelog', 'Tests', 'Definition of Done']
-    .every(documentType => featureHandbookIndex.includes(documentType)) &&
-  featureHandbookIndex.includes('nicht aus dem Backlog') &&
-  featureHandbookIndex.includes('Bei jeder fachlich sichtbaren'));
+check('Dokumentation: Designkonzept ist aus README und Agent-Leitfaden erreichbar',
+  fs.existsSync(designConceptPath) &&
+  readme.includes('[Designkonzept](docs/DESIGN-KONZEPT.md)') &&
+  agentGuide.includes('docs/DESIGN-KONZEPT.md'));
+check('Dokumentation: Designkonzept bleibt bewusst unverbindlich',
+  designConceptDoc.includes('# Designkonzept') &&
+  designConceptDoc.includes('kein verbindlicher Produktvertrag') &&
+  designConceptDoc.includes('css/app.css') &&
+  designConceptDoc.includes('Anforderungsanalyse'));
+check('Dokumentation: Designkonzept beschreibt Typografie und Farbrollen',
+  designConceptDoc.includes('Chakra Petch') &&
+  designConceptDoc.includes('JetBrains Mono') &&
+  ['--bg', '--paper', '--ink', '--muted', '--border', '--green', '--red',
+    '--amber', '--blue'].every(token => designConceptDoc.includes('`' + token + '`')) &&
+  designConceptDoc.includes('nicht ausschließlich über Farbe'));
+check('Dokumentation: Designkonzept deckt Layout, Diagramme und Interaktion ab',
+  designConceptDoc.includes('Desktop und Mobile') &&
+  designConceptDoc.includes('Safe Areas') &&
+  designConceptDoc.includes('Equity') &&
+  designConceptDoc.includes('Kapitaleinsatz') &&
+  designConceptDoc.includes('Hover') &&
+  designConceptDoc.includes('Tastaturfokus') &&
+  designConceptDoc.includes('Touch'));
+check('Dokumentation: sprachunabhaengige Anforderungsanalyse ist vollstaendig und erreichbar',
+  fs.existsSync(requirementsIndexPath) &&
+  requirementPaths.every(requirementPath => fs.existsSync(requirementPath)) &&
+  readme.includes('[Anforderungsanalyse](docs/anforderungen/README.md)') &&
+  ['[Produktkontext](01-PRODUKTKONTEXT.md)', '[Datenquellen](02-DATENQUELLEN.md)',
+    '[Datenhaltung](03-DATENHALTUNG.md)', '[Fachlogik](04-FACHLOGIK.md)',
+    '[Benutzeroberfläche](05-BENUTZEROBERFLAECHE.md)',
+    '[Sicherheit](06-SICHERHEIT.md)',
+    '[Qualitätsanforderungen](07-QUALITAETSANFORDERUNGEN.md)',
+    '[Anwendungsfälle](08-ANWENDUNGSFAELLE.md)']
+    .every(link => requirementsIndex.includes(link)));
+check('Dokumentation: Produktanforderungen bleiben programmiersprachenunabhaengig',
+  (() => {
+    const productDocumentation = [requirementsIndex].concat(requirementDocs).join('\n');
+    const implementationTerms = ['JavaScript', 'C#', 'Blazor', 'app.js',
+      'views.js', 'js/', 'DOM-API', 'ES-Modul'];
+    return requirementsIndex.includes('programmiersprachenunabhängig') &&
+      implementationTerms.every(term => !productDocumentation.includes(term));
+  })());
+check('Dokumentation: Anforderungen besitzen eindeutige IDs und Akzeptanzkriterien',
+  (() => {
+    const ids = requirementDocs.flatMap(document =>
+      [...document.matchAll(/\b(?:ZIEL|DQ|DH|FL|UI|SEC|QA|AF)-\d{2}\b/g)]
+        .map(match => match[0]));
+    return ids.length >= 45 && new Set(ids).size === ids.length &&
+      requirementDocs.every(document => document.includes('**Akzeptanzkriterien:**'));
+  })());
+check('Dokumentation: Anforderungen sind nach Quelle, Haltung, Logik, UI und Qualitaet getrennt',
+  ['Brokerexport', 'manuelle Erfassung', 'Backup-Datei', 'Google Drive']
+    .every(term => sourceRequirements.includes(term)) &&
+  ['kanonischer Datenbestand', 'lokaler Gerätespeicher', 'Cloud-Speicher',
+    'Konflikt']
+    .every(term => storageRequirements.includes(term)) &&
+  ['FIFO', 'Netto-P&L', 'ISO 8601', 'Payoff-Ratio', 'Invis-Modus']
+    .every(term => logicRequirements.includes(term)) &&
+  ['Ergebnis-Header', 'Kalender', 'Offene Positionen', 'Statistik']
+    .every(term => uiRequirements.includes(term)) &&
+  ['Barrierefreiheit', 'Offline', 'Datenintegrität', 'Wartbarkeit']
+    .every(term => qualityRequirements.includes(term)));
+check('Dokumentation: Anwendungsfaelle beschreiben die zentralen End-to-End-Wege',
+  ['Lokal starten', 'Mit Google Drive starten', 'Brokerexport importieren',
+    'Trade manuell erfassen', 'Offene Position schließen oder ausblenden',
+    'Invis-Modus verwenden', 'Verschlüsseltes Backup wiederherstellen',
+    'Lokalen Stand mit Google Drive verbinden']
+    .every(useCase => useCaseRequirements.includes(useCase)));
+check('Dokumentation: Anforderungsindex trennt Produkt, Umsetzung und Planung',
+  ['Produktanforderungen', 'Technische Umsetzung', 'Backlog', 'Changelog',
+    'Tests', 'Definition of Done']
+    .every(documentType => requirementsIndex.includes(documentType)) &&
+  requirementsIndex.includes('nicht aus dem Backlog') &&
+  requirementsIndex.includes('fachlich sichtbaren Änderung'));
 check('Dokumentation: Architektur beschreibt Schichten, Datenfluss und Betriebsgrenzen',
   architectureDoc.includes('# Architektur') &&
   architectureDoc.includes('## Schichten') &&
@@ -320,11 +385,12 @@ check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
       [backlogPath, backlog],
       [architecturePath, architectureDoc],
       [dataModelPath, dataModelDoc],
+      [designConceptPath, designConceptDoc],
       [dotnetGuidePath, dotnetGuideDoc],
       [dotnetAgentLearningPath, dotnetAgentLearningDoc],
-      [featureHandbookIndexPath, featureHandbookIndex],
-      [featureCatalogPath, featureCatalogDoc],
-      [featureWorkflowsPath, featureWorkflowsDoc],
+      [requirementsIndexPath, requirementsIndex],
+      ...requirementPaths.map((requirementPath, index) =>
+        [requirementPath, requirementDocs[index]]),
       [contributingPath, contributingDoc],
       [securityPath, securityDoc]
     ];
@@ -341,8 +407,9 @@ check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
 check('Dokumentation: Texte enthalten keine sichtbaren Unicode-Escape-Sequenzen',
   !/\\u[0-9a-f]{4}/i.test([
     readme, agentGuide, agentsEntry, backlog, architectureDoc, dataModelDoc,
-    dotnetGuideDoc, dotnetAgentLearningDoc, featureHandbookIndex,
-    featureCatalogDoc, featureWorkflowsDoc, contributingDoc, securityDoc
+    designConceptDoc,
+    dotnetGuideDoc, dotnetAgentLearningDoc, requirementsIndex,
+    ...requirementDocs, contributingDoc, securityDoc
   ].join('\n')));
 check('Dokumentation: Agent-Leitfaden ist korrekt benannt und verweist auf die Entwicklerdokumente',
   agentGuide.startsWith('# Agent.md') &&
@@ -361,9 +428,9 @@ check('Backlog: Vergleich mit anderen Tradern ist vollstaendig entfernt',
 check('Dokumentation: lokaler Modus und verschluesselte Backups sind in v72 abgeschlossen',
   /### Lokaler Geraetemodus[\s\S]{0,150}\*\*Status:\*\* Erledigt in v72/.test(backlog) &&
   /### Verschluesselte externe Backups[\s\S]{0,150}\*\*Status:\*\* Erledigt in v72/.test(backlog) &&
-  readme.includes('## Speichermodi ab v72') &&
-  readme.includes('## Verschlüsselte Backup-Dateien ab v72') &&
-  readme.includes('keinen automatischen Merge'));
+  storageRequirements.includes('lokaler Gerätespeicher') &&
+  storageRequirements.includes('keinen automatischen Merge') &&
+  securityRequirements.includes('verschlüsselte Backup-Datei'));
 check('Backlog: Node-ESM-Warnung ist als warnungsfrei geloest dokumentiert',
   /### Node-ESM-Warnung[\s\S]{0,150}\*\*Status:\*\* Erledigt in v73/.test(backlog) &&
   backlog.includes('MODULE_TYPELESS_PACKAGE_JSON'));
@@ -837,6 +904,23 @@ const realFifoCheck = (async () => {
       offlineModuleResponse === cachedModuleResponse && offlineModuleFetches === 0);
     check('PWA: App-Shell-Cache bleibt trotz URL-Suchparametern auffindbar',
       offlineModuleCacheOptions && offlineModuleCacheOptions.ignoreSearch === true);
+
+    const cachedIndexResponse = fakeModuleResponse('cached-index-vor-update', 'text/html; charset=UTF-8');
+    const networkIndexResponse = fakeModuleResponse('network-index-neue-version', 'text/html; charset=UTF-8');
+    activeCachedModuleResponse = cachedIndexResponse;
+    activeNetworkModuleResponse = networkIndexResponse;
+    offlineModuleFetches = 0;
+    let atomicNavigationResponsePromise = null;
+    swHandlers.fetch({
+      request: {
+        method: 'GET', mode: 'navigate',
+        url: 'http://127.0.0.1:5500/index.html'
+      },
+      respondWith: promise => { atomicNavigationResponsePromise = Promise.resolve(promise); }
+    });
+    const atomicNavigationResponse = await atomicNavigationResponsePromise;
+    check('PWA: Navigation mischt nie neues HTML mit Modulen des alten Workers',
+      atomicNavigationResponse === cachedIndexResponse && offlineModuleFetches === 0);
 
     const poisonedModuleResponse = fakeModuleResponse('poisoned-cache', 'text/plain; charset=UTF-8');
     const repairedModuleResponse = fakeModuleResponse('network-repair', 'application/javascript; charset=UTF-8');
@@ -1991,7 +2075,210 @@ const realFifoCheck = (async () => {
       !!noCapitalEquity && noCapitalEquity.maxDrawdown === 25 && noCapitalEquity.maxDrawdownPct === null);
     check('UI: Equity-Bereich und Renderer sind verdrahtet',
       html.includes('id="equity-summary"') && html.includes('id="equity-chart"') &&
-      appJs.includes('function buildEquityCurve()') && appJs.includes('buildEquityCurve();'));
+      appJs.includes('function buildPerformance()') && appJs.includes('buildPerformance();'));
+    check('views: Kapitalnutzungs-Berechnung exportiert',
+      typeof vmod.computeCapitalUsage === 'function');
+    const capitalUsageRows = [
+      { date: '2026-01-02', time: '09:00', status: 'Executed', type: 'Buy', isin: 'B', shares: 10, amount: -200 },
+      { date: '2026-01-02', time: '10:00', status: 'Executed', type: 'Sell', isin: 'A', shares: 5, amount: 60 },
+      { date: '2026-01-03', time: '09:00', status: 'Executed', type: 'Buy', isin: 'A', shares: 5, amount: -80 },
+      { date: '2026-01-03', time: '10:00', status: 'Executed', type: 'Sell', isin: 'B', shares: 10, amount: 220 },
+      { date: '2026-01-04', time: '12:00', status: 'Executed', type: 'Sell', isin: 'A', shares: 10, amount: 150 }
+    ];
+    const capitalUsage = typeof vmod.computeCapitalUsage === 'function'
+      ? vmod.computeCapitalUsage(capitalUsageRows, [
+          { date: '2025-12-30', time: '09:00', isin: 'A', shares: 10, amount: 100 }
+        ], 1000, { today: '2026-01-10' })
+      : null;
+    check('Kapitalnutzung: Tagesmaximum misst gleichzeitig gebundenen FIFO-Einstand',
+      !!capitalUsage && capitalUsage.available === true &&
+      capitalUsage.points.length === 3 &&
+      capitalUsage.points[0].peakCapital === 300 && capitalUsage.points[0].closingCapital === 250 &&
+      capitalUsage.points[1].peakCapital === 330 && capitalUsage.points[1].closingCapital === 130 &&
+      capitalUsage.points[2].peakCapital === 130 && capitalUsage.points[2].closingCapital === 0);
+    check('Kapitalnutzung: Zusammenfassung und Startkapitalquote stimmen',
+      !!capitalUsage && capitalUsage.maxPeakCapital === 330 &&
+      Math.abs(capitalUsage.averagePeakCapital - (760 / 3)) < 0.01 &&
+      capitalUsage.currentCapital === 0 && capitalUsage.capitalDays === 3 &&
+      Math.abs(capitalUsage.maxUtilizationPct - 33) < 0.001);
+    const overnightUsage = typeof vmod.computeCapitalUsage === 'function'
+      ? vmod.computeCapitalUsage([
+          { date: '2026-01-01', time: '09:00', status: 'Executed', type: 'Buy', isin: 'A', shares: 1, amount: -100 },
+          { date: '2026-01-04', time: '09:00', status: 'Executed', type: 'Sell', isin: 'A', shares: 1, amount: 110 }
+        ], [], 1000, { today: '2026-01-10' })
+      : null;
+    check('Kapitalnutzung: Overnight- und ereignisfreie Kalendertage werden fortgeschrieben',
+      !!overnightUsage && overnightUsage.points.length === 4 &&
+      overnightUsage.points[1].date === '2026-01-02' &&
+      overnightUsage.points[1].peakCapital === 100 &&
+      overnightUsage.points[2].date === '2026-01-03' &&
+      overnightUsage.points[2].closingCapital === 100);
+    const openUsage = typeof vmod.computeCapitalUsage === 'function'
+      ? vmod.computeCapitalUsage([
+          { date: '2026-01-01', time: '', status: 'Executed', type: 'Buy', isin: 'A', shares: 1, amount: -100 }
+        ], [], 1000, { today: '2026-01-05' })
+      : null;
+    check('Kapitalnutzung: offene Position reicht bis heute und fehlende Uhrzeit bleibt sichtbar',
+      !!openUsage && openUsage.points.length === 5 && openUsage.currentCapital === 100 &&
+      openUsage.coverage.missingTimeRows === 1 && openUsage.points[0].estimated === true);
+    const alignedUsage = typeof vmod.computeCapitalUsage === 'function'
+      ? vmod.computeCapitalUsage([
+          { date: '2026-06-02', time: '09:00', status: 'Executed', type: 'Buy', isin: 'LEDGER', shares: 1, amount: -300 },
+          { date: '2026-06-02', time: '10:00', status: 'Executed', type: 'Sell', isin: 'LEDGER', shares: 1, amount: 320 }
+        ], [], 1000, {
+          today: '2026-06-02',
+          trades: [
+            {
+              uid: 'legacy-january',
+              source: 'manual',
+              buyDate: '2026-01-01',
+              buyTime: '09:00',
+              date: '2026-01-01',
+              time: '10:00',
+              buy: 200,
+              pnl: 50
+            }
+          ]
+        })
+      : null;
+    check('Kapitalnutzung: Verlauf beginnt mit der Historie statt erst mit dem Juni-Ledger',
+      !!alignedUsage && alignedUsage.points[0].date === '2026-01-01' &&
+      alignedUsage.points[0].peakCapital === 200 &&
+      alignedUsage.coverage.startDate === '2026-01-01' &&
+      alignedUsage.coverage.ledgerStartDate === '2026-06-02' &&
+      alignedUsage.coverage.estimatedTradeCount === 1);
+    const equityLimitedUsage = typeof vmod.computeCapitalUsage === 'function'
+      ? vmod.computeCapitalUsage([
+          { date: '2026-06-02', time: '09:00', status: 'Executed', type: 'Buy', isin: 'TOO-LARGE', shares: 1, amount: -1500 }
+        ], [], 1000, {
+          today: '2026-06-02',
+          trades: [
+            {
+              uid: 'legacy-profit',
+              source: 'manual',
+              buyDate: '2026-01-01',
+              buyTime: '09:00',
+              date: '2026-01-01',
+              time: '10:00',
+              buy: 100,
+              pnl: 100
+            }
+          ]
+        })
+      : null;
+    const limitedPoint = equityLimitedUsage
+      ? equityLimitedUsage.points.find(point => point.date === '2026-06-02')
+      : null;
+    check('Kapitalnutzung: angezeigter Einstand ueberschreitet nie die verfuegbare Equity',
+      !!limitedPoint && limitedPoint.rawPeakCapital === 1500 &&
+      limitedPoint.availableEquity === 1100 &&
+      limitedPoint.peakCapital === 1100 &&
+      limitedPoint.closingCapital === 1100 &&
+      limitedPoint.equityConstrained === true &&
+      equityLimitedUsage.maxPeakCapital <= equityLimitedUsage.maxAvailableEquity &&
+      equityLimitedUsage.coverage.equityConstrainedDays === 1);
+    const invalidUsage = typeof vmod.computeCapitalUsage === 'function'
+      ? vmod.computeCapitalUsage([
+          { date: 'ungueltig', time: '09:00', status: 'Executed', type: 'Buy', isin: 'A', shares: 1, amount: -100 },
+          { date: '2026-01-01', time: '10:00', status: 'Executed', type: 'Sell', isin: 'A', shares: 1, amount: 100 }
+        ], [], 0, { today: '2026-01-02' })
+      : null;
+    check('Kapitalnutzung: ungueltige Zeilen und Ueberverkaeufe werden nicht erfunden',
+      !!invalidUsage && invalidUsage.coverage.invalidRows === 1 &&
+      invalidUsage.coverage.oversellErrors === 1 && invalidUsage.currentCapital === 0 &&
+      invalidUsage.maxUtilizationPct === null);
+    const unavailableUsage = typeof vmod.computeCapitalUsage === 'function'
+      ? vmod.computeCapitalUsage([], null, 1000, { today: '2026-01-01' })
+      : null;
+    check('Kapitalnutzung: ohne initialisierten Import-Ledger bleibt Verlauf ehrlich leer',
+      !!unavailableUsage && unavailableUsage.available === false &&
+      unavailableUsage.points.length === 0);
+    const performanceViewModule = fs.existsSync(performanceViewPath)
+      ? await import('file://' + performanceViewPath)
+      : null;
+    const performanceDom = new JSDOM(html, { runScripts: 'outside-only' });
+    const performancePreviousWindow = global.window;
+    const performancePreviousDocument = global.document;
+    global.window = performanceDom.window;
+    global.document = performanceDom.window.document;
+    try {
+      if (performanceViewModule && equity && alignedUsage) {
+        performanceViewModule.renderPerformance(equity, alignedUsage, {
+          capital: 1000
+        });
+      }
+      check('Performance-UI: Equity und Kapitaleinsatz teilen sich ein Diagramm mit Legende',
+        !!performanceViewModule &&
+        !!performanceDom.window.document.querySelector('#equity-chart .equity-line') &&
+        !!performanceDom.window.document.querySelector(
+          '#equity-chart polyline.capital-usage-line') &&
+        performanceDom.window.document.getElementById('equity-chart').textContent.includes('Equity') &&
+        performanceDom.window.document.getElementById('equity-chart').textContent.includes('Kapitaleinsatz'));
+      check('Performance-UI: separate Kapital-Karten und zweites Diagramm sind entfernt',
+        !performanceDom.window.document.getElementById('capital-usage-summary') &&
+        !performanceDom.window.document.getElementById('capital-usage-chart') &&
+        !performanceDom.window.document.querySelector('.capital-usage-section'));
+      const tooltipUsage = alignedUsage
+        ? Object.assign({}, alignedUsage, {
+            coverage: Object.assign({}, alignedUsage.coverage, {
+              missingEntryDateTrades: 7,
+              equityConstrainedDays: 99,
+              invalidRows: 1
+            })
+          })
+        : null;
+      if (performanceViewModule && equity && tooltipUsage) {
+        performanceViewModule.renderPerformance(equity, tooltipUsage, {
+          capital: 1000
+        });
+      }
+      const qualityButton = performanceDom.window.document.querySelector(
+        '#equity-chart .performance-legend-button');
+      const qualityTooltip = performanceDom.window.document.getElementById(
+        'capital-quality-tooltip');
+      check('Performance-UI: Kapitaleinsatz-Legende ist als Tooltip-Ausloeser zugaenglich',
+        !!qualityButton && qualityButton.tagName === 'BUTTON' &&
+        qualityButton.getAttribute('aria-describedby') === 'capital-quality-tooltip' &&
+        !!qualityTooltip && qualityTooltip.getAttribute('role') === 'tooltip');
+      check('Performance-UI: Tooltip zeigt alle dynamischen Qualitaetshinweise',
+        !!qualityTooltip &&
+        qualityTooltip.textContent.includes(
+          'Kapitaleinsatz vor 02.06.2026 geschätzt; vollständiges FIFO-Ledger ab diesem Tag.') &&
+        qualityTooltip.textContent.includes(
+          '7 Alt-Trades ohne Einstiegsdatum nur am Ausstiegstag berücksichtigt.') &&
+        qualityTooltip.textContent.includes(
+          '99 Tageswerte auf die verfügbare Equity begrenzt.') &&
+        qualityTooltip.textContent.includes('1 ungültiger Datensatz ausgeschlossen.'));
+      check('Performance-UI: Qualitaetsdetails bleiben aus dem sichtbaren Diagrammhinweis',
+        !!performanceViewModule &&
+        !performanceDom.window.document.getElementById('equity-note').textContent.includes(
+          'FIFO-Ledger') &&
+        appCss.includes('.performance-legend-button:hover .performance-tooltip') &&
+        appCss.includes('.performance-legend-button:focus .performance-tooltip'));
+      if (performanceViewModule && equity && capitalUsage) {
+        performanceViewModule.renderPerformance(equity, capitalUsage, {
+          enabled: true,
+          capital: 1000
+        });
+      }
+      check('Performance-UI: Invis-Modus zeigt im kombinierten Chart keine Euro-Betraege',
+        !!performanceViewModule &&
+        performanceDom.window.document.getElementById('equity-chart').textContent.includes('%') &&
+        !performanceDom.window.document.getElementById('equity-summary').textContent.includes('\u20ac') &&
+        !performanceDom.window.document.getElementById('equity-chart').textContent.includes('\u20ac'));
+    } finally {
+      global.window = performancePreviousWindow;
+      global.document = performancePreviousDocument;
+      performanceDom.window.close();
+    }
+    check('UI: Kapitalnutzung wird gemeinsam mit Equity aufgebaut',
+      !html.includes('id="capital-usage-summary"') &&
+      !html.includes('id="capital-usage-chart"') &&
+      appJs.includes('function buildPerformance()') &&
+      appJs.includes('trades: DATA.trades') &&
+      appJs.includes('renderPerformance(equity, capitalUsage') &&
+      appJs.includes('buildPerformance();') &&
+      !appJs.includes('function buildCapitalUsage()'));
     // import.js: Parsing + Validierung
     const imod = await import('file://' + DIR + '/js/import.js');
     const csvOk = 'date;time;status;description;type;isin;shares;price;amount;fee;tax;currency\n' +

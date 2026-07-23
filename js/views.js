@@ -382,6 +382,379 @@ export function computeEquityCurve(trades, initialCapital = 0) {
 }
 
 // ------------------------------------------------------------
+// Rekonstruiert das pro Kalendertag gleichzeitig gebundene Kapital. Das
+// Broker-Ledger liefert ab seinem ersten Tag die exakte FIFO-Basis; davor
+// werden Legacy-Trades aus Einstand und Haltedauer transparent angenaehert.
+// Gemessen wird offener Einstand statt Kaufumsatz. Da das Konto ohne Margin
+// gefuehrt wird, begrenzt die jeweils verfuegbare realisierte Equity den
+// dargestellten Tageswert.
+// ------------------------------------------------------------
+export function computeCapitalUsage(importRows, importBaseOpenLots, initialCapital = 0, options = {}) {
+  const sourceRows = Array.isArray(importRows) ? importRows : [];
+  const ledgerInitialized = Array.isArray(importBaseOpenLots);
+  const trades = Array.isArray(options.trades) ? options.trades : [];
+  const parsedCapital = Number(initialCapital);
+  const capital = Number.isFinite(parsedCapital) && parsedCapital > 0 ? parsedCapital : 0;
+  const roundMoney = value => +Math.max(0, value).toFixed(2);
+  const percentage = value => capital > 0 ? (value / capital) * 100 : null;
+  const validDateKey = value => {
+    const date = String(value || '').slice(0, 10);
+    return utcDateFromKey(date) ? date : null;
+  };
+
+  const emptyResult = available => ({
+    available,
+    points: [],
+    initialCapital: capital,
+    maxPeakCapital: 0,
+    maxAvailableEquity: capital,
+    maxUtilizationPct: capital > 0 ? 0 : null,
+    averagePeakCapital: 0,
+    averageUtilizationPct: capital > 0 ? 0 : null,
+    currentCapital: 0,
+    currentUtilizationPct: capital > 0 ? 0 : null,
+    capitalDays: 0,
+    coverage: {
+      startDate: null,
+      endDate: null,
+      ledgerStartDate: null,
+      ledgerEndDate: null,
+      sourceRows: sourceRows.length,
+      rowCount: 0,
+      estimatedTradeCount: 0,
+      missingEntryDateTrades: 0,
+      invalidLegacyTrades: 0,
+      equityConstrainedDays: 0,
+      missingTimeRows: 0,
+      invalidRows: 0,
+      invalidBaseLots: 0,
+      oversellErrors: 0
+    }
+  });
+
+  const pools = {};
+  let initialLedgerCapital = 0;
+  let invalidBaseLots = 0;
+  (ledgerInitialized ? importBaseOpenLots : []).forEach(lot => {
+    const isin = String(lot && lot.isin || '').trim();
+    const shares = Number(lot && lot.shares);
+    const amount = Math.abs(Number(lot && lot.amount));
+    if (!isin || !Number.isFinite(shares) || shares <= 0 ||
+        !Number.isFinite(amount)) {
+      invalidBaseLots++;
+      return;
+    }
+    if (!pools[isin]) pools[isin] = [];
+    pools[isin].push({ shares, amount });
+    initialLedgerCapital += amount;
+  });
+  initialLedgerCapital = roundMoney(initialLedgerCapital);
+
+  let invalidRows = 0;
+  let missingTimeRows = 0;
+  const validTime = value => {
+    const match = String(value || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (!match) return false;
+    return Number(match[1]) <= 23 && Number(match[2]) <= 59 &&
+      (match[3] === undefined || Number(match[3]) <= 59);
+  };
+  const rows = [];
+
+  sourceRows.forEach((row, sourceIndex) => {
+    const date = String(row && row.date || '').slice(0, 10);
+    const type = String(row && row.type || '');
+    const status = String(row && row.status || '');
+    const isin = String(row && row.isin || '').trim();
+    const shares = Number(row && row.shares);
+    const amount = Math.abs(Number(row && row.amount));
+    if (!utcDateFromKey(date) || (type !== 'Buy' && type !== 'Sell') ||
+        status !== 'Executed' || !isin || !Number.isFinite(shares) || shares <= 0 ||
+        !Number.isFinite(amount)) {
+      invalidRows++;
+      return;
+    }
+    const rawTime = String(row.time || '').trim();
+    const hasTime = validTime(rawTime);
+    if (!hasTime) missingTimeRows++;
+    rows.push({
+      date,
+      type,
+      isin,
+      shares,
+      amount,
+      time: hasTime ? rawTime.padStart(8, '0') : '',
+      estimatedTime: !hasTime,
+      sourceIndex
+    });
+  });
+
+  rows.sort((a, b) => {
+    const byDate = a.date.localeCompare(b.date);
+    if (byDate !== 0) return byDate;
+    const byTime = a.time.localeCompare(b.time);
+    if (byTime !== 0) return byTime;
+    if (a.type !== b.type) return a.type === 'Buy' ? -1 : 1;
+    return a.sourceIndex - b.sourceIndex;
+  });
+
+  const ledgerEventsByDate = {};
+  rows.forEach(row => {
+    if (!ledgerEventsByDate[row.date]) ledgerEventsByDate[row.date] = [];
+    ledgerEventsByDate[row.date].push(row);
+  });
+
+  const ledgerStartDate = rows.length > 0 ? rows[0].date : null;
+  const ledgerEndDate = rows.length > 0 ? rows[rows.length - 1].date : null;
+  const legacyEventsByDate = {};
+  const validLegacyTrades = [];
+  let missingEntryDateTrades = 0;
+  let invalidLegacyTrades = 0;
+
+  trades.filter(trade => trade && trade.source !== 'import').forEach((trade, sourceIndex) => {
+    const exitDate = validDateKey(trade.date);
+    const explicitEntryDate = validDateKey(trade.buyDate);
+    const entryDate = explicitEntryDate || exitDate;
+    const amount = Math.abs(Number(trade.buy));
+    if (!exitDate || !entryDate || entryDate.localeCompare(exitDate) > 0 ||
+        !Number.isFinite(amount) || amount <= 0) {
+      invalidLegacyTrades++;
+      return;
+    }
+    if (!explicitEntryDate) missingEntryDateTrades++;
+
+    const rawEntryTime = String(trade.buyTime || '').trim();
+    const rawExitTime = String(trade.time || '').trim();
+    let entryTime = validTime(rawEntryTime) ? rawEntryTime.padStart(8, '0') : '00:00:00';
+    const exitTime = validTime(rawExitTime) ? rawExitTime.padStart(8, '0') : '23:59:59';
+    if (entryDate === exitDate && entryTime.localeCompare(exitTime) > 0) {
+      entryTime = '00:00:00';
+    }
+
+    const normalized = {
+      entryDate,
+      exitDate,
+      entryTime,
+      exitTime,
+      amount,
+      sourceIndex,
+      estimated: !explicitEntryDate || !validTime(rawEntryTime) || !validTime(rawExitTime)
+    };
+    validLegacyTrades.push(normalized);
+  });
+
+  const tradeExitDates = trades.map(trade => validDateKey(trade && trade.date)).filter(Boolean);
+  const requestedStartDate = validDateKey(options.historyStartDate);
+  const historicalStartDate = requestedStartDate ||
+    (tradeExitDates.length > 0 ? tradeExitDates.sort((a, b) => a.localeCompare(b))[0] : null);
+  const startCandidates = [historicalStartDate, ledgerStartDate].filter(Boolean);
+  const startDate = startCandidates.sort((a, b) => a.localeCompare(b))[0] || null;
+
+  if (!startDate || (!ledgerInitialized && validLegacyTrades.length === 0)) {
+    const result = emptyResult(false);
+    result.coverage.invalidRows = invalidRows;
+    result.coverage.invalidBaseLots = invalidBaseLots;
+    result.coverage.invalidLegacyTrades = invalidLegacyTrades;
+    return result;
+  }
+
+  validLegacyTrades.forEach(trade => {
+    if (trade.entryDate.localeCompare(startDate) >= 0) {
+      if (!legacyEventsByDate[trade.entryDate]) legacyEventsByDate[trade.entryDate] = [];
+      legacyEventsByDate[trade.entryDate].push({
+        type: 'entry',
+        time: trade.entryTime,
+        amount: trade.amount,
+        sourceIndex: trade.sourceIndex,
+        estimated: trade.estimated
+      });
+    }
+    if (!legacyEventsByDate[trade.exitDate]) legacyEventsByDate[trade.exitDate] = [];
+    legacyEventsByDate[trade.exitDate].push({
+      type: 'exit',
+      time: trade.exitTime,
+      amount: trade.amount,
+      sourceIndex: trade.sourceIndex,
+      estimated: trade.estimated
+    });
+  });
+  Object.values(legacyEventsByDate).forEach(events => events.sort((a, b) => {
+    const byTime = a.time.localeCompare(b.time);
+    if (byTime !== 0) return byTime;
+    if (a.type !== b.type) return a.type === 'entry' ? -1 : 1;
+    return a.sourceIndex - b.sourceIndex;
+  }));
+
+  const dailyPnl = {};
+  trades.forEach(trade => {
+    const date = validDateKey(trade && trade.date);
+    const pnl = Number(trade && trade.pnl);
+    if (!date || !Number.isFinite(pnl)) return;
+    dailyPnl[date] = (dailyPnl[date] || 0) + pnl;
+  });
+
+  const endCandidates = [
+    ledgerEndDate,
+    ...tradeExitDates
+  ].filter(Boolean);
+  let endDate = endCandidates.sort((a, b) => b.localeCompare(a))[0] || startDate;
+  let oversellErrors = 0;
+  const today = utcDateFromKey(options.today) ? String(options.today) : null;
+  const points = [];
+  let ledgerBoundCapital = 0;
+  let ledgerStarted = false;
+  let legacyBoundCapital = roundMoney(validLegacyTrades.reduce((sum, trade) =>
+    trade.entryDate.localeCompare(startDate) < 0 &&
+    trade.exitDate.localeCompare(startDate) >= 0
+      ? sum + trade.amount
+      : sum, 0));
+  let cumulativePnl = 0;
+  let previousEquity = capital;
+  let equityConstrainedDays = 0;
+  let cursor = utcDateFromKey(startDate);
+
+  while (cursor && utcDateKey(cursor).localeCompare(endDate) <= 0) {
+    const date = utcDateKey(cursor);
+    const legacyEvents = legacyEventsByDate[date] || [];
+    let legacyPeakCapital = legacyBoundCapital;
+    let legacyEstimated = false;
+    legacyEvents.forEach(event => {
+      legacyEstimated = legacyEstimated || event.estimated;
+      if (event.type === 'entry') {
+        legacyBoundCapital = roundMoney(legacyBoundCapital + event.amount);
+        legacyPeakCapital = Math.max(legacyPeakCapital, legacyBoundCapital);
+      } else {
+        legacyBoundCapital = roundMoney(legacyBoundCapital - event.amount);
+      }
+    });
+
+    const events = ledgerEventsByDate[date] || [];
+    if (!ledgerStarted && ledgerStartDate && date === ledgerStartDate) {
+      ledgerStarted = true;
+      ledgerBoundCapital = initialLedgerCapital;
+    }
+    let ledgerPeakCapital = ledgerBoundCapital;
+
+    events.forEach(row => {
+      if (row.type === 'Buy') {
+        if (!pools[row.isin]) pools[row.isin] = [];
+        pools[row.isin].push({ shares: row.shares, amount: row.amount });
+        ledgerBoundCapital = roundMoney(ledgerBoundCapital + row.amount);
+        ledgerPeakCapital = Math.max(ledgerPeakCapital, ledgerBoundCapital);
+        return;
+      }
+
+      const pool = pools[row.isin] || [];
+      const availableShares = pool.reduce((sum, lot) => sum + lot.shares, 0);
+      if (row.shares - availableShares > 0.001) {
+        oversellErrors++;
+        return;
+      }
+
+      let remaining = row.shares;
+      let releasedCapital = 0;
+      while (remaining > 0.001 && pool.length > 0) {
+        const lot = pool[0];
+        const take = Math.min(lot.shares, remaining);
+        const proportion = take / lot.shares;
+        releasedCapital += proportion * lot.amount;
+        lot.amount *= (1 - proportion);
+        lot.shares -= take;
+        remaining -= take;
+        if (lot.shares < 0.001) pool.shift();
+      }
+      ledgerBoundCapital = roundMoney(ledgerBoundCapital - releasedCapital);
+    });
+
+    cumulativePnl = roundMoney(cumulativePnl + (dailyPnl[date] || 0));
+    const closingEquity = capital > 0
+      ? roundMoney(capital + cumulativePnl)
+      : null;
+    const availableEquity = capital > 0
+      ? roundMoney(Math.max(previousEquity, closingEquity))
+      : null;
+    const rawPeakCapital = roundMoney(legacyPeakCapital + ledgerPeakCapital);
+    const rawClosingCapital = roundMoney(legacyBoundCapital + ledgerBoundCapital);
+    const peakCapital = availableEquity === null
+      ? rawPeakCapital
+      : roundMoney(Math.min(rawPeakCapital, availableEquity));
+    const closingCapital = closingEquity === null
+      ? rawClosingCapital
+      : roundMoney(Math.min(rawClosingCapital, closingEquity));
+    const equityConstrained = peakCapital < rawPeakCapital ||
+      closingCapital < rawClosingCapital;
+    if (equityConstrained) equityConstrainedDays++;
+    points.push({
+      date,
+      peakCapital,
+      closingCapital,
+      rawPeakCapital,
+      rawClosingCapital,
+      availableEquity,
+      closingEquity,
+      equityConstrained,
+      utilizationPct: percentage(peakCapital),
+      closingUtilizationPct: percentage(closingCapital),
+      equityUtilizationPct: availableEquity > 0
+        ? (peakCapital / availableEquity) * 100
+        : null,
+      activityCount: events.length + legacyEvents.length,
+      estimated: legacyPeakCapital > 0 || legacyEvents.length > 0 ||
+        legacyEstimated || events.some(row => row.estimatedTime)
+    });
+    if (closingEquity !== null) previousEquity = closingEquity;
+
+    if (date === endDate && rawClosingCapital > 0 && today &&
+        today.localeCompare(endDate) > 0) {
+      endDate = today;
+    }
+    cursor = new Date(cursor.getTime() + DAY_MS);
+  }
+
+  const capitalPoints = points.filter(point => point.peakCapital > 0);
+  const maxPeakCapital = roundMoney(points.reduce(
+    (maximum, point) => Math.max(maximum, point.peakCapital), 0));
+  const averagePeakCapital = capitalPoints.length > 0
+    ? roundMoney(capitalPoints.reduce((sum, point) => sum + point.peakCapital, 0) /
+      capitalPoints.length)
+    : 0;
+  const currentCapital = points.length > 0
+    ? points[points.length - 1].closingCapital
+    : 0;
+  const maxAvailableEquity = roundMoney(points.reduce(
+    (maximum, point) => Math.max(maximum, point.availableEquity || 0), capital));
+
+  return {
+    available: true,
+    points,
+    initialCapital: capital,
+    maxPeakCapital,
+    maxAvailableEquity,
+    maxUtilizationPct: percentage(maxPeakCapital),
+    averagePeakCapital,
+    averageUtilizationPct: percentage(averagePeakCapital),
+    currentCapital,
+    currentUtilizationPct: percentage(currentCapital),
+    capitalDays: capitalPoints.length,
+    coverage: {
+      startDate,
+      endDate: points.length > 0 ? points[points.length - 1].date : null,
+      ledgerStartDate,
+      ledgerEndDate,
+      sourceRows: sourceRows.length,
+      rowCount: rows.length,
+      estimatedTradeCount: validLegacyTrades.length,
+      missingEntryDateTrades,
+      invalidLegacyTrades,
+      equityConstrainedDays,
+      missingTimeRows,
+      invalidRows,
+      invalidBaseLots,
+      oversellErrors
+    }
+  };
+}
+
+// ------------------------------------------------------------
 // DAX-Handelsphasen für die Uhrzeit-Statistik.
 // Der DAX hat eine "gespaltene Persönlichkeit": Vorbörse, Xetra-Kassa,
 // Mittagsflaute, US-Eröffnung — die Performance unterscheidet sich oft

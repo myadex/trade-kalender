@@ -228,6 +228,37 @@ Wartbarkeit bzw. Komfort.
 - **Darstellung:** Ein responsives SVG ohne zusaetzliche Laufzeitbibliothek
   markiert den tiefsten Drawdown und bleibt auch auf kleinen Displays lesbar.
 
+### Verlauf des eingesetzten Kapitals
+
+- **Status:** Erledigt in v91; Historien- und Equity-Korrektur in v93,
+  gemeinsame Darstellung in v94, Datenqualitäts-Tooltip in v95.
+- **Loesung:** Der Performance-Bereich zeigt das taegliche Maximum des
+  gleichzeitig gebundenen FIFO-Einstands direkt in der Equity-Kurve.
+  Kaufumsatz wird bewusst nicht als Kapitaleinsatz missverstanden.
+- **Zeitverlauf:** Teilverkaeufe reduzieren den offenen Einstand per FIFO.
+  Overnight- und handelsfreie Kalendertage werden fortgeschrieben; aktuell
+  offene Positionen reichen bis heute. Die Achse beginnt wie die Equity-Kurve
+  am ersten Tag der Trade-Historie.
+- **Transparenz:** Fehlende Uhrzeiten und ungueltige Buchungen bleiben sichtbar.
+  Alt-Trades werden vor dem ersten vollstaendigen Ledger aus Einstand und
+  Haltedauer geschaetzt; der Hinweis nennt den Beginn der exakten Ledger-Phase.
+- **Cash-Grenze:** Der sichtbare Tageswert wird auf die jeweils verfuegbare,
+  aus Startkapital und realisiertem Netto-P&L fortgeschriebene Equity begrenzt.
+  Wie viele rekonstruierte Tageswerte diese Grenze ueberschritten, bleibt als
+  Datenqualitaetshinweis sichtbar.
+- **Darstellung:** Equity und Kapitaleinsatz teilen eine Kalenderachse und eine
+  absolute Werteskala; eine kleine Legende trennt gruenen Equity-Verlauf und
+  blauen Kapitaleinsatz. Hover, Tastaturfokus oder Antippen der Legende zeigt
+  die dynamischen Qualitaetshinweise zu Schaetzung, Ledger-Beginn, fehlenden
+  Einstiegsdaten, Equity-Begrenzung und ausgeschlossenen Daten. Das zweite
+  Diagramm sowie Maximum-, Durchschnitt-, Aktuell-, Tage- und
+  Abdeckungskarten wurden bewusst entfernt. Im Invis-Modus erscheint die
+  gemeinsame Achse ausschliesslich als Prozent des Startkapitals.
+- **PWA-Korrektur v92:** Navigation und ES-Module werden nun immer aus derselben
+  versionierten App-Shell geladen. Zuvor konnte neues HTML einmalig mit dem
+  alten Controller kombiniert werden; der neue Bereich erschien dann leer.
+  Ein ausgefuehrter Regressionstest sperrt diesen Mischstand dauerhaft.
+
 ### Wochentagsstatistik Long/Short
 
 - **Status:** Erledigt in v48.

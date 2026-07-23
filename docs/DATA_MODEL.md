@@ -1,5 +1,10 @@
 # Datenmodell
 
+Dieses Dokument beschreibt die persistente Repräsentation der aktuellen
+Referenzimplementierung. Die programmiersprachenunabhängigen Anforderungen an
+Datenhaltung und Konsistenz stehen unter
+[Datenhaltung](anforderungen/03-DATENHALTUNG.md).
+
 Dieses Dokument beschreibt den persistenten Vertrag der App. Verbindliche
 Implementierung ist [`js/app-data.js`](../js/app-data.js). IndexedDB, Google
 Drive, interne Sicherungen und verschlüsselte Datei-Backups müssen denselben
@@ -154,6 +159,14 @@ eindeutige Sicherungen.
 - Die Steuer behält ihr Vorzeichen. Eine Erstattung ist negativ.
 - Der automatische Steuersatz ist 26,375 Prozent ohne Kirchensteuer.
 - Equity und Drawdown verwenden nur realisiertes Netto-P&L, keine offenen Lots.
+- Der Kapitalnutzungsverlauf ist eine nicht persistierte Ableitung aus
+  `trades`, `importRows` und `importBaseOpenLots`. Vor dem ersten Ledger-Tag
+  werden Legacy-Einstand und Haltedauer als gekennzeichnete Schätzung verwendet;
+  danach bilden Brokerzeilen und Anfangsbestand die exakte FIFO-Quelle.
+- Jeder abgeleitete Kapitalpunkt enthält zusätzlich die an diesem Tag
+  verfügbare realisierte Equity. Der sichtbare Einstand wird für das Konto ohne
+  Margin darauf begrenzt; Rohwert und Begrenzungskennzeichen bleiben nur im
+  flüchtigen Berechnungsergebnis und werden nicht gespeichert.
 
 ## Persistenzvarianten
 
@@ -180,4 +193,3 @@ Ein neues persistentes Feld braucht in derselben Etappe:
 Eine Migration darf vorhandene Finanzdaten niemals still neu interpretieren.
 Vor einer Bestandskorrektur werden Trade-Anzahl, P&L, Steuer und offene Lots
 als Invarianten festgelegt und nachher exakt verglichen.
-

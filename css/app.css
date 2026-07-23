@@ -163,7 +163,7 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .equity-card-value{font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:600;color:var(--ink);margin-top:.18rem;white-space:nowrap;}
 .equity-card-value.pos{color:var(--green);}.equity-card-value.neg{color:var(--red);}
 .equity-card-sub{font-family:'JetBrains Mono',monospace;font-size:.48rem;color:var(--muted);margin-top:.15rem;line-height:1.3;}
-.equity-chart{width:100%;min-height:220px;border:1px solid var(--border);border-radius:10px;background:var(--paper);padding:.35rem;overflow:hidden;}
+.equity-chart{position:relative;width:100%;min-height:220px;border:1px solid var(--border);border-radius:10px;background:var(--paper);padding:.35rem;overflow:hidden;}
 .equity-svg{display:block;width:100%;height:auto;min-height:210px;}
 .equity-grid-line{stroke:var(--border);stroke-width:1;}
 .equity-axis-label,.equity-date-label{fill:var(--muted);font-family:'JetBrains Mono',monospace;font-size:9px;}
@@ -173,6 +173,14 @@ td.neg{color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:500;}
 .equity-dd-marker{fill:var(--red);stroke:var(--paper);stroke-width:2;}
 .equity-note,.equity-empty{font-family:'JetBrains Mono',monospace;font-size:.56rem;color:var(--muted);line-height:1.45;}
 .equity-note{margin-top:.45rem;}.equity-empty{padding:4.5rem 1rem;text-align:center;}
+.capital-usage-line{fill:none;stroke:var(--blue);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.9;}
+.performance-legend-button{position:absolute;z-index:2;top:.6rem;right:.65rem;display:flex;align-items:center;gap:.65rem;border:1px solid var(--border);border-radius:7px;background:rgba(14,22,35,.92);padding:.32rem .45rem;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.5rem;cursor:help;}
+.performance-legend-item{display:flex;align-items:center;gap:.28rem;white-space:nowrap;}
+.performance-legend-swatch{display:inline-block;width:1.1rem;height:2px;border-radius:2px;background:var(--green);}
+.performance-legend-swatch.capital{background:var(--blue);}
+.performance-legend-info{display:grid;place-items:center;width:.9rem;height:.9rem;border:1px solid currentColor;border-radius:50%;font-size:.48rem;font-weight:700;}
+.performance-tooltip{position:absolute;top:calc(100% + .45rem);right:0;width:20rem;max-width:calc(100vw - 4rem);border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:.65rem .7rem;color:var(--ink);font-size:.55rem;font-weight:400;line-height:1.55;text-align:left;white-space:normal;box-shadow:0 10px 28px rgba(0,0,0,.32);opacity:0;visibility:hidden;transform:translateY(-.2rem);transition:opacity .15s ease,transform .15s ease,visibility .15s ease;pointer-events:none;}
+.performance-legend-button:hover .performance-tooltip,.performance-legend-button:focus .performance-tooltip,.performance-legend-button:focus-visible .performance-tooltip{opacity:1;visibility:visible;transform:translateY(0);}
 .weekday-section{margin-bottom:2rem;padding-bottom:1.6rem;border-bottom:1px solid var(--border);}
 .weekday-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.65rem;}
 .weekday-card{border:1px solid var(--border);border-radius:10px;padding:.75rem;background:var(--paper);min-width:0;}

@@ -24,7 +24,7 @@
   </div>
   <p class="login-note">Lokale Daten verlassen dieses Ger&auml;t nicht. Gel&ouml;schte Browserdaten oder eine Deinstallation k&ouml;nnen sie jedoch entfernen.</p>
   <div id="login-status" role="status" aria-live="polite"></div>
-  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v89</div>
+  <div id="login-version" style="font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted);opacity:.6">Version v96</div>
 </div>
 
 <!-- APP -->
@@ -36,7 +36,7 @@
         <button id="invis-toggle" class="invis-toggle" type="button" aria-pressed="false"
           aria-describedby="invis-status">Invis</button>
       </div>
-      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v89</span></p>
+      <p class="header-sub">Scalable Capital &middot; DAX Derivate <span id="app-version" style="opacity:.6">v96</span></p>
       <div id="invis-status" class="invis-status" role="status" hidden>INVIS &middot; NUR ANSEHEN</div>
     </div>
     <div class="header-summary" aria-label="Realisierte Gesamtergebnisse">
@@ -168,8 +168,8 @@
     aria-labelledby="stats-nav-performance" hidden>
     <div class="equity-section">
       <div class="ts-head">
-        <h2 class="ts-title">Equity &amp; Drawdown</h2>
-        <div class="ts-sub">Realisierte Tagesendst&auml;nde und Abstand zum bisherigen Hoch</div>
+        <h2 class="ts-title">Equity, Drawdown &amp; Kapitaleinsatz</h2>
+        <div class="ts-sub">Realisierte Equity und gleichzeitig gebundener Einstand im direkten Vergleich</div>
       </div>
       <div id="equity-summary" class="equity-summary"></div>
       <div id="equity-chart" class="equity-chart"></div>
@@ -529,7 +529,7 @@
 <!-- Der SW-Starter bleibt absichtlich unabhaengig vom Hauptmodul. So kann ein
      alter defekter app.js-Cache durch einen neuen Service Worker heilen. -->
 <script src="sw-register.js" defer></script>
-<script type="module" src="js/app.js?v=v89"></script>
+<script type="module" src="js/app.js?v=v96"></script>
 <!-- app.js behandelt beide async-Reihenfolgen per load-Listener und prueft
      zusaetzlich, ob Google GIS beim Boot bereits verfuegbar ist. -->
 <script id="google-gis-script" src="https://accounts.google.com/gsi/client" async defer></script>

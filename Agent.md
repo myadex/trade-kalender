@@ -11,6 +11,7 @@ css/app.css     Gesamtes App-Layout inkl. mobiler Regeln
 js/config.js    Konstanten + APP_VERSION
 js/app-data.js  Kanonisches persistentes Datenmodell und Normalisierung (pure)
 js/backup-crypto.js Versioniertes AES-GCM-Backupformat (pure, Web Crypto injizierbar)
+js/performance-view.js  Gemeinsamer Renderer fuer Equity, Drawdown und Kapitaleinsatz
 js/encrypted-backup-dialog.js Dialog fuer verschluesselte Datei-Backups
 js/helpers.js   Formatierung, Datum (toLocalDateStr, normalizeXlsxDate)
 js/fifo.js      FIFO-Matching, Steuer, buyDate/buyTime   [KERN — Golden Values!]
@@ -34,7 +35,8 @@ sw-register.js  Unabhaengiger SW-Update-Starter vor dem Hauptmodul
 test/           Test-Harness (siehe test/README.md)
 docs/ARCHITECTURE.md Schichten, Datenfluss, APIs und Betriebsgrenzen
 docs/DATA_MODEL.md Kanonischer persistenter Vertrag und Invarianten
-docs/feature-handbuch/ Fachlicher Funktionsumfang und Nutzerablaeufe
+docs/DESIGN-KONZEPT.md Unverbindliche visuelle Leitidee und UI-Entscheidungen
+docs/anforderungen/ Programmiersprachenunabhaengige Produktanforderungen
 docs/DOTNET-GUIDE.md Uebersetzung der Module in C#/.NET-Denkmodelle
 docs/DOTNET-AGENT-LEARNING.md Moderner .NET-/VS-Code-Lernpfad mit Agents
 CONTRIBUTING.md  Lokales Setup, Aenderungsworkflow und PR-Checkliste
@@ -73,6 +75,13 @@ als Test-Fixture eingecheckt werden.
   offene Positionen sind keine Equity-Daten. Prozentwerte nur mit positivem
   Startkapital anzeigen. Maximalbetrag und zugehörige Quote müssen vom selben
   Drawdown-Punkt stammen.
+- **Eingesetztes Kapital:** Nicht Kaufumsatz summieren. Je Kalendertag den
+  höchsten gleichzeitig offenen Einstand verwenden und offene Positionen über
+  Overnight- und ereignisfreie Tage fortschreiben. Ab dem ersten Importtag
+  gelten `importRows` plus `importBaseOpenLots` als exakte FIFO-Quelle; den
+  davorliegenden Zeitraum aus Legacy-Einstand und Haltedauer nur sichtbar
+  gekennzeichnet schätzen. Der angezeigte Einstand darf in diesem Cash-Konto
+  nie über der an diesem Tag verfügbaren realisierten Equity liegen.
 - **Wochentage:** Einstieg und Ausstieg nie vermischen; der Einstiegstag ist
   Standard. Fehlende Datumswerte und neutrale Produkte ehrlich ausschliessen.
   Eine Long-/Short-Tendenz erst ab n>=8 je Richtung und Wochentag ausweisen und
@@ -107,8 +116,9 @@ als Test-Fixture eingecheckt werden.
   validieren und den aktuellen Stand vor Restore als Safety-Snapshot sichern.
 - **PWA-App-Shell:** Vorab gecachte lokale ES-Module werden Cache-first geladen.
   Updates laufen ueber die gemeinsame neue App-/Cache-Version. Network-first
-  fuer `js/app.js` kann den kompletten Offline-Start verhindern und ist durch
-  einen ausgefuehrten Service-Worker-Test gesperrt. JavaScript-Antworten mit
+  fuer `index.html` oder `js/app.js` kann HTML und Module verschiedener
+  Releases mischen beziehungsweise den Offline-Start verhindern und ist durch
+  ausgefuehrte Service-Worker-Tests gesperrt. JavaScript-Antworten mit
   `text/plain` duerfen weder als brauchbarer Cache gelten noch erneut
   persistiert werden; der Online-Pfad repariert solche Alt-Eintraege. Der
   Starter darf dabei nur versionsgebundene `trade-kalender-*`-Caches loeschen,
@@ -134,6 +144,8 @@ Lokal: VS Code + statischer Server
 [CONTRIBUTING.md](CONTRIBUTING.md). Architekturentscheidungen und persistente
 Felder werden gleichzeitig in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 beziehungsweise [docs/DATA_MODEL.md](docs/DATA_MODEL.md) aktualisiert.
+Der fachliche Sollzustand steht getrennt davon in der
+[Anforderungsanalyse](docs/anforderungen/README.md).
 Fuer den Einstieg aus C#/.NET-Sicht gilt
 [docs/DOTNET-GUIDE.md](docs/DOTNET-GUIDE.md).
 Der praktische Modernisierungs- und Agenten-Lernpfad steht in

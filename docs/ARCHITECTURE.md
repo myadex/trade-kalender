@@ -1,5 +1,11 @@
 # Architektur
 
+Dieses Dokument beschreibt die **aktuelle technische Referenzimplementierung**.
+Der programmiersprachenunabhängige fachliche Sollzustand steht in der
+[Anforderungsanalyse](anforderungen/README.md). Architekturentscheidungen
+dürfen die dort festgelegten Akzeptanzkriterien erfüllen, ohne den
+Produktvertrag an eine konkrete Umsetzung zu binden.
+
 Dieses Dokument beschreibt den technischen Aufbau des Trade Kalenders. Es ist
 der Einstieg für Änderungen an Struktur, Datenfluss oder Infrastruktur. Die
 verbindlichen Arbeitsregeln stehen ergänzend in [Agent.md](../Agent.md), der
@@ -29,9 +35,12 @@ Die Architektur folgt vier Leitlinien:
 `index.html` enthält die semantische App-Struktur. `css/app.css` enthält das
 gesamte Layout einschließlich der mobilen Regeln. Kleine UI-Module wie
 `navigation.js`, `trade-dialogs.js`, `position-dialog.js`,
-`import-dialogs.js`, `metrics-view.js` und `trade-search.js` lesen oder
-schreiben ausschließlich DOM-Zustand. Sie erhalten Fachdaten und Callbacks als
-Parameter und persistieren selbst nichts.
+`import-dialogs.js`, `metrics-view.js`, `performance-view.js` und
+`trade-search.js` lesen oder schreiben ausschließlich DOM-Zustand. Sie erhalten
+Fachdaten und Callbacks als Parameter und persistieren selbst nichts. Der
+Performance-Renderer erhält insbesondere nur die fertigen Equity- und
+Kapitalnutzungsergebnisse und kennt weder den App-Zustand noch die
+FIFO-Berechnung.
 
 `invis-view.js` ist eine DOM-freie Anzeigegrenze. Das Modul erhaelt Betrag,
 Startkapital und den expliziten Sitzungsmodus als Parameter und liefert nur
@@ -123,6 +132,17 @@ das Hauptmodul selbst nicht mehr startet.
 5. Erst nach Vorschau, Migrationsprüfung und Kontrollbericht übernimmt der
    Controller den neuen Zustand und speichert ihn.
 
+Der Verlauf des eingesetzten Kapitals ist ebenfalls eine abgeleitete Sicht auf
+die Handelsdaten. `views.js` schätzt den Zeitraum vor dem ersten vollständigen
+Import-Ledger aus Einstand und Haltedauer der Legacy-Trades. Ab dem Ledger-
+Beginn spielt es Brokerbuchungen gegen den unveränderten Anfangsbestand, misst
+je Kalendertag das Maximum des gleichzeitig offenen FIFO-Einstands und führt
+offene Positionen über ereignisfreie Tage fort. Die Zeitachse beginnt mit der
+Trade-Historie. Eine aus realisiertem Netto-P&L fortgeschriebene Equity-Grenze
+verhindert bei diesem Konto ohne Margin, dass rekonstruierter Kapitaleinsatz
+oberhalb des verfügbaren Kapitals angezeigt wird. Schätz- und Begrenzungsfälle
+bleiben Metadaten der Auswertung; es entstehen keine neuen persistenten Felder.
+
 ### Mutation und Speichern
 
 1. Der Controller prueft zuerst die sitzungsweite Nur-Ansehen-Sperre. Im
@@ -179,6 +199,12 @@ erhöht dieselbe Releasekennung an fünf Stellen:
 Die Tests erzwingen die Gleichheit. Alle geänderten Module, HTML, CSS und
 Service Worker müssen gemeinsam veröffentlicht werden; ein Teil-Deploy kann
 die ES-Modul-Kette brechen.
+
+Auch Dokumentnavigationen werden aus dem Cache des jeweils aktiven Workers
+bedient. Dadurch stammen `index.html` und ihre ES-Module garantiert aus
+derselben versionierten App-Shell. Ein neuer Worker lädt zunächst alle Dateien
+seines Releases und übernimmt sie anschließend gemeinsam; Network-first für
+das HTML ist verboten, weil es neue DOM-Struktur mit alten Modulen mischen kann.
 
 ## Änderungen richtig einordnen
 

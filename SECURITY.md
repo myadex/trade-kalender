@@ -1,5 +1,10 @@
 # Sicherheit
 
+Die programmiersprachenunabhängigen Schutzanforderungen stehen unter
+[Sicherheit und Datenschutz](docs/anforderungen/06-SICHERHEIT.md). Dieses
+Dokument beschreibt ergänzend die konkreten Maßnahmen, Grenzen und Meldewege
+der aktuellen Referenzimplementierung.
+
 Der Trade Kalender verarbeitet Handelsdaten, realisierte Ergebnisse und
 Steuerwerte. Dieses Dokument beschreibt die Sicherheitsgrenzen des Projekts,
 den verantwortlichen Umgang mit Finanzdaten und das Melden von Schwachstellen.

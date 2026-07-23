@@ -1,4 +1,4 @@
-const CACHE = 'trade-kalender-v89';
+const CACHE = 'trade-kalender-v96';
 const ASSETS = [
   './',
   './index.html',
@@ -22,6 +22,7 @@ const ASSETS = [
   './js/metrics-view.js',
   './js/navigation.js',
   './js/position-dialog.js',
+  './js/performance-view.js',
   './js/safety-backup-dialog.js',
   './js/safety-backups.js',
   './js/storage.js',
@@ -82,11 +83,14 @@ self.addEventListener('fetch', e => {
   if (url.includes('googleapis.com') || url.includes('accounts.google.com') || url.includes('gstatic.com')) {
     return;
   }
-  // Eine Navigation muss offline zumindest die bereits installierte App-Huelle
-  // laden koennen. Lokale IndexedDB-Daten funktionieren dann ohne Netz;
-  // Drive-Anmeldung und Drive-Daten benoetigen weiterhin eine Verbindung.
+  // WICHTIG: Auch Navigationen muessen aus derselben versionierten App-Shell
+  // kommen wie die Module. Network-first kann neues HTML mit app.js aus dem
+  // noch aktiven alten Worker mischen; neue DOM-Bereiche bleiben dann leer.
+  // Der neue Worker cached die komplette Shell und uebernimmt sie atomar.
   if (e.request.mode === 'navigate') {
-    e.respondWith(fetch(e.request).catch(() => caches.match('./index.html')));
+    e.respondWith(
+      caches.match('./index.html').then(cached => cached || fetch(e.request))
+    );
     return;
   }
   // Die App-Shell ist durch den versionsgebundenen CACHE atomar. Deshalb muss

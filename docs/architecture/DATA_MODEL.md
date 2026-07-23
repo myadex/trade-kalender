@@ -3,10 +3,10 @@
 Dieses Dokument beschreibt die persistente Repräsentation der aktuellen
 Referenzimplementierung. Die programmiersprachenunabhängigen Anforderungen an
 Datenhaltung und Konsistenz stehen unter
-[Datenhaltung](anforderungen/03-DATENHALTUNG.md).
+[Datenhaltung](../anforderungen/03-DATENHALTUNG.md).
 
 Dieses Dokument beschreibt den persistenten Vertrag der App. Verbindliche
-Implementierung ist [`js/app-data.js`](../js/app-data.js). IndexedDB, Google
+Implementierung ist [`js/app-data.js`](../../js/app-data.js). IndexedDB, Google
 Drive, interne Sicherungen und verschlüsselte Datei-Backups müssen denselben
 Vertrag verwenden.
 

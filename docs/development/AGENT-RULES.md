@@ -1,4 +1,4 @@
-# Agent.md — Trade Kalender PWA
+# Agent-Regeln — Trade Kalender PWA
 
 Hinterlegte Standards für dieses Repo. Gilt für jede Session, jeden Assistenten, jeden Menschen.
 
@@ -33,15 +33,18 @@ js/app.js       UI-Verdrahtung, Rendering, Auth-Flow
 sw.js           Service Worker (CACHE-Name = Version)
 sw-register.js  Unabhaengiger SW-Update-Starter vor dem Hauptmodul
 test/           Test-Harness (siehe test/README.md)
-docs/ARCHITECTURE.md Schichten, Datenfluss, APIs und Betriebsgrenzen
-docs/DATA_MODEL.md Kanonischer persistenter Vertrag und Invarianten
-docs/DESIGN-KONZEPT.md Unverbindliche visuelle Leitidee und UI-Entscheidungen
+docs/architecture/ Architektur, Datenmodell und Designkonzept
 docs/anforderungen/ Programmiersprachenunabhaengige Produktanforderungen
-docs/DOTNET-GUIDE.md Uebersetzung der Module in C#/.NET-Denkmodelle
-docs/DOTNET-AGENT-LEARNING.md Moderner .NET-/VS-Code-Lernpfad mit Agents
+docs/learning/   .NET-Uebersetzung und moderner Agenten-Lernpfad
+docs/project/    Backlog und weitere Planungsdokumente
 CONTRIBUTING.md  Lokales Setup, Aenderungsworkflow und PR-Checkliste
 SECURITY.md      Umgang mit Finanzdaten, OAuth, Backups und Vorfaellen
 ```
+
+Die visuelle Leitidee ist separat im
+[Designkonzept](../architecture/DESIGN-KONZEPT.md) dokumentiert.
+Für Änderungen an Timing- oder Verhaltensauswertungen gilt zusätzlich der
+[Trade-Analyse-Leitfaden](../architecture/TRADE-ANALYSE.md).
 
 ## Nicht verhandelbare Regeln
 
@@ -140,18 +143,19 @@ als Test-Fixture eingecheckt werden.
 
 Lokal: VS Code + statischer Server
 (`http://127.0.0.1:5500/index.html`). Einstieg und Setup stehen in
-[README.md](README.md), der vollstaendige Aenderungsworkflow in
-[CONTRIBUTING.md](CONTRIBUTING.md). Architekturentscheidungen und persistente
-Felder werden gleichzeitig in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-beziehungsweise [docs/DATA_MODEL.md](docs/DATA_MODEL.md) aktualisiert.
+[README.md](../../README.md), der vollstaendige Aenderungsworkflow in
+[CONTRIBUTING.md](../../CONTRIBUTING.md). Architekturentscheidungen und
+persistente Felder werden gleichzeitig in
+[ARCHITECTURE.md](../architecture/ARCHITECTURE.md) beziehungsweise
+[DATA_MODEL.md](../architecture/DATA_MODEL.md) aktualisiert.
 Der fachliche Sollzustand steht getrennt davon in der
-[Anforderungsanalyse](docs/anforderungen/README.md).
+[Anforderungsanalyse](../anforderungen/README.md).
 Fuer den Einstieg aus C#/.NET-Sicht gilt
-[docs/DOTNET-GUIDE.md](docs/DOTNET-GUIDE.md).
+[DOTNET-GUIDE.md](../learning/DOTNET-GUIDE.md).
 Der praktische Modernisierungs- und Agenten-Lernpfad steht in
-[docs/DOTNET-AGENT-LEARNING.md](docs/DOTNET-AGENT-LEARNING.md).
-Sicherheitsgrenzen stehen in [SECURITY.md](SECURITY.md).
+[DOTNET-AGENT-LEARNING.md](../learning/DOTNET-AGENT-LEARNING.md).
+Sicherheitsgrenzen stehen in [SECURITY.md](../../SECURITY.md).
 
-Test: `npm test` (Details siehe [test/README.md](test/README.md)). Deploy:
+Test: `npm test` (Details siehe [test/README.md](../../test/README.md)). Deploy:
 `git add . && git commit && git push` → GitHub Pages. Danach: Hard-Reload,
 Versionsnummer im Header verifizieren.

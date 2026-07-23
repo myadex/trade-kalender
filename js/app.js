@@ -1364,6 +1364,9 @@ function buildInsights() {
 
   // Overnight-Kategorien-Tabelle
   const det = $('ts-on-detail');
+  // Der Monatsverlauf ist eine eigenständige Verhaltensanalyse. Er darf nicht
+  // verschwinden, nur weil der Datenbestand keine Overnight-Trades enthält.
+  buildDiscipline();
   const cats = [
     ['Fr\u00fch (Einstieg vor 11 Uhr)', overnight.early],
     ['Tags\u00fcber (11\u201319 Uhr) \u2014 "h\u00e4ngengeblieben"', overnight.stuck],
@@ -1381,7 +1384,6 @@ function buildInsights() {
   });
   det.innerHTML = html + '</table>';
 
-  buildDiscipline();
 }
 
 // Haltedauer huebsch formatieren: 37min, 2h49, 1,3d

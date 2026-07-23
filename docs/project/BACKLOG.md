@@ -273,13 +273,23 @@ Wartbarkeit bzw. Komfort.
 
 ### Statistik-Tab in Themenbereiche gliedern
 
-- **Status:** Erledigt in v49.
+- **Status:** Erledigt in v49; Analysevertrag und technische
+  Weiterentwicklungsdokumentation in v98 ergänzt.
 - **Loesung:** Eine interne Navigation trennt den Statistik-Tab in
-  `Performance`, `Timing` und `Verhalten`. Es ist immer nur ein Themenbereich
-  sichtbar; die Auswahl bleibt beim Wechsel zwischen den Haupttabs erhalten.
+  `Kennzahlen`, `Performance`, `Timing` und `Verhalten`. Es ist immer nur ein
+  Themenbereich sichtbar; die Auswahl bleibt beim Wechsel zwischen den
+  Haupttabs erhalten.
 - **Entscheidung:** Interne Bereiche statt weiterer Haupttabs oder Akkordeons.
   So bleibt die Hauptnavigation kompakt, zusammengehoerige Analysen bleiben
   beieinander und die mobile Ansicht vermeidet eine einzige lange Seite.
+- **Dokumentation:** Der sprachunabhaengige Analysevertrag definiert Datenbasis,
+  Zeitphasen, Formeln, Mindeststichproben, Ausschluesse und
+  Interpretationsgrenzen. Der technische Leitfaden ordnet pure Funktionen,
+  Renderer, Tests und den Erweiterungsablauf zu.
+- **Korrektur v98:** Der monatliche Disziplin-Trend wird unabhängig von der
+  Overnight-Tabelle aufgebaut und bleibt deshalb auch bei einem Datenbestand
+  ohne Overnight-Trades sichtbar. Eine ausgeführte Gegenprobe sperrt die alte
+  Aufrufreihenfolge.
 
 ### Kompakter Ergebnis-Header
 
@@ -501,19 +511,24 @@ Wartbarkeit bzw. Komfort.
 
 ### Projektstruktur schrittweise ordnen
 
-- **Status:** In Arbeit; Etappe 1 in v83, Entwickler-Onboarding in v84 und
-  der .NET-Lernleitfaden in v85 abgeschlossen. Der moderne .NET-/Agenten-
-  Lernpfad und der automatisch auffindbare Agent-Einstieg folgen in v86.
+- **Status:** In Arbeit; externes CSS, Entwickler-Onboarding, .NET-Lernpfad und
+  Agent-Einstieg wurden in v83 bis v86 abgeschlossen. In v97 wurden Root,
+  Dokumentation und statische PWA-Bilder nachvollziehbar gegliedert.
 - **Ziel:** Fachlogik, Infrastruktur, UI und gemeinsame Hilfen klarer ordnen,
   ohne Framework oder Build-Pipeline einzufuehren.
 - **Etappe 1:** Das vollstaendige App-CSS liegt in `css/app.css` statt im
   mehr als tausend Zeilen langen `index.html`. Das Stylesheet bleibt Teil der
   versionierten Offline-App-Shell.
 - **Dokumentation:** `README.md` bietet einen ausfuehrbaren Schnellstart und
-  einen Dokumentationsindex. Architektur, persistentes Datenmodell,
-  Beitragsworkflow und Security-Grenzen stehen in eigenen, verlinkten
-  Dokumenten. Permanente Tests sichern Inhalte, lokale Links, Textkodierung
-  und die kurze Uebersicht tatsaechlich offener Arbeit.
+  `docs/README.md` einen zentralen Dokumentationsindex. Anforderungen,
+  Architektur, Entwicklung, Lernen und Planung besitzen eigene Bereiche.
+  Architektur, persistentes Datenmodell, Beitragsworkflow und
+  Security-Grenzen stehen in eigenen, verlinkten Dokumenten. Permanente Tests
+  sichern Inhalte, lokale Links, Textkodierung und die kurze Uebersicht
+  tatsaechlich offener Arbeit.
+- **Root und Assets:** Nur direkte PWA-Einstiegspunkte, npm- und uebliche
+  Repository-Dateien bleiben im Root. App-Icons liegen unter `assets/icons`;
+  Manifest und Offline-App-Shell referenzieren den neuen Ort.
 - **.NET-Lernpfad:** Ein eigener Leitfaden uebersetzt ES-Module, pure
   Funktionen, Datenobjekte, Promise, DOM und Browseradapter in vertraute
   C#-Konzepte. Er dokumentiert ausserdem, warum die laufende PWA nicht neu
@@ -525,9 +540,10 @@ Wartbarkeit bzw. Komfort.
   Eigenarbeit, begrenzter Delegation und menschlicher Kontrolle. Eine kurze
   `AGENTS.md` macht die bestehenden Projekt- und Promptregeln fuer Codex
   automatisch auffindbar.
-- **Sicherung:** Strukturtests erzwingen externen CSS-Link, fehlenden
-  eingebetteten Styleblock und den Service-Worker-Cacheeintrag. Alle bisherigen
-  CSS-Vertraege pruefen jetzt direkt die externe Datei.
+- **Sicherung:** Strukturtests erzwingen externe CSS- und Icon-Pfade, die
+  Dokumentationsbereiche, funktionierende lokale Links und den
+  Service-Worker-Cacheeintrag. Alle bisherigen CSS-Vertraege pruefen direkt die
+  externe Datei.
 - **Naechste Etappen:** Die pure Statistiklogik aus `views.js` fachlich
   aufteilen, danach Kalender- und Statistik-Renderer aus `app.js` loesen.
   Jede Etappe bleibt ein eigener, vollstaendig getesteter Schnitt.

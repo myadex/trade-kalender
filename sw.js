@@ -1,10 +1,10 @@
-const CACHE = 'trade-kalender-v96';
+const CACHE = 'trade-kalender-v98';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon-192.png',
-  './icon-512.png',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png',
   './css/app.css',
   './sw-register.js',
   './js/app.js',

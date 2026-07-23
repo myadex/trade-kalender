@@ -118,6 +118,13 @@ const swRegisterJs = fs.existsSync(swRegisterPath)
   ? fs.readFileSync(swRegisterPath, 'utf8')
   : '';
 const html = fs.readFileSync(DIR + '/index.html', 'utf8');
+const manifest = JSON.parse(fs.readFileSync(DIR + '/manifest.json', 'utf8'));
+check('Projektstruktur: PWA-Bilder liegen gebündelt unter assets/icons',
+  fs.existsSync(DIR + '/assets/icons/icon-192.png') &&
+  fs.existsSync(DIR + '/assets/icons/icon-512.png') &&
+  !fs.existsSync(DIR + '/icon-192.png') &&
+  !fs.existsSync(DIR + '/icon-512.png') &&
+  manifest.icons.every(icon => icon.src.startsWith('assets/icons/')));
 const appCssPath = DIR + '/css/app.css';
 const inlineAppCss = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] || '';
 // Der Fallback haelt Fehlermeldungen gezielt: Wird CSS versehentlich wieder
@@ -136,21 +143,31 @@ check('PWA: unabhaengiger SW-Starter kann einen kaputten App-Modulcache erneuern
   html.indexOf('src="sw-register.js"') < html.indexOf('src="js/app.js') &&
   swRegisterJs.includes('navigator.serviceWorker.register(SERVICE_WORKER_URL') &&
   !appControllerJs.includes("navigator.serviceWorker.register('./sw.js')"));
-const backlogPath = DIR + '/BACKLOG.md';
+const docsIndexPath = DIR + '/docs/README.md';
+const backlogPath = DIR + '/docs/project/BACKLOG.md';
 const backlog = fs.existsSync(backlogPath) ? fs.readFileSync(backlogPath, 'utf8') : '';
 const readme = fs.readFileSync(DIR + '/README.md', 'utf8');
-const agentPath = DIR + '/Agent.md';
+const agentPath = DIR + '/docs/development/AGENT-RULES.md';
 const agentGuide = fs.existsSync(agentPath) ? fs.readFileSync(agentPath, 'utf8') : '';
+const devPromptsPath = DIR + '/docs/development/DEV-PROMPTS.md';
+const devPrompts = fs.existsSync(devPromptsPath)
+  ? fs.readFileSync(devPromptsPath, 'utf8')
+  : '';
 const agentsEntryPath = DIR + '/AGENTS.md';
 const agentsEntry = fs.existsSync(agentsEntryPath)
   ? fs.readFileSync(agentsEntryPath, 'utf8')
   : '';
-const architecturePath = DIR + '/docs/ARCHITECTURE.md';
-const dataModelPath = DIR + '/docs/DATA_MODEL.md';
-const designConceptPath = DIR + '/docs/DESIGN-KONZEPT.md';
-const dotnetGuidePath = DIR + '/docs/DOTNET-GUIDE.md';
-const dotnetAgentLearningPath = DIR + '/docs/DOTNET-AGENT-LEARNING.md';
+const docsIndex = fs.existsSync(docsIndexPath)
+  ? fs.readFileSync(docsIndexPath, 'utf8')
+  : '';
+const architecturePath = DIR + '/docs/architecture/ARCHITECTURE.md';
+const dataModelPath = DIR + '/docs/architecture/DATA_MODEL.md';
+const designConceptPath = DIR + '/docs/architecture/DESIGN-KONZEPT.md';
+const dotnetGuidePath = DIR + '/docs/learning/DOTNET-GUIDE.md';
+const dotnetAgentLearningPath = DIR + '/docs/learning/DOTNET-AGENT-LEARNING.md';
 const requirementsIndexPath = DIR + '/docs/anforderungen/README.md';
+const tradeAnalysisRequirementsPath = DIR + '/docs/anforderungen/TRADE-ANALYSE.md';
+const tradeAnalysisArchitecturePath = DIR + '/docs/architecture/TRADE-ANALYSE.md';
 const requirementPaths = [
   DIR + '/docs/anforderungen/01-PRODUKTKONTEXT.md',
   DIR + '/docs/anforderungen/02-DATENQUELLEN.md',
@@ -181,6 +198,12 @@ const dotnetAgentLearningDoc = fs.existsSync(dotnetAgentLearningPath)
 const requirementsIndex = fs.existsSync(requirementsIndexPath)
   ? fs.readFileSync(requirementsIndexPath, 'utf8')
   : '';
+const tradeAnalysisRequirements = fs.existsSync(tradeAnalysisRequirementsPath)
+  ? fs.readFileSync(tradeAnalysisRequirementsPath, 'utf8')
+  : '';
+const tradeAnalysisArchitecture = fs.existsSync(tradeAnalysisArchitecturePath)
+  ? fs.readFileSync(tradeAnalysisArchitecturePath, 'utf8')
+  : '';
 const requirementDocs = requirementPaths.map(requirementPath =>
   fs.existsSync(requirementPath) ? fs.readFileSync(requirementPath, 'utf8') : '');
 const [productRequirements, sourceRequirements, storageRequirements,
@@ -194,19 +217,36 @@ const securityDoc = fs.existsSync(securityPath)
   : '';
 check('Projekt-Backlog mit offenen Punkten vorhanden',
   backlog.includes('# App-Backlog') && backlog.includes('## Prioritaet 1'));
+check('Projektstruktur: Dokumentation ist nach Verantwortung geordnet',
+  fs.existsSync(docsIndexPath) &&
+  fs.existsSync(agentPath) &&
+  fs.existsSync(devPromptsPath) &&
+  fs.existsSync(backlogPath) &&
+  fs.existsSync(architecturePath) &&
+  fs.existsSync(dataModelPath) &&
+  fs.existsSync(designConceptPath) &&
+  fs.existsSync(dotnetGuidePath) &&
+  fs.existsSync(dotnetAgentLearningPath) &&
+  !fs.existsSync(DIR + '/Agent.md') &&
+  !fs.existsSync(DIR + '/BACKLOG.md') &&
+  !fs.existsSync(DIR + '/dev-prompts-vorlagen.md'));
+check('Dokumentation: zentraler Index erklärt die Bereiche',
+  docsIndex.includes('# Dokumentation') &&
+  ['Anforderungen', 'Architektur', 'Entwicklung', 'Lernen', 'Planung']
+    .every(area => docsIndex.includes(area)));
 check('Dokumentation: README bietet einen ausführbaren Schnellstart und einen Dokumentationsindex',
   readme.includes('## Schnellstart') &&
   readme.includes('npm ci') &&
   readme.includes('npm test') &&
   readme.includes('http://127.0.0.1:5500/index.html') &&
-  readme.includes('[Architektur](docs/ARCHITECTURE.md)') &&
-  readme.includes('[Datenmodell](docs/DATA_MODEL.md)') &&
+  readme.includes('[Architektur](docs/architecture/ARCHITECTURE.md)') &&
+  readme.includes('[Datenmodell](docs/architecture/DATA_MODEL.md)') &&
   readme.includes('[Beiträge](CONTRIBUTING.md)') &&
   readme.includes('[Sicherheit](SECURITY.md)'));
 check('Dokumentation: Designkonzept ist aus README und Agent-Leitfaden erreichbar',
   fs.existsSync(designConceptPath) &&
-  readme.includes('[Designkonzept](docs/DESIGN-KONZEPT.md)') &&
-  agentGuide.includes('docs/DESIGN-KONZEPT.md'));
+  readme.includes('[Designkonzept](docs/architecture/DESIGN-KONZEPT.md)') &&
+  agentGuide.includes('../architecture/DESIGN-KONZEPT.md'));
 check('Dokumentation: Designkonzept bleibt bewusst unverbindlich',
   designConceptDoc.includes('# Designkonzept') &&
   designConceptDoc.includes('kein verbindlicher Produktvertrag') &&
@@ -265,6 +305,27 @@ check('Dokumentation: Anforderungen sind nach Quelle, Haltung, Logik, UI und Qua
     .every(term => uiRequirements.includes(term)) &&
   ['Barrierefreiheit', 'Offline', 'Datenintegrität', 'Wartbarkeit']
     .every(term => qualityRequirements.includes(term)));
+check('Dokumentation: Timing und Verhalten besitzen einen vollständigen Fachvertrag',
+  fs.existsSync(tradeAnalysisRequirementsPath) &&
+  requirementsIndex.includes('[Trade-Analyse](TRADE-ANALYSE.md)') &&
+  ['# Trade-Analyse', '## Datenbasis', '## Timing', '## Verhalten',
+    '## Datenqualität und Ausschlüsse', '## Interpretation und Grenzen']
+    .every(term => tradeAnalysisRequirements.includes(term)) &&
+  ['08:00–09:00', 'n ≥ 8', '45 Kalendertage', '1.000 €',
+    '70 %', '60 %', '75 %']
+    .every(term => tradeAnalysisRequirements.includes(term)));
+check('Dokumentation: fachlicher Analysevertrag bleibt programmiersprachenunabhängig',
+  ['JavaScript', 'app.js', 'views.js', 'DOM', 'ES-Modul']
+    .every(term => !tradeAnalysisRequirements.includes(term)));
+check('Dokumentation: technischer Analyseleitfaden beschreibt Datenfluss und Erweiterung',
+  fs.existsSync(tradeAnalysisArchitecturePath) &&
+  architectureDoc.includes('[Trade-Analyse](TRADE-ANALYSE.md)') &&
+  agentGuide.includes('../architecture/TRADE-ANALYSE.md') &&
+  ['computeWeekdayStats', 'computeTimeStats', 'computeInsights',
+    'diagnoseBucket', 'computeHoldStats', 'computeMonthlyDiscipline',
+    'buildTimeStats', 'buildInsights', 'buildDiscipline',
+    '## Erweiterungsablauf', '## Teststrategie']
+    .every(term => tradeAnalysisArchitecture.includes(term)));
 check('Dokumentation: Anwendungsfaelle beschreiben die zentralen End-to-End-Wege',
   ['Lokal starten', 'Mit Google Drive starten', 'Brokerexport importieren',
     'Trade manuell erfassen', 'Offene Position schließen oder ausblenden',
@@ -294,8 +355,8 @@ check('Dokumentation: kanonisches Datenmodell ist vollständig beschrieben',
   dataModelDoc.includes('normalizeAppData') &&
   dataModelDoc.includes('Steuer'));
 check('Dokumentation: .NET-Leitfaden ist aus README und Agent-Regeln erreichbar',
-  readme.includes('[Für .NET-Entwickler](docs/DOTNET-GUIDE.md)') &&
-  agentGuide.includes('docs/DOTNET-GUIDE.md'));
+  readme.includes('[Für .NET-Entwickler](docs/learning/DOTNET-GUIDE.md)') &&
+  agentGuide.includes('../learning/DOTNET-GUIDE.md'));
 check('Dokumentation: .NET-Leitfaden übersetzt Module und Sprachkonzepte nach C#',
   dotnetGuideDoc.includes('# Von .NET zu diesem Projekt') &&
   dotnetGuideDoc.includes('## Warum kaum Klassen?') &&
@@ -315,8 +376,8 @@ check('Dokumentation: .NET-Leitfaden enthält eine klare Blazor-Entscheidung und
   dotnetGuideDoc.includes('JavaScript-Interop') &&
   dotnetGuideDoc.includes('TradeCalendar.Domain'));
 check('Dokumentation: moderner .NET-/Agenten-Lernplan ist im Projekt auffindbar',
-  readme.includes('[Lernplan: modernes .NET mit Agents](docs/DOTNET-AGENT-LEARNING.md)') &&
-  agentGuide.includes('docs/DOTNET-AGENT-LEARNING.md') &&
+  readme.includes('[Lernplan: modernes .NET mit Agents](docs/learning/DOTNET-AGENT-LEARNING.md)') &&
+  agentGuide.includes('../learning/DOTNET-AGENT-LEARNING.md') &&
   dotnetGuideDoc.includes('DOTNET-AGENT-LEARNING.md'));
 check('Dokumentation: Lernplan bildet den lokalen VS-Code-Ausgangsstand und .NET 10 korrekt ab',
   dotnetAgentLearningDoc.includes('# Lernplan: von .NET Framework 4.8 zu modernem .NET mit Agents') &&
@@ -352,9 +413,9 @@ check('Dokumentation: Lernplan verweist auf aktuelle offizielle Primärquellen',
   dotnetAgentLearningDoc.includes('https://learn.chatgpt.com/guides/best-practices'));
 check('Dokumentation: AGENTS.md lädt die dauerhaften Projekt- und Lernregeln',
   agentsEntry.startsWith('# AGENTS.md') &&
-  agentsEntry.includes('[Agent.md](Agent.md)') &&
-  agentsEntry.includes('[dev-prompts-vorlagen.md](dev-prompts-vorlagen.md)') &&
-  agentsEntry.includes('[.NET-/Agenten-Lernplan](docs/DOTNET-AGENT-LEARNING.md)') &&
+  agentsEntry.includes('[Agent-Regeln](docs/development/AGENT-RULES.md)') &&
+  agentsEntry.includes('[Prompt-Vorlagen](docs/development/DEV-PROMPTS.md)') &&
+  agentsEntry.includes('[.NET-/Agenten-Lernplan](docs/learning/DOTNET-AGENT-LEARNING.md)') &&
   agentsEntry.includes('npm test') &&
   agentsEntry.includes('Finanzdaten'));
 check('Dokumentation: Beitragsleitfaden sichert Test-, Versions- und Datenschutzworkflow',
@@ -380,7 +441,9 @@ check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
     const path = require('path');
     const documents = [
       [DIR + '/README.md', readme],
+      [docsIndexPath, docsIndex],
       [agentPath, agentGuide],
+      [devPromptsPath, devPrompts],
       [agentsEntryPath, agentsEntry],
       [backlogPath, backlog],
       [architecturePath, architectureDoc],
@@ -389,6 +452,8 @@ check('Dokumentation: lokale Markdown-Links zeigen auf vorhandene Dateien',
       [dotnetGuidePath, dotnetGuideDoc],
       [dotnetAgentLearningPath, dotnetAgentLearningDoc],
       [requirementsIndexPath, requirementsIndex],
+      [tradeAnalysisRequirementsPath, tradeAnalysisRequirements],
+      [tradeAnalysisArchitecturePath, tradeAnalysisArchitecture],
       ...requirementPaths.map((requirementPath, index) =>
         [requirementPath, requirementDocs[index]]),
       [contributingPath, contributingDoc],
@@ -412,11 +477,11 @@ check('Dokumentation: Texte enthalten keine sichtbaren Unicode-Escape-Sequenzen'
     ...requirementDocs, contributingDoc, securityDoc
   ].join('\n')));
 check('Dokumentation: Agent-Leitfaden ist korrekt benannt und verweist auf die Entwicklerdokumente',
-  agentGuide.startsWith('# Agent.md') &&
-  agentGuide.includes('docs/ARCHITECTURE.md') &&
-  agentGuide.includes('docs/DATA_MODEL.md') &&
-  agentGuide.includes('CONTRIBUTING.md') &&
-  agentGuide.includes('SECURITY.md'));
+  agentGuide.startsWith('# Agent-Regeln') &&
+  agentGuide.includes('../architecture/ARCHITECTURE.md') &&
+  agentGuide.includes('../architecture/DATA_MODEL.md') &&
+  agentGuide.includes('../../CONTRIBUTING.md') &&
+  agentGuide.includes('../../SECURITY.md'));
 check('Dokumentation: Backlog besitzt eine kurze Übersicht der tatsächlich offenen Arbeit',
   backlog.includes('## Aktuell offen') &&
   backlog.includes('Git-Historie von Finanzdaten bereinigen') &&
@@ -446,7 +511,8 @@ catch (e) { check('sw.js parses (' + e.message + ')', false); }
 try { acorn.parse(swRegisterJs, { ecmaVersion: 2020 }); check('sw-register.js parses', true); }
 catch (e) { check('sw-register.js parses (' + e.message + ')', false); }
 const offlineAssets = [
-  './index.html', './manifest.json', './icon-192.png', './icon-512.png', './sw-register.js', './css/app.css',
+  './index.html', './manifest.json', './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png', './sw-register.js', './css/app.css',
   './js/app.js', './js/app-data.js', './js/backup-crypto.js', './js/config.js', './js/fifo.js', './js/helpers.js',
   './js/dialog-accessibility.js', './js/import-dialogs.js', './js/import.js', './js/navigation.js',
   './js/metrics-view.js', './js/position-dialog.js', './js/storage.js',
@@ -2806,6 +2872,17 @@ const realFifoCheck = (async () => {
     check('monthlyDiscipline: 2 Monate sortiert', mdisc.length === 2 && mdisc[0].month === '2026-06');
     check('monthlyDiscipline: Grossverlust gezaehlt', mdisc[0].bigLossN === 1 && mdisc[0].bigLossSum === -1500);
     check('monthlyDiscipline: Overnight-P&L', mdisc[0].overnightPnl === -1500 && mdisc[0].overnightN === 1);
+    const intradayDiscipline = vmod.computeMonthlyDiscipline([
+      {
+        date: '2026-08-03', time: '10:00:00',
+        buyDate: '2026-08-03', buyTime: '09:00:00',
+        pnl: 125, desc: 'SYNTH Long'
+      }
+    ]);
+    check('monthlyDiscipline: Monatswerte existieren auch ohne Overnight-Trades',
+      intradayDiscipline.length === 1 &&
+      intradayDiscipline[0].pnl === 125 &&
+      intradayDiscipline[0].overnightN === 0);
   } catch (e) {
     check('ECHTE Module importierbar (' + e.message + ')', false);
   }
@@ -2944,6 +3021,18 @@ check('buildInsights wird aufgerufen', appJs.includes('buildInsights();'));
 check('Stunden-Diagnose gerendert bei roten Stunden', appJs.includes('ts-hour-diag') && appJs.includes('function diagText'));
 check('Disziplin-Trend-Tabelle vorhanden', html.includes('id="ts-discipline"') && appJs.includes('function buildDiscipline'));
 check('FOMO-Befund-Text vorhanden', appJs.includes('FOMO-Check'));
+check('Verhalten: Disziplin-Trend wird auch ohne Overnight-Trades aufgebaut',
+  (() => {
+    const insightsStart = appControllerJs.indexOf('function buildInsights()');
+    const insightsEnd = appControllerJs.indexOf('function fmtHold(', insightsStart);
+    const insightsBody = insightsStart >= 0 && insightsEnd > insightsStart
+      ? appControllerJs.slice(insightsStart, insightsEnd)
+      : '';
+    const disciplineCall = insightsBody.indexOf('buildDiscipline();');
+    const noOvernightBranch = insightsBody.indexOf('if (overnight.total.n === 0)');
+    return disciplineCall >= 0 && noOvernightBranch >= 0 &&
+      disciplineCall < noOvernightBranch;
+  })());
 check('CSS fuer Stunden-Richtungszeile', appCss.includes('.ts-hour-dir{'));
 check('Statistik-Tab in Tab-Order', appJs.includes("'open', 'timestats'"));
 check('buildTimeStats vorhanden + in rebuildAll', appJs.includes('function buildTimeStats') && /rebuildAll[\s\S]{0,400}buildTimeStats\(\)/.test(appJs) || appJs.includes('buildTimeStats();'));

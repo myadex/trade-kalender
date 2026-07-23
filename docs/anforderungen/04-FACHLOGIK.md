@@ -147,6 +147,9 @@ des hinterlegten Startkapitals abgeleitet werden.
 
 ## FL-13 – Timing-Auswertungen
 
+Die vollständigen Definitionen, Zeitgrenzen und Belastbarkeitsregeln stehen im
+[Trade-Analyse-Vertrag](TRADE-ANALYSE.md#timing).
+
 **Muss:** Trades müssen nach Wochentag, Richtung, Handelsphase und Stunde
 auswertbar sein, wahlweise anhand von Einstieg oder Ausstieg.
 
@@ -158,6 +161,9 @@ auswertbar sein, wahlweise anhand von Einstieg oder Ausstieg.
 - Fehlende Uhrzeiten werden als nicht auswertbar gezählt.
 
 ## FL-14 – Overnight- und Disziplinanalyse
+
+Overnight-Gruppen, automatische Befunde und der monatliche Disziplin-Trend
+werden im [Trade-Analyse-Vertrag](TRADE-ANALYSE.md#verhalten) präzisiert.
 
 **Muss:** Über Nacht gehaltene Trades und monatlich wiederkehrende
 Verlustmuster müssen anhand der vorhandenen Ein- und Ausstiegsdaten erkennbar sein.

@@ -278,7 +278,8 @@ dotnet add tests/TradeCalendar.Domain.Tests/TradeCalendar.Domain.Tests.csproj re
 ```
 
 **Du:** Entwirfst `Trade`, `OpenLot` und Geld-/Datumsfelder anhand des
-[Datenmodells](DATA_MODEL.md). Portiere zuerst nur `tradePnl` und
+[Datenmodells](../architecture/DATA_MODEL.md). Portiere zuerst nur `tradePnl`
+und
 `closePositionPnl`.
 
 **Agent:** Vergleicht deinen Entwurf read-only mit `app-data.js` und `fifo.js`
@@ -406,7 +407,7 @@ kannst.
 
 Gute Codex-Prompts enthalten vier feste Teile: Ziel, Kontext, Grenzen und
 Fertig-Kriterien. Die ausfuehrlichen Projektstandards stehen in
-[dev-prompts-vorlagen.md](../dev-prompts-vorlagen.md).
+[DEV-PROMPTS.md](../development/DEV-PROMPTS.md).
 
 ### Erklaeren, ohne Code zu aendern
 
@@ -553,4 +554,3 @@ geprueft:
 - [Neues in C# 14](https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/csharp-14)
 - [.NET-Framework-Portierungsuebersicht](https://learn.microsoft.com/en-us/dotnet/core/porting/framework-overview)
 - [Codex Best Practices](https://learn.chatgpt.com/guides/best-practices)
-

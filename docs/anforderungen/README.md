@@ -17,6 +17,10 @@ Neuimplementierung oder eine fachliche Abnahme dienen.
 7. [Qualitätsanforderungen](07-QUALITAETSANFORDERUNGEN.md) – Zuverlässigkeit, Offline und Barrierefreiheit
 8. [Anwendungsfälle](08-ANWENDUNGSFAELLE.md) – vollständige fachliche Abläufe
 
+Die bereichsübergreifende [Trade-Analyse](TRADE-ANALYSE.md) vertieft die
+Definitionen, Schwellenwerte, Datenqualitätsregeln und Interpretationsgrenzen
+für Timing und Verhalten.
+
 ## Schreibweise
 
 Jede Anforderung besitzt eine eindeutige ID, eine verbindliche Muss-Aussage und
@@ -42,11 +46,12 @@ diese Ebene.
 | Ebene | Zweck | Führender Ort |
 |---|---|---|
 | Produktanforderungen | Was das Produkt leisten muss | dieser Ordner |
-| Technische Umsetzung | Wie die aktuelle Referenzimplementierung arbeitet | [Architektur](../ARCHITECTURE.md) und [Datenmodell](../DATA_MODEL.md) |
+| Analysevertrag | Wie Timing- und Verhaltensmuster fachlich definiert sind | [Trade-Analyse](TRADE-ANALYSE.md) |
+| Technische Umsetzung | Wie die aktuelle Referenzimplementierung arbeitet | [Architektur](../architecture/ARCHITECTURE.md) und [Datenmodell](../architecture/DATA_MODEL.md) |
 | Bedien- und Entwicklungsstart | Wie das Projekt gestartet wird | [Projekt-README](../../README.md) |
 | Sicherheit der Umsetzung | Konkrete Schutzmaßnahmen und Meldeweg | [Security-Leitfaden](../../SECURITY.md) |
 | Tests | Ausführbare Verträge und fachliche Handwerte | [Test-Harness](../../test/README.md) |
-| Backlog | Noch nicht umgesetzte oder verworfene Arbeit | [Backlog](../../BACKLOG.md) |
+| Backlog | Noch nicht umgesetzte oder verworfene Arbeit | [Backlog](../project/BACKLOG.md) |
 | Changelog | Änderungen zwischen veröffentlichten Ständen | bei formalen Releases als eigene Datei zu ergänzen |
 
 Der aktuelle Produktumfang wird **nicht aus dem Backlog** abgeleitet. Der

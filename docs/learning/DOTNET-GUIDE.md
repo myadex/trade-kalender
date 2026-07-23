@@ -3,7 +3,8 @@
 Diese Anleitung richtet sich an Entwickler, die hauptsächlich C# und .NET
 kennen. Sie übersetzt die Architektur und die wichtigsten JavaScript-Muster
 des Trade Kalenders in vertraute .NET-Begriffe. Die technische Referenz bleibt
-die [Architekturdokumentation](ARCHITECTURE.md); hier geht es um das mentale
+die [Architekturdokumentation](../architecture/ARCHITECTURE.md); hier geht es
+um das mentale
 Modell beim Lesen und Lernen.
 
 Die wichtigste Erkenntnis zuerst: In diesem Projekt gibt es kaum `class`-
@@ -160,7 +161,8 @@ der Laufzeitgrenze: `normalizeAppData` akzeptiert JSON aus Drive, IndexedDB
 oder Backups und baut daraus nur die erlaubte Form. Das entspricht grob einer
 Kombination aus Deserialisierung, Validierung und Mapping auf ein internes DTO.
 
-Die vollständigen Feldregeln stehen im [Datenmodell](DATA_MODEL.md).
+Die vollständigen Feldregeln stehen im
+[Datenmodell](../architecture/DATA_MODEL.md).
 
 ## Pure Functions statt zustandsbehafteter Services
 
@@ -439,14 +441,14 @@ bedeutet nicht „frei von Race Conditions“.
 
 ## Empfohlene Lesereihenfolge
 
-1. [`js/app-data.js`](../js/app-data.js) – kleinstes Modul und Datenvertrag.
-2. [`js/fifo.js`](../js/fifo.js) – zentrale, pure Fachlogik.
-3. [`js/import.js`](../js/import.js) – Parsing, Validierung und Ledger.
-4. [`js/storage.js`](../js/storage.js) und
-   [`js/local-storage.js`](../js/local-storage.js) – Infrastrukturgrenzen.
-5. [`js/navigation.js`](../js/navigation.js) – kleines DOM-Modul.
-6. [`js/app.js`](../js/app.js) – erst jetzt der vollständige Orchestrator.
-7. [`sw.js`](../sw.js) – separater PWA-Lebenszyklus.
+1. [`js/app-data.js`](../../js/app-data.js) – kleinstes Modul und Datenvertrag.
+2. [`js/fifo.js`](../../js/fifo.js) – zentrale, pure Fachlogik.
+3. [`js/import.js`](../../js/import.js) – Parsing, Validierung und Ledger.
+4. [`js/storage.js`](../../js/storage.js) und
+   [`js/local-storage.js`](../../js/local-storage.js) – Infrastrukturgrenzen.
+5. [`js/navigation.js`](../../js/navigation.js) – kleines DOM-Modul.
+6. [`js/app.js`](../../js/app.js) – erst jetzt der vollständige Orchestrator.
+7. [`sw.js`](../../sw.js) – separater PWA-Lebenszyklus.
 
 Lies zu jedem Modul zuerst den Kopfkommentar und danach seine Exports. Die
 nicht exportierten Funktionen sind Implementierungsdetails, vergleichbar mit

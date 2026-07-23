@@ -4,12 +4,12 @@ Dieses Dokument beschreibt die visuelle Idee und die derzeitigen
 Gestaltungsentscheidungen des Trade Kalenders. Es ist kein verbindlicher Produktvertrag.
 Es ist auch keine unveränderliche Design-Spezifikation. Verbindliches
 Produktverhalten, Bedienbarkeit und Barrierefreiheit stehen in der
-[Anforderungsanalyse](anforderungen/README.md).
+[Anforderungsanalyse](../anforderungen/README.md).
 
 Das Konzept soll neuen Entwicklerinnen und Entwicklern erklären, warum die
 Oberfläche so aussieht und welche Richtung bei neuen Ansichten beibehalten
 werden sollte. Die tatsächlich ausgelieferten Werte und Regeln stehen in
-[`css/app.css`](../css/app.css); dieses Dokument beschreibt deren Absicht.
+[`css/app.css`](../../css/app.css); dieses Dokument beschreibt deren Absicht.
 
 ## Gestaltungsziel
 

@@ -2,16 +2,21 @@
 
 Dieses Dokument beschreibt die **aktuelle technische Referenzimplementierung**.
 Der programmiersprachenunabhängige fachliche Sollzustand steht in der
-[Anforderungsanalyse](anforderungen/README.md). Architekturentscheidungen
+[Anforderungsanalyse](../anforderungen/README.md). Architekturentscheidungen
 dürfen die dort festgelegten Akzeptanzkriterien erfüllen, ohne den
 Produktvertrag an eine konkrete Umsetzung zu binden.
 
 Dieses Dokument beschreibt den technischen Aufbau des Trade Kalenders. Es ist
 der Einstieg für Änderungen an Struktur, Datenfluss oder Infrastruktur. Die
-verbindlichen Arbeitsregeln stehen ergänzend in [Agent.md](../Agent.md), der
+verbindlichen Arbeitsregeln stehen ergänzend in den
+[Agent-Regeln](../development/AGENT-RULES.md), der
 fachliche Datenvertrag in [DATA_MODEL.md](DATA_MODEL.md). Eine Übersetzung der
 Module und Muster in C#/.NET-Begriffe bietet der
-[.NET-Leitfaden](DOTNET-GUIDE.md).
+[.NET-Leitfaden](../learning/DOTNET-GUIDE.md).
+
+Timing- und Verhaltensanalysen, ihre Funktionsgrenzen und der sichere
+Erweiterungsablauf stehen in der technischen
+[Trade-Analyse](TRADE-ANALYSE.md).
 
 ## Kontext und Leitplanken
 
@@ -51,7 +56,7 @@ werden.
 
 ### Anwendungssteuerung
 
-[`js/app.js`](../js/app.js) ist der zentrale Controller. Das Modul hält den
+[`js/app.js`](../../js/app.js) ist der zentrale Controller. Das Modul hält den
 aktuellen App-Zustand, den gewählten Speichermodus, den nur im Arbeitsspeicher
 liegenden Google-Token sowie die Drive-Datei-ID und deren ETag. Es verbindet
 UI-Ereignisse mit Fachfunktionen, führt Mutationen kontrolliert aus, stößt die
@@ -84,17 +89,19 @@ Handwerte getestet.
 
 ### Infrastruktur
 
-[`js/local-storage.js`](../js/local-storage.js) kapselt IndexedDB. App-Daten und
+[`js/local-storage.js`](../../js/local-storage.js) kapselt IndexedDB. App-Daten
+und
 der ausgewählte Speichermodus liegen als getrennte Schlüssel in der Datenbank
 `trade-kalender-local`.
 
-[`js/storage.js`](../js/storage.js) kapselt Google Drive zustandslos. Das Modul
+[`js/storage.js`](../../js/storage.js) kapselt Google Drive zustandslos. Das
+Modul
 bekommt den Access-Token als Parameter. Suche, Erstellung und Download
 verwenden Drive API v3. Der starke ETag und das atomare Update mit `If-Match`
 verwenden den dafür benötigten v2-Dateivertrag. HTTP 412 wird als fachlich
 behandelbarer Konflikt zurückgegeben.
 
-[`sw.js`](../sw.js) und [`sw-register.js`](../sw-register.js) bilden die
+[`sw.js`](../../sw.js) und [`sw-register.js`](../../sw-register.js) bilden die
 PWA-Infrastruktur. Der Service Worker cached die lokale App-Shell. Google
 Identity Services und Google Drive werden nie gecacht. Der unabhängige Starter
 kann einen alten JavaScript-Cache mit falschem MIME-Typ reparieren, auch wenn
@@ -158,7 +165,7 @@ bleiben Metadaten der Auswertung; es entstehen keine neuen persistenten Felder.
 
 ## Zustands- und Vertrauensgrenzen
 
-- Nur [`app-data.js`](../js/app-data.js) definiert die persistente Top-Level-
+- Nur [`app-data.js`](../../js/app-data.js) definiert die persistente Top-Level-
   Struktur. Unbekannte Top-Level-Felder werden bewusst verworfen.
 - Importierte Trades sind eine Sicht auf das Broker-Ledger. Änderungen an
   ihnen müssen die zugehörige Verkaufszeile ändern und anschließend FIFO neu

@@ -80,6 +80,9 @@ entfernte Positionen getrennt darstellen.
 
 ## UI-07 – Statistik
 
+Die fachliche Bedeutung der Unterbereiche Timing und Verhalten steht im
+[Trade-Analyse-Vertrag](TRADE-ANALYSE.md).
+
 **Muss:** Der Statistikbereich muss umfangreiche Auswertungen in die vier
 Unterbereiche Kennzahlen, Performance, Timing und Verhalten gliedern.
 

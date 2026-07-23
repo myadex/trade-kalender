@@ -22,12 +22,13 @@ Live-Reload-Skript wird von der Content Security Policy absichtlich blockiert.
 Lies vor einer Änderung:
 
 - [Anforderungsanalyse](docs/anforderungen/README.md)
-- [Architektur](docs/ARCHITECTURE.md)
-- [Datenmodell](docs/DATA_MODEL.md)
-- [.NET-Leitfaden](docs/DOTNET-GUIDE.md)
-- [.NET-/Agenten-Lernplan](docs/DOTNET-AGENT-LEARNING.md)
+- [Dokumentationsübersicht](docs/README.md)
+- [Architektur](docs/architecture/ARCHITECTURE.md)
+- [Datenmodell](docs/architecture/DATA_MODEL.md)
+- [.NET-Leitfaden](docs/learning/DOTNET-GUIDE.md)
+- [.NET-/Agenten-Lernplan](docs/learning/DOTNET-AGENT-LEARNING.md)
 - [Automatischer Agent-Einstieg](AGENTS.md)
-- [Agent-Regeln](Agent.md)
+- [Agent-Regeln](docs/development/AGENT-RULES.md)
 - [Test-Harness](test/README.md)
 - [Security-Leitfaden](SECURITY.md)
 

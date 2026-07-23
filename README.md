@@ -66,25 +66,30 @@ verwenden.
 
 - [Anforderungsanalyse](docs/anforderungen/README.md) – sprachunabhängiger
   Produktvertrag nach Fachbereichen
-- [Backlog](BACKLOG.md) – priorisierte offene, erledigte und verworfene Arbeit
+- [Backlog](docs/project/BACKLOG.md) – priorisierte offene, erledigte und
+  verworfene Arbeit
 
 ### Technische Umsetzung
 
-- [Architektur](docs/ARCHITECTURE.md) – Schichten, Datenfluss, APIs und PWA
-- [Datenmodell](docs/DATA_MODEL.md) – persistenter Vertrag und Invarianten
-- [Designkonzept](docs/DESIGN-KONZEPT.md) – unverbindliche visuelle Leitidee,
-  Typografie, Farben und Interaktionsmuster
+- [Dokumentationsübersicht](docs/README.md) – Einstieg in alle Dokumentbereiche
+- [Architektur](docs/architecture/ARCHITECTURE.md) – Schichten, Datenfluss,
+  APIs und PWA
+- [Datenmodell](docs/architecture/DATA_MODEL.md) – persistenter Vertrag und
+  Invarianten
+- [Designkonzept](docs/architecture/DESIGN-KONZEPT.md) – unverbindliche
+  visuelle Leitidee, Typografie, Farben und Interaktionsmuster
 - [Sicherheit](SECURITY.md) – konkrete Schutzmaßnahmen und Meldeweg
 - [Tests](test/README.md) – Aufbau und Regeln des Test-Harness
 
 ### Lernen und Mitarbeit
 
-- [Für .NET-Entwickler](docs/DOTNET-GUIDE.md) – aktuelle Module als
+- [Für .NET-Entwickler](docs/learning/DOTNET-GUIDE.md) – aktuelle Module als
   vertraute .NET-Konzepte lesen
-- [Lernplan: modernes .NET mit Agents](docs/DOTNET-AGENT-LEARNING.md) –
+- [Lernplan: modernes .NET mit Agents](docs/learning/DOTNET-AGENT-LEARNING.md) –
   VS-Code-Setup, Lernphasen und Aufgabenteilung
 - [Beiträge](CONTRIBUTING.md) – lokales Setup und Änderungsworkflow
-- [Agent-Regeln](Agent.md) – verbindliche technische Leitplanken
+- [Agent-Regeln](docs/development/AGENT-RULES.md) – verbindliche technische
+  Leitplanken
 - [Agent-Einstieg](AGENTS.md) – automatisch auffindbare Kurzfassung
 
 ## Daten und Sicherheit
@@ -103,9 +108,10 @@ technischen [Sicherheitsdokumentation](SECURITY.md).
 
 ## Weiterentwicklung
 
-Vor jeder Änderung gelten [AGENTS.md](AGENTS.md), [Agent.md](Agent.md) und
-[dev-prompts-vorlagen.md](dev-prompts-vorlagen.md). Die komplette Testsuite
+Vor jeder Änderung gelten [AGENTS.md](AGENTS.md), die
+[Agent-Regeln](docs/development/AGENT-RULES.md) und die
+[Prompt-Vorlagen](docs/development/DEV-PROMPTS.md). Die komplette Testsuite
 läuft vor und nach jeder Änderung. Produktverhalten wird zuerst in der
 Anforderungsanalyse beschrieben; konkrete Implementierungsentscheidungen
 gehören in Architektur und Datenmodell. Noch nicht umgesetzte Ideen stehen
-ausschließlich im [Backlog](BACKLOG.md).
+ausschließlich im [Backlog](docs/project/BACKLOG.md).
